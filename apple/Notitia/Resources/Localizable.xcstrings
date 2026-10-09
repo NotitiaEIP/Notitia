@@ -1,0 +1,917 @@
+{
+  "sourceLanguage" : "fr",
+  "strings" : {
+    "" : {
+
+    },
+    "« / » dans un bloc vide ouvre le menu des blocs" : {
+
+    },
+    "« # », « - », « 1. », « [] », « > » transforment le bloc pendant que vous tapez" : {
+
+    },
+    "/ti" : {
+
+    },
+    "%@  " : {
+
+    },
+    "%@  %@" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@  %2$@"
+          }
+        }
+      }
+    },
+    "%@ — %@" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ — %2$@"
+          }
+        }
+      }
+    },
+    "%@ · rien ne quitte ce Mac" : {
+
+    },
+    "%@%@" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@%2$@"
+          }
+        }
+      }
+    },
+    "%lld" : {
+
+    },
+    "%lld %%" : {
+
+    },
+    "%lld nœuds" : {
+
+    },
+    "%lld notes" : {
+
+    },
+    "%lld." : {
+
+    },
+    "⇧⌘N crée un dossier ; clic droit pour un sous-dossier, une icône ou une couleur" : {
+
+    },
+    "⇧⌘R démarre et arrête l'enregistrement, ⇧⌘P le met en pause" : {
+
+    },
+    "⌘B, ⌘I, ⌘U, couleurs et surlignage depuis la barre d'outils" : {
+
+    },
+    "⌥⌘F cherche dans toutes les notes, ⌘K ouvre une note par son nom" : {
+
+    },
+    "00:23" : {
+
+    },
+    "1 note" : {
+
+    },
+    "Afficher l'inspecteur" : {
+
+    },
+    "Afficher l'inspecteur (⌥⌘I)" : {
+
+    },
+    "Afficher les fichiers dans le Finder" : {
+
+    },
+    "Agrandir" : {
+
+    },
+    "Aide de Notitia" : {
+
+    },
+    "Ajouter un tag" : {
+
+    },
+    "Annuler" : {
+
+    },
+    "Apparence" : {
+
+    },
+    "Arrêter" : {
+
+    },
+    "Arrêter et enregistrer (⇧⌘R)" : {
+
+    },
+    "Arrêter l'enregistrement" : {
+
+    },
+    "Arrêter l'enregistrement (⇧⌘R)" : {
+
+    },
+    "Aucun" : {
+
+    },
+    "Aucun compte, aucune collecte" : {
+
+    },
+    "Aucun contenu" : {
+
+    },
+    "Aucun dossier" : {
+
+    },
+    "Aucun enregistrement" : {
+
+    },
+    "Aucun résultat" : {
+
+    },
+    "Aucune connexion à Internet" : {
+
+    },
+    "Aucune note" : {
+
+    },
+    "Aucune note sélectionnée" : {
+
+    },
+    "Aucune transcription." : {
+
+    },
+    "Audio chiffré (AES-256)" : {
+
+    },
+    "Audio chiffré (AES-256) sur ce Mac" : {
+
+    },
+    "audio supprimé" : {
+
+    },
+    "Audio supprimé le %@" : {
+
+    },
+    "Avant d'enregistrer" : {
+
+    },
+    "Barré" : {
+
+    },
+    "Barré (⇧⌘X)" : {
+
+    },
+    "Bienvenue dans Notitia" : {
+
+    },
+    "Blocs" : {
+
+    },
+    "Carte mentale" : {
+
+    },
+    "Cette note est dans la corbeille. Restaurez-la pour la modifier." : {
+
+    },
+    "Chaque paragraphe est un bloc : titre, liste, tâche, citation, encadré, code ou image. Tapez « / » pour choisir, ou utilisez les raccourcis Markdown." : {
+
+    },
+    "Chaque phrase est horodatée : un clic relance l'audio à cet instant" : {
+
+    },
+    "Chinois" : {
+
+    },
+    "Choisir une image ou la déposer ici" : {
+
+    },
+    "Choisissez le dossier où créer l'export Notitia." : {
+
+    },
+    "Choisissez une note dans la liste ou créez-en une." : {
+
+    },
+    "Citation" : {
+
+    },
+    "Cliquez sur un nœud pour voir sa source · double-cliquez pour le renommer" : {
+
+    },
+    "Cocher" : {
+
+    },
+    "Cocher / décocher" : {
+
+    },
+    "Code" : {
+
+    },
+    "Commencer" : {
+
+    },
+    "Commencer avec un carnet vide" : {
+
+    },
+    "Confidentialité" : {
+
+    },
+    "Consentement confirmé le %@" : {
+
+    },
+    "Conservation" : {
+
+    },
+    "Conserver l'audio" : {
+
+    },
+    "Continuer" : {
+
+    },
+    "Copier dans la note comme texte" : {
+
+    },
+    "Corbeille" : {
+
+    },
+    "Corbeille vide" : {
+
+    },
+    "Couleur" : {
+
+    },
+    "Couleur du texte" : {
+
+    },
+    "Couleur et style" : {
+
+    },
+    "Couleur, surlignage, code et lien" : {
+
+    },
+    "Créée" : {
+
+    },
+    "Créer" : {
+
+    },
+    "Créer une carte mentale" : {
+
+    },
+    "Créez des dossiers et des sous-dossiers pour chaque matière, projet ou équipe. Glissez une note sur un dossier pour la ranger." : {
+
+    },
+    "Créez une note avec ⌘N." : {
+
+    },
+    "Dans %@" : {
+
+    },
+    "Dans les deux cas, une note « Aide » épinglée détaille toutes les possibilités de l'éditeur." : {
+
+    },
+    "Date de création" : {
+
+    },
+    "Date de modification" : {
+
+    },
+    "Décocher" : {
+
+    },
+    "Découvrir avec des exemples" : {
+
+    },
+    "Démarrer l'enregistrement" : {
+
+    },
+    "Démarrer un enregistrement" : {
+
+    },
+    "Déplacer à la racine" : {
+
+    },
+    "Déplacer vers" : {
+
+    },
+    "Déplier" : {
+
+    },
+    "Des cours de chinois, d'anglais et de maths, et une réunion déjà transcrite pour essayer le résumé et la carte mentale." : {
+
+    },
+    "désactivés dans les notes" : {
+
+    },
+    "Descendre" : {
+
+    },
+    "Descendre le bloc" : {
+
+    },
+    "Désépingler" : {
+
+    },
+    "Dossier" : {
+
+    },
+    "Dossiers" : {
+
+    },
+    "Dupliquer" : {
+
+    },
+    "Échec de l'effacement : %@" : {
+
+    },
+    "Échec de l'export : %@" : {
+
+    },
+    "Écouter à partir d'ici" : {
+
+    },
+    "Écouter l'enregistrement" : {
+
+    },
+    "Écouter la leçon 4" : {
+
+    },
+    "Écrivez avec style, sans effort" : {
+
+    },
+    "Écrivez, ou tapez « / » pour les commandes" : {
+
+    },
+    "Effacement total en un clic" : {
+
+    },
+    "Effacer toutes mes données…" : {
+
+    },
+    "Effacer toutes vos données ?" : {
+
+    },
+    "Élément de liste" : {
+
+    },
+    "En cours · %@" : {
+
+    },
+    "En cours · 00:23" : {
+
+    },
+    "En pause" : {
+
+    },
+    "Encadré" : {
+
+    },
+    "Enregistrement" : {
+
+    },
+    "Enregistrement en cours" : {
+
+    },
+    "Enregistrement introuvable" : {
+
+    },
+    "Enregistrements" : {
+
+    },
+    "Enregistrer" : {
+
+    },
+    "Enregistrer et transcrire (⇧⌘R)" : {
+
+    },
+    "Enregistrez vos réunions et vos cours" : {
+
+    },
+    "Épinglée" : {
+
+    },
+    "Épinglées" : {
+
+    },
+    "Épingler" : {
+
+    },
+    "Épinglez les notes importantes, ajoutez des tags pour les regrouper" : {
+
+    },
+    "Espace utilisé" : {
+
+    },
+    "ex. : planning, design, RGPD" : {
+
+    },
+    "Export complet de vos données" : {
+
+    },
+    "Export créé : %@" : {
+
+    },
+    "Exporter ici" : {
+
+    },
+    "Exporter toutes mes données…" : {
+
+    },
+    "Extraire les mots-clés" : {
+
+    },
+    "Fermer" : {
+
+    },
+    "Finalisation…" : {
+
+    },
+    "Format" : {
+
+    },
+    "Général" : {
+
+    },
+    "Glisser pour déplacer, cliquer pour les options" : {
+
+    },
+    "Gras" : {
+
+    },
+    "Gras (⌘B)" : {
+
+    },
+    "Hier" : {
+
+    },
+    "Hors ligne" : {
+
+    },
+    "Icône" : {
+
+    },
+    "Impossible de démarrer l'enregistrement" : {
+
+    },
+    "Insérer en dessous" : {
+
+    },
+    "Inspecteur" : {
+
+    },
+    "Intelligence" : {
+
+    },
+    "Italique" : {
+
+    },
+    "Italique (⌘I)" : {
+
+    },
+    "J'ai informé les participants et ils acceptent l'enregistrement." : {
+
+    },
+    "L'application n'a pas l'autorisation d'accéder à Internet" : {
+
+    },
+    "L'audio chiffré et le texte transcrit seront supprimés définitivement." : {
+
+    },
+    "L'audio est chiffré (AES-256-GCM) avec une clé conservée dans le trousseau de ce Mac. Quand l'audio expire, la transcription est conservée." : {
+
+    },
+    "L'audio reste sur ce Mac et il est chiffré." : {
+
+    },
+    "L'export contient toutes vos notes (Markdown et JSON), vos transcriptions et votre audio déchiffré. L'effacement supprime définitivement la base, l'audio, les images et la clé de chiffrement." : {
+
+    },
+    "La transcription est conservée. Cette action est définitive." : {
+
+    },
+    "La transcription est faite sur l'appareil, sans Internet." : {
+
+    },
+    "La voix des participants est une donnée personnelle. Vous devez les informer que la conversation est enregistrée et transcrite, et obtenir leur accord." : {
+
+    },
+    "Lancez un enregistrement avec ⇧⌘R." : {
+
+    },
+    "Langue parlée" : {
+
+    },
+    "Le mandarin est une langue %@ : le sens dépend de la mélodie." : {
+
+    },
+    "Le moteur définitif n'est pas encore choisi. Le moteur de démonstration rejoue un texte d'exemple pour tester l'application ; aucun son n'est analysé." : {
+
+    },
+    "Le moteur local sélectionne et organise les phrases de vos notes pour produire résumés, mots-clés et cartes mentales. Il fonctionne sans Internet." : {
+
+    },
+    "Les enregistrements sont chiffrés sur votre Mac" : {
+
+    },
+    "Les notes supprimées y restent 30 jours." : {
+
+    },
+    "Les notes, leurs enregistrements et leur audio seront supprimés définitivement." : {
+
+    },
+    "Les quatre tons" : {
+
+    },
+    "Les tons" : {
+
+    },
+    "Lien" : {
+
+    },
+    "Lien…" : {
+
+    },
+    "Liste à puces" : {
+
+    },
+    "Liste de tâches" : {
+
+    },
+    "Liste numérotée" : {
+
+    },
+    "Mettre à la corbeille" : {
+
+    },
+    "Modifiée" : {
+
+    },
+    "Modifiée %@" : {
+
+    },
+    "Modifier le dossier" : {
+
+    },
+    "Monter" : {
+
+    },
+    "Monter le bloc" : {
+
+    },
+    "Moteur" : {
+
+    },
+    "Moteur : %@ · %@" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Moteur : %1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "Mots" : {
+
+    },
+    "Mots-clés, et synthèse réorganisée autour de vos propres mots-clés" : {
+
+    },
+    "Ne plus afficher ce rappel" : {
+
+    },
+    "Nom (par exemple : Chinois, Réunions d'équipe…)" : {
+
+    },
+    "Note" : {
+
+    },
+    "Notes" : {
+
+    },
+    "Notes, transcriptions et enregistrements sont stockés uniquement dans le conteneur privé de Notitia. L'application n'a pas l'autorisation d'accéder à Internet : rien n'est envoyé, rien n'est collecté." : {
+
+    },
+    "Notitia" : {
+
+    },
+    "Notitia fonctionne entièrement hors ligne. Aucun compte, aucune collecte : vous pouvez tout exporter ou tout effacer." : {
+
+    },
+    "Notitia transcrit la conversation en direct, dans votre note. Cliquez ensuite sur un passage pour le réécouter." : {
+
+    },
+    "Nouveau dossier" : {
+
+    },
+    "Nouveau dossier (⇧⌘N)" : {
+
+    },
+    "Nouveau sous-dossier" : {
+
+    },
+    "Nouvelle note" : {
+
+    },
+    "Nouvelle note (⌘N)" : {
+
+    },
+    "Nouvelle note ici" : {
+
+    },
+    "Outils d'écriture Apple" : {
+
+    },
+    "Ouverture rapide…" : {
+
+    },
+    "Ouvrir la note d'aide" : {
+
+    },
+    "Ouvrir une note…" : {
+
+    },
+    "Page %lld sur %lld" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Page %1$lld sur %2$lld"
+          }
+        }
+      }
+    },
+    "Par défaut" : {
+
+    },
+    "Par où commencer ?" : {
+
+    },
+    "Parlez, la transcription s'affiche ici…" : {
+
+    },
+    "Partez de zéro et créez vos propres dossiers." : {
+
+    },
+    "Pas d'audio" : {
+
+    },
+    "Passer le tutoriel" : {
+
+    },
+    "Pause" : {
+
+    },
+    "Pause (⇧⌘P)" : {
+
+    },
+    "Protection des données personnelles" : {
+
+    },
+    "Quelques pages pour découvrir l'essentiel. Utilisez les flèches ← → ou le bouton Continuer." : {
+
+    },
+    "Rangez vos notes comme vous le souhaitez" : {
+
+    },
+    "Rappeler l'obligation d'informer les participants avant chaque enregistrement" : {
+
+    },
+    "Récentes" : {
+
+    },
+    "Recherche" : {
+
+    },
+    "Rechercher dans les notes" : {
+
+    },
+    "Réécrire avec mes mots-clés" : {
+
+    },
+    "Réglages › Confidentialité : durée de conservation, export, effacement" : {
+
+    },
+    "Renommer et personnaliser…" : {
+
+    },
+    "Replier" : {
+
+    },
+    "Reprendre" : {
+
+    },
+    "Reprendre (⇧⌘P)" : {
+
+    },
+    "Réseau" : {
+
+    },
+    "Restaurer" : {
+
+    },
+    "Résumé : points clés, décisions, actions et questions" : {
+
+    },
+    "Résumer" : {
+
+    },
+    "Résumez et visualisez" : {
+
+    },
+    "Retirer %@" : {
+
+    },
+    "Retour" : {
+
+    },
+    "Revoir le tutoriel" : {
+
+    },
+    "Saisissez l'adresse du lien. Laissez vide pour le retirer." : {
+
+    },
+    "sans audio" : {
+
+    },
+    "Sans titre" : {
+
+    },
+    "Sélectionnez une note pour voir ses informations." : {
+
+    },
+    "Ses sous-dossiers seront supprimés et ses %lld note(s) placée(s) dans la corbeille." : {
+
+    },
+    "Souligné" : {
+
+    },
+    "Souligné (⌘U)" : {
+
+    },
+    "Suit le réglage du système (clair ou sombre) et votre couleur d'accent." : {
+
+    },
+    "suppression définitive après %lld jours" : {
+
+    },
+    "Supprimer" : {
+
+    },
+    "Supprimer cet enregistrement ?" : {
+
+    },
+    "Supprimer définitivement" : {
+
+    },
+    "Supprimer l'audio" : {
+
+    },
+    "Supprimer l'audio de cet enregistrement ?" : {
+
+    },
+    "Supprimer l'audio et la transcription" : {
+
+    },
+    "Supprimer l'audio…" : {
+
+    },
+    "Supprimer le bloc" : {
+
+    },
+    "Supprimer le dossier « %@ » ?" : {
+
+    },
+    "Supprimer le dossier…" : {
+
+    },
+    "Supprimer le tag" : {
+
+    },
+    "Supprimer…" : {
+
+    },
+    "Surlignage" : {
+
+    },
+    "Synthèse" : {
+
+    },
+    "Tâche" : {
+
+    },
+    "Tags" : {
+
+    },
+    "Tags existants" : {
+
+    },
+    "Terminer" : {
+
+    },
+    "Texte" : {
+
+    },
+    "Titre" : {
+
+    },
+    "Titre 1" : {
+
+    },
+    "Titre 2" : {
+
+    },
+    "Titre 3" : {
+
+    },
+    "Ton %lld" : {
+
+    },
+    "tonale" : {
+
+    },
+    "Tout effacer définitivement" : {
+
+    },
+    "Tout se trouve dans l'inspecteur (⌥⌘I), section Intelligence" : {
+
+    },
+    "Toutes les données ont été effacées." : {
+
+    },
+    "Toutes les notes" : {
+
+    },
+    "Toutes les notes, dossiers, tags, transcriptions et enregistrements seront supprimés de ce Mac. Cette action est irréversible. Pensez à exporter vos données avant." : {
+
+    },
+    "Transcription" : {
+
+    },
+    "Transformer en" : {
+
+    },
+    "Transformez une transcription en résumé structuré ou en carte mentale. Chaque idée renvoie à la phrase dont elle vient." : {
+
+    },
+    "Trier" : {
+
+    },
+    "Trier les notes" : {
+
+    },
+    "Trier les notes par" : {
+
+    },
+    "Trier par" : {
+
+    },
+    "Type de bloc" : {
+
+    },
+    "Type du bloc" : {
+
+    },
+    "Un rappel vous invite à informer les participants" : {
+
+    },
+    "Valider" : {
+
+    },
+    "Version" : {
+
+    },
+    "Vider la corbeille" : {
+
+    },
+    "Vider la corbeille ?" : {
+
+    },
+    "Vos données restent chez vous" : {
+
+    },
+    "Vos données restent sur ce Mac" : {
+
+    },
+    "Vos droits" : {
+
+    },
+    "Vos notes, vos cours et vos réunions. Sur votre Mac, et nulle part ailleurs." : {
+
+    },
+    "Vous pourrez revoir ce tutoriel à tout moment avec le menu Aide." : {
+
+    },
+    "Vous pouvez supprimer l'audio à tout moment en gardant le texte." : {
+
+    }
+  },
+  "version" : "1.0"
+}
