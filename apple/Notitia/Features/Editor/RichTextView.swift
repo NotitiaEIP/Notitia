@@ -123,6 +123,14 @@ struct RichTextView: NSViewRepresentable {
             model.selectionChanged(blockID, range: range.location..<range.upperBound)
         }
 
+        /// Les horodatages des citations (`notitia://recording/…`) rejouent l'audio au lieu d'ouvrir une URL.
+        func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
+            let url = (link as? URL) ?? (link as? String).flatMap(URL.init(string:))
+            guard let url, let transcriptLink = TranscriptLink(url: url) else { return false }
+            model.open(transcriptLink)
+            return true
+        }
+
         func textView(_ textView: NSTextView, doCommandBy selector: Selector) -> Bool {
             guard let view = textView as? BlockTextView else { return false }
             let range = view.selectedRange()

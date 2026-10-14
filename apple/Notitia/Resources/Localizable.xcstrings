@@ -39,6 +39,16 @@
     "%@ · rien ne quitte ce Mac" : {
 
     },
+    "%@–%@ · automatique" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@–%2$@ · automatique"
+          }
+        }
+      }
+    },
     "%@%@" : {
       "localizations" : {
         "fr" : {
@@ -53,6 +63,9 @@
 
     },
     "%lld %%" : {
+
+    },
+    "%lld annotation(s) automatique(s)" : {
 
     },
     "%lld nœuds" : {
@@ -82,10 +95,16 @@
     "1 note" : {
 
     },
+    "Afficher l'annotation" : {
+
+    },
     "Afficher l'inspecteur" : {
 
     },
     "Afficher l'inspecteur (⌥⌘I)" : {
+
+    },
+    "Afficher les annotations masquées" : {
 
     },
     "Afficher les fichiers dans le Finder" : {
@@ -100,10 +119,22 @@
     "Ajouter un tag" : {
 
     },
+    "Analyse du ton des passages…" : {
+
+    },
+    "Analyser le ton des passages" : {
+
+    },
+    "Annoter les sons et le volume" : {
+
+    },
     "Annuler" : {
 
     },
     "Apparence" : {
+
+    },
+    "Après l'enregistrement, à partir du texte seulement (par exemple « échange tendu sur le budget »). Utilise Apple Intelligence si elle est disponible." : {
 
     },
     "Arrêter" : {
@@ -160,6 +191,9 @@
     "Audio supprimé le %@" : {
 
     },
+    "automatique" : {
+
+    },
     "Avant d'enregistrer" : {
 
     },
@@ -176,6 +210,9 @@
 
     },
     "Carte mentale" : {
+
+    },
+    "Cette langue n'est pas prise en charge par la transcription d'Apple." : {
 
     },
     "Cette note est dans la corbeille. Restaurez-la pour la modifier." : {
@@ -200,6 +237,12 @@
 
     },
     "Citation" : {
+
+    },
+    "Citer avec le contexte" : {
+
+    },
+    "Citer avec le contexte : insère cette phrase, la précédente et la suivante dans la note" : {
 
     },
     "Cliquez sur un nœud pour voir sa source · double-cliquez pour le renommer" : {
@@ -318,6 +361,16 @@
     },
     "Désépingler" : {
 
+    },
+    "Détecté automatiquement (%@), confiance %lld %%. Décrit le moment, jamais l'état d'une personne. Clic droit pour masquer." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Détecté automatiquement (%1$@), confiance %2$lld %%. Décrit le moment, jamais l'état d'une personne. Clic droit pour masquer."
+          }
+        }
+      }
     },
     "Dossier" : {
 
@@ -466,6 +519,9 @@
     "Inspecteur" : {
 
     },
+    "Installer le modèle" : {
+
+    },
     "Intelligence" : {
 
     },
@@ -490,6 +546,9 @@
     "L'audio reste sur ce Mac et il est chiffré." : {
 
     },
+    "L'empreinte calculée à la fin de l'enregistrement correspond toujours au texte et aux sons captés. Elle détecte une modification de la base sur ce Mac ; ce n'est pas une preuve opposable à un tiers." : {
+
+    },
     "L'export contient toutes vos notes (Markdown et JSON), vos transcriptions et votre audio déchiffré. L'effacement supprime définitivement la base, l'audio, les images et la clé de chiffrement." : {
 
     },
@@ -497,6 +556,9 @@
 
     },
     "La transcription est faite sur l'appareil, sans Internet." : {
+
+    },
+    "La transcription sur l'appareil n'est pas disponible sur ce Mac." : {
 
     },
     "La voix des participants est une donnée personnelle. Vous devez les informer que la conversation est enregistrée et transcrite, et obtenir leur accord." : {
@@ -511,10 +573,22 @@
     "Le mandarin est une langue %@ : le sens dépend de la mélodie." : {
 
     },
-    "Le moteur définitif n'est pas encore choisi. Le moteur de démonstration rejoue un texte d'exemple pour tester l'application ; aucun son n'est analysé." : {
+    "Le modèle de chaque langue est fourni par macOS et installé une seule fois par le système. Notitia elle-même n'a toujours aucun accès à Internet." : {
+
+    },
+    "Le moteur d'Apple reconnaît réellement la parole, sur ce Mac et sans Internet. Le moteur de démonstration rejoue un texte d'exemple, pour essayer l'application sans parler." : {
 
     },
     "Le moteur local sélectionne et organise les phrases de vos notes pour produire résumés, mots-clés et cartes mentales. Il fonctionne sans Internet." : {
+
+    },
+    "Le texte ou les sons captés ne correspondent plus à l'empreinte calculée à la fin de l'enregistrement." : {
+
+    },
+    "Le ton des passages est analysé à partir du texte, jamais de la voix, et sans qualifier les personnes." : {
+
+    },
+    "Les annotations décrivent un moment ou un passage, jamais une personne : Notitia ne déduit pas les émotions à partir de la voix, ce que le règlement européen sur l'IA interdit au travail et dans l'enseignement. Tout est analysé sur ce Mac, marqué « automatique », et peut être masqué." : {
 
     },
     "Les enregistrements sont chiffrés sur votre Mac" : {
@@ -527,6 +601,9 @@
 
     },
     "Les quatre tons" : {
+
+    },
+    "Les rires, applaudissements, silences et passages au volume élevé sont signalés dans la transcription." : {
 
     },
     "Les tons" : {
@@ -547,7 +624,16 @@
     "Liste numérotée" : {
 
     },
+    "Masquer l'annotation" : {
+
+    },
     "Mettre à la corbeille" : {
+
+    },
+    "Modèle à installer avant d'enregistrer" : {
+
+    },
+    "Modèle installé sur ce Mac" : {
 
     },
     "Modifiée" : {
@@ -605,7 +691,7 @@
     "Notitia fonctionne entièrement hors ligne. Aucun compte, aucune collecte : vous pouvez tout exporter ou tout effacer." : {
 
     },
-    "Notitia transcrit la conversation en direct, dans votre note. Cliquez ensuite sur un passage pour le réécouter." : {
+    "Notitia transcrit la conversation en direct, sur ce Mac, et signale rires, applaudissements et silences. Cliquez ensuite sur un passage pour le réécouter." : {
 
     },
     "Nouveau dossier" : {
@@ -735,6 +821,9 @@
     "Revoir le tutoriel" : {
 
     },
+    "Rires, applaudissements, longs silences et passages au volume élevé, repérés pendant l'enregistrement." : {
+
+    },
     "Saisissez l'adresse du lien. Laissez vide pour le retirer." : {
 
     },
@@ -834,6 +923,9 @@
     "Ton %lld" : {
 
     },
+    "Ton du passage : %@" : {
+
+    },
     "tonale" : {
 
     },
@@ -853,6 +945,15 @@
 
     },
     "Transcription" : {
+
+    },
+    "Transcription d'origine, non modifiée" : {
+
+    },
+    "Transcription enrichie" : {
+
+    },
+    "Transcription modifiée depuis l'enregistrement" : {
 
     },
     "Transformer en" : {
@@ -883,6 +984,9 @@
 
     },
     "Valider" : {
+
+    },
+    "Vérification du modèle…" : {
 
     },
     "Version" : {

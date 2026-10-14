@@ -188,6 +188,10 @@ public final class Recording {
     /// Date de suppression de l'audio (manuelle ou par la politique de conservation).
     public var audioDeletedAt: Date?
     @Attribute(.externalStorage) public var segmentsData: Data
+    /// Annotations (sons, volume, ton). Optionnel : les enregistrements antérieurs n'en ont pas.
+    @Attribute(.externalStorage) public var annotationsData: Data?
+    /// Empreinte SHA-256 de la transcription d'origine, calculée à l'arrêt (voir `TranscriptIntegrity`).
+    public var integrityHash: String?
 
     public var note: Note?
 
@@ -212,6 +216,20 @@ public final class Recording {
     public var segments: [TranscriptSegment] {
         get { [TranscriptSegment].decode(segmentsData) }
         set { segmentsData = newValue.encoded() }
+    }
+
+    public var annotations: [TranscriptAnnotation] {
+        get { [TranscriptAnnotation].decode(annotationsData) }
+        set { annotationsData = newValue.isEmpty ? nil : newValue.encoded() }
+    }
+
+    /// Fige la transcription d'origine : à appeler une seule fois, à la fin de l'enregistrement.
+    public func seal() {
+        integrityHash = TranscriptIntegrity.fingerprint(segments: segments, annotations: annotations)
+    }
+
+    public var integrityStatus: TranscriptIntegrity.Status {
+        TranscriptIntegrity.status(expected: integrityHash, segments: segments, annotations: annotations)
     }
 }
 

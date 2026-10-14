@@ -2,14 +2,23 @@ import Foundation
 
 /// Conversion des notes en Markdown (export et portabilité RGPD).
 public enum MarkdownRenderer {
-    public static func render(title: String, document: NoteDocument, segmentsByRecording: [UUID: [TranscriptSegment]] = [:]) -> String {
+    public static func render(
+        title: String,
+        document: NoteDocument,
+        segmentsByRecording: [UUID: [TranscriptSegment]] = [:],
+        annotationsByRecording: [UUID: [TranscriptAnnotation]] = [:]
+    ) -> String {
         var lines: [String] = []
         if !title.isEmpty { lines.append("# \(title)"); lines.append("") }
-        lines.append(render(blocks: document.blocks, segmentsByRecording: segmentsByRecording))
+        lines.append(render(blocks: document.blocks, segmentsByRecording: segmentsByRecording, annotationsByRecording: annotationsByRecording))
         return lines.joined(separator: "\n")
     }
 
-    public static func render(blocks: [Block], segmentsByRecording: [UUID: [TranscriptSegment]] = [:]) -> String {
+    public static func render(
+        blocks: [Block],
+        segmentsByRecording: [UUID: [TranscriptSegment]] = [:],
+        annotationsByRecording: [UUID: [TranscriptAnnotation]] = [:]
+    ) -> String {
         let numbers = BlockOperations.listNumbers(blocks)
         var output: [String] = []
         var previousWasList = false
@@ -39,9 +48,16 @@ public enum MarkdownRenderer {
             case .transcript:
                 output.append("### Transcription")
                 let segments = block.recordingID.flatMap { segmentsByRecording[$0] } ?? []
-                for segment in segments where segment.isFinal {
-                    let speaker = segment.speaker.map { "**\($0)** " } ?? ""
-                    output.append("`[\(TranscriptSegment.formatTimestamp(segment.start))]` \(speaker)\(segment.text)  ")
+                let annotations = block.recordingID.flatMap { annotationsByRecording[$0] } ?? []
+                for item in TranscriptTimeline.merge(segments: segments.filter(\.isFinal), annotations: annotations) {
+                    switch item {
+                    case .segment(let segment):
+                        let speaker = segment.speaker.map { "**\($0)** " } ?? ""
+                        output.append("`[\(TranscriptSegment.formatTimestamp(segment.start))]` \(speaker)\(segment.text)  ")
+                    case .annotation(let annotation):
+                        // Toujours signalé comme automatique : une erreur ne doit pas passer pour un fait.
+                        output.append("`[\(TranscriptSegment.formatTimestamp(annotation.start))]` *(\(annotation.exportText), automatique)*  ")
+                    }
                 }
             case .mindMap:
                 if let map = block.mindMap { output.append(render(mindMap: map)) }

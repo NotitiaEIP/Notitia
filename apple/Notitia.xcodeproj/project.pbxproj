@@ -212,6 +212,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 Équipe Notitia — EIP Epitech";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Notitia utilise le microphone pour enregistrer et transcrire vos réunions. L'audio reste sur ce Mac et il est chiffré.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Notitia transcrit vos réunions avec la reconnaissance vocale d'Apple, entièrement sur ce Mac et sans Internet.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -245,6 +246,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 Équipe Notitia — EIP Epitech";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Notitia utilise le microphone pour enregistrer et transcrire vos réunions. L'audio reste sur ce Mac et il est chiffré.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Notitia transcrit vos réunions avec la reconnaissance vocale d'Apple, entièrement sur ce Mac et sans Internet.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

@@ -192,6 +192,11 @@ private struct NoteInspector: View {
                     Group {
                         Text("Moteur : \(recording.engineName) · \(Locale.current.localizedString(forIdentifier: recording.localeIdentifier) ?? recording.localeIdentifier)")
                         Text("Consentement confirmé le \(recording.consentConfirmedAt.formatted(date: .abbreviated, time: .shortened))")
+                        integrityLabel(recording)
+                        let annotationCount = recording.annotations.count
+                        if annotationCount > 0 {
+                            Label("\(annotationCount) annotation(s) automatique(s)", systemImage: "waveform.badge.magnifyingglass")
+                        }
                         if recording.hasAudio {
                             Label("Audio chiffré (AES-256) sur ce Mac", systemImage: "lock.fill")
                         } else if let deleted = recording.audioDeletedAt {
@@ -218,6 +223,22 @@ private struct NoteInspector: View {
                 }
                 .padding(.vertical, Spacing.xs)
             }
+        }
+    }
+
+    /// État de l'empreinte de la transcription d'origine (voir `TranscriptIntegrity`).
+    @ViewBuilder
+    private func integrityLabel(_ recording: Recording) -> some View {
+        switch recording.integrityStatus {
+        case .intact:
+            Label("Transcription d'origine, non modifiée", systemImage: "checkmark.seal")
+                .help("L'empreinte calculée à la fin de l'enregistrement correspond toujours au texte et aux sons captés. Elle détecte une modification de la base sur ce Mac ; ce n'est pas une preuve opposable à un tiers.")
+        case .modified:
+            Label("Transcription modifiée depuis l'enregistrement", systemImage: "exclamationmark.triangle")
+                .foregroundStyle(.orange)
+                .help("Le texte ou les sons captés ne correspondent plus à l'empreinte calculée à la fin de l'enregistrement.")
+        case .notSealed:
+            EmptyView()
         }
     }
 

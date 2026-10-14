@@ -167,7 +167,7 @@ enum TutorialPage: CaseIterable, Hashable {
         case .welcome: "Vos notes, vos cours et vos réunions. Sur votre Mac, et nulle part ailleurs."
         case .organize: "Créez des dossiers et des sous-dossiers pour chaque matière, projet ou équipe. Glissez une note sur un dossier pour la ranger."
         case .write: "Chaque paragraphe est un bloc : titre, liste, tâche, citation, encadré, code ou image. Tapez « / » pour choisir, ou utilisez les raccourcis Markdown."
-        case .record: "Notitia transcrit la conversation en direct, dans votre note. Cliquez ensuite sur un passage pour le réécouter."
+        case .record: "Notitia transcrit la conversation en direct, sur ce Mac, et signale rires, applaudissements et silences. Cliquez ensuite sur un passage pour le réécouter."
         case .intelligence: "Transformez une transcription en résumé structuré ou en carte mentale. Chaque idée renvoie à la phrase dont elle vient."
         case .privacy: "Notitia fonctionne entièrement hors ligne. Aucun compte, aucune collecte : vous pouvez tout exporter ou tout effacer."
         case .start: ""

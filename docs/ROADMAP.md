@@ -11,15 +11,26 @@
 - [x] Confidentialité : hors ligne, audio chiffré, consentement, conservation, export, effacement total
 - [x] Prise en main : tutoriel au premier lancement, note « Aide » complète, menu Aide
 
+## Fait — macOS, itération 2 : transcription réelle et enrichie
+
+- [x] Transcription réelle sur l'appareil : **SpeechAnalyzer** (moteur par défaut), installation du modèle de
+      langue depuis les Réglages, tags de la note comme vocabulaire
+- [x] Sons (SoundAnalysis) et volume : rires, applaudissements, cris, longs silences, volume élevé
+- [x] Ton des passages, à partir du texte : Foundation Models (sur l'appareil), repli NaturalLanguage ; opt-in
+- [x] Fidélité au contexte : transcription d'origine en lecture seule avec empreinte, annotations masquables,
+      « Citer avec le contexte » (horodatages cliquables qui rejouent l'audio)
+- [x] Aucune déduction d'émotion (AI Act, voir PRIVACY.md §6) ; 95 tests + 3 tests d'intégration
+
 ## Prochaines étapes (ordre conseillé)
 
-1. **Choisir et brancher le moteur de transcription réel.** Recommandation : Apple **SpeechAnalyzer**
-   (macOS 26, sur l'appareil, gratuit, conforme à l'exigence hors ligne). Implémenter `TranscriptionEngine`,
-   l'ajouter à `EngineCatalog`, puis tester en français sur une vraie réunion.
-2. **Moteur génératif local** : Apple **Foundation Models** pour des résumés reformulés (et non plus seulement
-   extractifs), en conservant `LocalExtractiveAIService` en repli. Attention à la fenêtre de contexte : découper
-   les longues transcriptions.
-3. **Tests manuels de l'enregistrement** sur plusieurs Mac (micro intégré, casque, permissions refusées).
+1. **Tests réels de la transcription enrichie** : une vraie réunion en français, sur plusieurs Mac (micro intégré,
+   casque, permission refusée). Vérifier dans l'app sandboxée l'installation du modèle depuis les Réglages
+   (sans `network.client`) et régler les seuils des sons et du volume (`SoundEventAggregator`, `LevelAnalyzer`)
+   sur de vrais enregistrements, rires compris.
+2. **Résumés génératifs avec Foundation Models** : nouvelle implémentation de `NoteAIService` (en gardant
+   `LocalExtractiveAIService` en repli), brancher `EngineCatalog.aiService(id:)`. Découper les longues
+   transcriptions (fenêtre de contexte) et reprendre la règle « chaque nœud cite son passage source ».
+3. **Séparation des locuteurs** : SpeechAnalyzer ne la fournit pas ; à étudier (sur l'appareil uniquement).
 4. **Éditeur** : annulation des opérations structurelles (aujourd'hui ⌘Z agit dans un bloc), collage
    multi-lignes en plusieurs blocs, sélection sur plusieurs blocs, tableaux, export PDF d'une note.
 5. **Localisation anglaise** : les textes sont en français (langue source) ; remplir `Localizable.xcstrings`,
@@ -27,7 +38,8 @@
 6. **Icône Liquid Glass** (Icon Composer) et vérification d'accessibilité (VoiceOver, contraste, taille du texte).
 7. **iOS / iPadOS** : nouvelle cible qui réutilise `NotitiaKit` ; Apple Pencil (PencilKit) pour l'écriture manuscrite.
 8. **Synchronisation** entre appareils (local-first), à concevoir avec les contraintes de PRIVACY.md §5.
-9. **Android (Kotlin)**, **Windows (C#/WinUI 3)**, **Linux** : ré-implémenter le format `NoteDocument`
-   et `BlockOperations` avec les mêmes tests (voir ARCHITECTURE.md).
+   Une empreinte signée et partagée entre participants rendrait la transcription d'origine vérifiable par tous.
+9. **Android (Kotlin)**, **Windows (C#/WinUI 3)**, **Linux** : ré-implémenter le format `NoteDocument`,
+   les annotations, l'empreinte canonique et `BlockOperations` avec les mêmes tests (voir ARCHITECTURE.md).
 10. **Questions sur toutes les notes** (RAG local) : embeddings sur l'appareil, en reprenant le découpage de
     l'ancienne app.

@@ -18,7 +18,8 @@ public enum AudioRecorderError: LocalizedError {
 /// Capture le micro avec AVAudioEngine.
 ///
 /// - écrit un fichier AAC (`.m4a`) **temporaire**, chiffré ensuite par `AudioVault` ;
-/// - publie un flux d'`AudioChunk` mono pour le moteur de transcription et l'indicateur de niveau.
+/// - publie un flux d'`AudioChunk` mono, horodatés sur la position dans le fichier, pour les analyses
+///   (transcription, sons, niveau) et l'indicateur de niveau.
 ///
 /// Indépendant de tout moteur de transcription.
 public final class AudioRecorder: @unchecked Sendable {
@@ -107,6 +108,7 @@ public final class AudioRecorder: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         guard !isPaused, let file else { return }
+        let time = sampleRate > 0 ? Double(framesWritten) / sampleRate : 0
         do {
             try file.write(from: buffer)
             framesWritten += AVAudioFramePosition(buffer.frameLength)
@@ -116,6 +118,6 @@ public final class AudioRecorder: @unchecked Sendable {
         // Copie mono (premier canal) pour la transcription : on ne partage jamais le tampon audio.
         guard let channel = buffer.floatChannelData?[0] else { return }
         let samples = Array(UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength)))
-        continuation?.yield(AudioChunk(samples: samples, sampleRate: buffer.format.sampleRate))
+        continuation?.yield(AudioChunk(samples: samples, sampleRate: buffer.format.sampleRate, time: time))
     }
 }

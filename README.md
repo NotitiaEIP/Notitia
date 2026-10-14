@@ -28,16 +28,24 @@ C'est le projet EIP Epitech de l'équipe Notitia, version 2 : une réécriture c
   séparateurs, images. Menu `/`, raccourcis Markdown (`# `, `- `, `[] `, `> `, ` ``` `, `---`),
   gras / italique / souligné / barré / code / couleur / surlignage / lien, indentation (Tab), réorganisation
   par glisser-déposer.
-- **Enregistrement et transcription** : capture micro, transcription en direct, audio **chiffré**, lecture
-  synchronisée (cliquer un horodatage), rappel du consentement des participants.
+- **Enregistrement et transcription** : capture micro, **reconnaissance vocale réelle sur l'appareil**
+  (Apple SpeechAnalyzer), audio **chiffré**, lecture synchronisée (cliquer un horodatage), rappel du consentement
+  des participants.
+- **Transcription enrichie et fidèle** : rires, applaudissements, longs silences et volume élevé repérés sur
+  l'appareil (SoundAnalysis), ton des passages déduit du texte (Foundation Models), « Citer avec le contexte »,
+  transcription d'origine en lecture seule avec empreinte. **Aucune déduction d'émotion** : les annotations décrivent
+  un moment, jamais une personne (voir [docs/PRIVACY.md](docs/PRIVACY.md) §6).
 - **Intelligence locale** : résumé (points clés, décisions, actions, questions), mots-clés, carte mentale
   interactive reliée à la transcription, et « réécrire avec mes mots-clés ».
 - **Confidentialité** : 100 % hors ligne, aucune connexion réseau autorisée, export complet, effacement total.
   Voir [docs/PRIVACY.md](docs/PRIVACY.md).
 
-> Le moteur de transcription définitif n'est pas encore choisi : l'application utilise pour l'instant un
-> moteur de **démonstration** qui rejoue un texte d'exemple au rythme de l'enregistrement. Le résumé et la
-> carte mentale, eux, fonctionnent réellement (moteur extractif local). Voir [docs/ROADMAP.md](docs/ROADMAP.md).
+![Transcription enrichie](docs/screenshots/6-transcript-light.png)
+
+> La transcription utilise le modèle de langue fourni par macOS : installez-le une fois dans
+> Réglages › Transcription. Le moteur de **démonstration** (texte d'exemple) reste disponible pour essayer
+> l'application sans parler. Le résumé et la carte mentale utilisent le moteur extractif local ; les résumés
+> reformulés par Foundation Models sont la prochaine étape (voir [docs/ROADMAP.md](docs/ROADMAP.md)).
 
 ## Prérequis
 
@@ -76,24 +84,40 @@ cd apple/NotitiaKit
 swift test
 ```
 
-66 tests couvrent : note d'aide, texte riche (dont Unicode/UTF-16), opérations de l'éditeur, raccourcis Markdown,
+95 tests couvrent : note d'aide, texte riche (dont Unicode/UTF-16), opérations de l'éditeur, raccourcis Markdown,
 format de document, recherche, IA locale, moteur de démonstration, disposition des cartes mentales,
-chiffrement de l'audio, conservation des données, export et effacement RGPD.
+chiffrement de l'audio, conservation des données, export et effacement RGPD, annotations (sons, volume, ton),
+chronologie et citations, empreinte de la transcription, suivi des résultats de SpeechAnalyzer.
+
+Trois tests d'**intégration** utilisent les vrais moteurs d'Apple (parole de synthèse produite par `say`, voix
+française « Thomas », modèle de langue français, Apple Intelligence). Ils sont désactivés par défaut :
+
+```bash
+NOTITIA_INTEGRATION=1 swift test --filter AppleEnginesIntegrationTests
+```
 
 ## Structure
 
 ```
-Notitia/
+Notitia-macOS/
+├── CLAUDE.md               ← contexte pour reprendre le travail (décisions prises, règles, pièges, état)
 ├── apple/
 │   ├── Notitia.xcodeproj   ← projet Xcode (dossiers synchronisés : tout fichier ajouté dans Notitia/ est compilé)
 │   ├── Config/             ← entitlements (sandbox, micro, PAS de réseau)
 │   ├── Notitia/            ← application macOS (SwiftUI + AppKit pour l'éditeur)
+│   │   ├── App/            ← démarrage, fenêtre, menus, préférences
+│   │   ├── DesignSystem/   ← jetons et composants visuels
+│   │   ├── Features/       ← Sidebar, NoteList, Editor, Inspector, Recording, MindMap, Settings, Welcome
+│   │   └── Resources/      ← icône, textes localisables, manifeste de confidentialité
 │   └── NotitiaKit/         ← package Swift partagé : modèles, éditeur, IA, audio, confidentialité, export
+│       ├── Sources/NotitiaKit/   ← Models, Editor, AI, Audio, Privacy, Storage, Export, Search
+│       └── Tests/NotitiaKitTests/
 └── docs/
-    ├── ARCHITECTURE.md     ← couches, format de données portable, choix techniques
+    ├── ARCHITECTURE.md     ← couches, « où est quoi » par fonctionnalité, format de données portable
     ├── DESIGN.md           ← nouvelle identité visuelle
     ├── PRIVACY.md          ← RGPD : registre des traitements, mesures, droits
-    └── ROADMAP.md          ← suite du projet
+    ├── ROADMAP.md          ← suite du projet
+    └── screenshots/        ← captures générées (mode démo)
 ```
 
 ## Contribuer

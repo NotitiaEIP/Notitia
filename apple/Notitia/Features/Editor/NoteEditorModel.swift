@@ -366,6 +366,32 @@ final class NoteEditorModel {
         insertBlocks(paragraphs, after: id)
     }
 
+    /// « Citer avec le contexte » : la phrase, celle d'avant et celle d'après, les annotations du moment,
+    /// et des horodatages cliquables. Contre les citations sorties de leur contexte.
+    func insertQuote(recordingID: UUID, segmentID: UUID, after id: UUID) {
+        guard let recording = note.recordings.first(where: { $0.uid == recordingID }),
+              let context = TranscriptTimeline.context(of: segmentID, segments: recording.segments, annotations: recording.annotations)
+        else { return }
+        insertBlocks(TranscriptTimeline.quoteBlocks(context, recordingID: recordingID, recordedAt: recording.createdAt), after: id)
+    }
+
+    /// Masque ou réaffiche une annotation. L'original est conservé (l'empreinte ne change pas).
+    func setAnnotation(_ annotationID: UUID, hidden: Bool, in recordingID: UUID) {
+        guard !isReadOnly, let recording = note.recordings.first(where: { $0.uid == recordingID }) else { return }
+        var annotations = recording.annotations
+        guard let index = annotations.firstIndex(where: { $0.id == annotationID }) else { return }
+        annotations[index].isHidden = hidden
+        recording.annotations = annotations
+        try? recording.modelContext?.save()
+    }
+
+    /// Lien `notitia://recording/…` (horodatage d'une citation) : rejoue l'audio à cet instant.
+    func open(_ link: TranscriptLink) {
+        guard let recording = note.recordings.first(where: { $0.uid == link.recordingID }) else { return }
+        scrollTarget = blocks.first { $0.recordingID == link.recordingID }?.id
+        if recording.hasAudio { services.player.play(link.recordingID, from: link.time) }
+    }
+
     /// Met en évidence la phrase source dans la transcription et y fait défiler l'éditeur.
     func revealSource(_ text: String?) {
         sourceHighlight = text
