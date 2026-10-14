@@ -53,6 +53,18 @@ enum DebugSnapshots {
             workspace.selectedNoteID = meeting.uid
             workspace.isInspectorPresented = true
             try? await Task.sleep(for: .seconds(1))
+            // Transcription enrichie (annotations, ton), puis « Citer avec le contexte »
+            if let editor = workspace.editor, let transcript = editor.blocks.first(where: { $0.kind == .transcript }),
+               let recording = meeting.recordings.first {
+                editor.scrollTarget = transcript.id
+                try? await Task.sleep(for: .seconds(1.5))
+                capture("2-transcript-light")
+                if let cited = recording.segments.dropFirst(3).first {
+                    editor.insertQuote(recordingID: recording.uid, segmentID: cited.id, after: transcript.id)
+                    try? await Task.sleep(for: .seconds(1.5))
+                    capture("2-quote-light")
+                }
+            }
             workspace.editor?.run(.summary(focus: []))
             try? await Task.sleep(for: .seconds(1))
             workspace.editor?.run(.mindMap(focus: []))

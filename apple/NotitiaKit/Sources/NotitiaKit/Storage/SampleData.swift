@@ -72,6 +72,16 @@ public enum SampleData {
             return TranscriptSegment(text: sentence, start: time, end: time + duration, speaker: index.isMultiple(of: 3) ? "Lucas" : (index % 3 == 1 ? "Clément" : "Nathan"))
         }
         recording.duration = time
+        // Annotations d'exemple : rires après « sans mascotte », applaudissements après la décision,
+        // et le ton du passage sur le thème (déduit du texte).
+        let segments = recording.segments
+        recording.annotations = [
+            TranscriptAnnotation(kind: .laughter, source: .soundAnalysis, start: segments[2].end - 0.4, end: segments[2].end + 0.5, confidence: 0.86),
+            TranscriptAnnotation(kind: .applause, source: .soundAnalysis, start: segments[4].end, end: segments[4].end + 0.6, confidence: 0.78),
+            TranscriptAnnotation(kind: .tone, source: .foundationModels, start: segments[3].start, end: segments[4].end,
+                                 confidence: 0.7, label: "accord sur l'abandon de l'ancien thème", polarity: 0.8),
+        ]
+        recording.seal()
         let meeting = Note(title: "Point d'avancement Notitia", document: NoteDocument(blocks: [
             Block(kind: .paragraph, text: RichText("Réunion d'équipe — transcription d'exemple. Essayez « Résumer » ou « Carte mentale » dans l'inspecteur.", style: TextStyle(italic: true, color: .gray))),
             Block(kind: .transcript, recordingID: recording.uid),

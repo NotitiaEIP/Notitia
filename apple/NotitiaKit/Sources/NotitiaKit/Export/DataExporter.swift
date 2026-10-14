@@ -37,6 +37,10 @@ public struct ExportSnapshot: Codable, Sendable {
         public var hasAudio: Bool
         public var audioDeletedAt: Date?
         public var segments: [TranscriptSegment]
+        /// Annotations (sons, volume, ton), y compris celles masquées par l'utilisateur.
+        public var annotations: [TranscriptAnnotation]
+        /// Empreinte de la transcription d'origine (voir `TranscriptIntegrity`).
+        public var integrityHash: String?
     }
 
     public var format = "notitia-export"
@@ -66,7 +70,8 @@ public struct ExportSnapshot: Codable, Sendable {
                 RecordingEntry(id: $0.uid, noteID: $0.note?.uid, createdAt: $0.createdAt, duration: $0.duration,
                                locale: $0.localeIdentifier, engine: $0.engineName,
                                consentConfirmedAt: $0.consentConfirmedAt, hasAudio: $0.hasAudio,
-                               audioDeletedAt: $0.audioDeletedAt, segments: $0.segments)
+                               audioDeletedAt: $0.audioDeletedAt, segments: $0.segments,
+                               annotations: $0.annotations, integrityHash: $0.integrityHash)
             }
         )
     }
@@ -111,6 +116,7 @@ public struct DataExporter: Sendable {
 
         // 2. Markdown, rangé comme dans l'application
         let segments = Dictionary(uniqueKeysWithValues: snapshot.recordings.map { ($0.id, $0.segments) })
+        let annotations = Dictionary(uniqueKeysWithValues: snapshot.recordings.map { ($0.id, $0.annotations.filter { !$0.isHidden }) })
         let notesRoot = root.appending(path: "Notes", directoryHint: .isDirectory)
         var usedNames = Set<String>()
         for note in snapshot.notes {
@@ -133,7 +139,7 @@ public struct DataExporter: Sendable {
                 counter += 1
             }
             usedNames.insert(candidate.path)
-            let markdown = MarkdownRenderer.render(title: title, document: note.document, segmentsByRecording: segments)
+            let markdown = MarkdownRenderer.render(title: title, document: note.document, segmentsByRecording: segments, annotationsByRecording: annotations)
             try markdown.write(to: candidate, atomically: true, encoding: .utf8)
         }
 
@@ -168,6 +174,11 @@ public struct DataExporter: Sendable {
         • Notes/ : chaque note au format Markdown, rangée selon vos dossiers ;
         • Audio/ : les enregistrements, déchiffrés (format AAC .m4a) ;
         • Attachments/ : les images insérées dans les notes.
+
+        Les annotations des transcriptions (rires, applaudissements, volume, silences, ton des passages) sont
+        produites automatiquement sur l'appareil : elles sont marquées « automatique » et ne décrivent jamais
+        l'état d'une personne. L'empreinte (integrityHash) permet de vérifier que la transcription d'origine
+        n'a pas été modifiée dans la base ; ce n'est pas une preuve opposable à un tiers.
 
         \(snapshot.notes.count) note(s), \(snapshot.folders.count) dossier(s), \(snapshot.recordings.count) enregistrement(s).
 

@@ -63,8 +63,15 @@ private struct EngineRow: View {
 }
 
 private struct TranscriptionSettings: View {
-    @AppStorage(Preferences.Keys.transcriptionEngine) private var engineID = DemoTranscriptionEngine.descriptorValue.id
+    @AppStorage(Preferences.Keys.transcriptionEngine) private var engineID = EngineCatalog.defaultTranscriptionEngineID
     @AppStorage(Preferences.Keys.transcriptionLocale) private var localeID = "fr_FR"
+    @AppStorage(Preferences.Keys.annotateSounds) private var annotateSounds = true
+    @AppStorage(Preferences.Keys.analyzeTone) private var analyzeTone = false
+    @State private var modelStatus: AppleSpeechTranscriptionEngine.ModelStatus?
+    @State private var installProgress: Double?
+    @State private var installError: String?
+
+    private var usesAppleEngine: Bool { engineID == AppleSpeechTranscriptionEngine.descriptorValue.id }
 
     var body: some View {
         Form {
@@ -76,13 +83,95 @@ private struct TranscriptionSettings: View {
                 }
                 .pickerStyle(.radioGroup)
             } footer: {
-                Text("Le moteur définitif n'est pas encore choisi. Le moteur de démonstration rejoue un texte d'exemple pour tester l'application ; aucun son n'est analysé.")
+                Text("Le moteur d'Apple reconnaît réellement la parole, sur ce Mac et sans Internet. Le moteur de démonstration rejoue un texte d'exemple, pour essayer l'application sans parler.")
             }
-            Picker("Langue parlée", selection: $localeID) {
-                ForEach(Preferences.transcriptionLocales, id: \.id) { Text($0.name).tag($0.id) }
+            Section {
+                Picker("Langue parlée", selection: $localeID) {
+                    ForEach(Preferences.transcriptionLocales, id: \.id) { Text($0.name).tag($0.id) }
+                }
+                if usesAppleEngine { modelRow }
+            } footer: {
+                if usesAppleEngine {
+                    Text("Le modèle de chaque langue est fourni par macOS et installé une seule fois par le système. Notitia elle-même n'a toujours aucun accès à Internet.")
+                }
+            }
+            Section {
+                Toggle("Annoter les sons et le volume", isOn: $annotateSounds)
+                Text("Rires, applaudissements, longs silences et passages au volume élevé, repérés pendant l'enregistrement.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Toggle("Analyser le ton des passages", isOn: $analyzeTone)
+                Text("Après l'enregistrement, à partir du texte seulement (par exemple « échange tendu sur le budget »). Utilise Apple Intelligence si elle est disponible.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } header: {
+                Text("Transcription enrichie")
+            } footer: {
+                Text("Les annotations décrivent un moment ou un passage, jamais une personne : Notitia ne déduit pas les émotions à partir de la voix, ce que le règlement européen sur l'IA interdit au travail et dans l'enseignement. Tout est analysé sur ce Mac, marqué « automatique », et peut être masqué.")
             }
         }
         .formStyle(.grouped)
+        .task(id: localeID) { await refreshStatus() }
+    }
+
+    @ViewBuilder
+    private var modelRow: some View {
+        switch modelStatus {
+        case nil:
+            HStack(spacing: Spacing.s) {
+                ProgressView().controlSize(.small)
+                Text("Vérification du modèle…").foregroundStyle(.secondary)
+            }
+        case .installed:
+            Label("Modèle installé sur ce Mac", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+        case .notInstalled, .downloading:
+            VStack(alignment: .leading, spacing: Spacing.s) {
+                HStack {
+                    Label("Modèle à installer avant d'enregistrer", systemImage: "arrow.down.circle")
+                    Spacer()
+                    Button("Installer le modèle") { install() }
+                        .disabled(installProgress != nil || modelStatus == .downloading)
+                }
+                if let installProgress {
+                    ProgressView(value: installProgress)
+                } else if modelStatus == .downloading {
+                    ProgressView().controlSize(.small)
+                }
+                if let installError {
+                    Text(installError).font(.caption).foregroundStyle(.red)
+                }
+            }
+        case .unsupportedLocale:
+            Label("Cette langue n'est pas prise en charge par la transcription d'Apple.", systemImage: "exclamationmark.triangle")
+                .foregroundStyle(.orange)
+        case .unavailableOnDevice:
+            Label("La transcription sur l'appareil n'est pas disponible sur ce Mac.", systemImage: "exclamationmark.triangle")
+                .foregroundStyle(.orange)
+        }
+    }
+
+    private func refreshStatus() async {
+        modelStatus = nil
+        modelStatus = await AppleSpeechTranscriptionEngine.modelStatus(for: Locale(identifier: localeID))
+    }
+
+    private func install() {
+        installError = nil
+        installProgress = 0
+        let locale = Locale(identifier: localeID)
+        let (progress, reporter) = AsyncStream.makeStream(of: Double.self, bufferingPolicy: .bufferingNewest(1))
+        Task {
+            for await value in progress { installProgress = value }
+        }
+        Task {
+            do {
+                try await AppleSpeechTranscriptionEngine.installModel(for: locale) { reporter.yield($0) }
+            } catch {
+                installError = error.localizedDescription
+            }
+            reporter.finish()
+            installProgress = nil
+            await refreshStatus()
+        }
     }
 }
 

@@ -24,10 +24,14 @@ public struct EngineDescriptor: Identifiable, Hashable, Sendable {
 public struct AudioChunk: Sendable {
     public var samples: [Float]
     public var sampleRate: Double
+    /// Position du premier échantillon, en secondes depuis le début de l'enregistrement (pauses exclues).
+    /// Toutes les analyses s'alignent sur cette horloge, même si un bloc est perdu en route.
+    public var time: TimeInterval
 
-    public init(samples: [Float], sampleRate: Double) {
+    public init(samples: [Float], sampleRate: Double, time: TimeInterval = 0) {
         self.samples = samples
         self.sampleRate = sampleRate
+        self.time = time
     }
 
     public var duration: TimeInterval { sampleRate > 0 ? Double(samples.count) / sampleRate : 0 }
@@ -49,6 +53,13 @@ public struct AudioChunk: Sendable {
 public protocol TranscriptionEngine: Sendable {
     var descriptor: EngineDescriptor { get }
     func transcribe(audio: AsyncStream<AudioChunk>, locale: Locale) -> AsyncThrowingStream<TranscriptSegment, any Error>
+}
+
+/// Détecteur d'annotations : reçoit le même flux audio que le moteur de transcription et produit des
+/// annotations horodatées sur la même horloge (`AudioChunk.time`). Il décrit ce qu'on entend,
+/// jamais l'état d'une personne (voir `TranscriptAnnotation`).
+public protocol AnnotationDetector: Sendable {
+    func detect(audio: AsyncStream<AudioChunk>) -> AsyncThrowingStream<TranscriptAnnotation, any Error>
 }
 
 /// Texte source d'une action IA : contenu d'une note ou transcription.
@@ -86,18 +97,15 @@ public protocol NoteAIService: Sendable {
     func mindMap(_ source: AISource, focus: [String]) async throws -> MindMapDocument
 }
 
-/// Catalogue des moteurs connus. Seuls les moteurs hors ligne sont disponibles pour l'instant ;
+/// Catalogue des moteurs connus. Seuls les moteurs hors ligne sont disponibles ;
 /// les autres sont listés pour rendre la feuille de route visible dans les réglages.
 public enum EngineCatalog {
+    /// Moteur utilisé quand l'utilisateur n'a rien choisi : la vraie transcription d'Apple.
+    public static let defaultTranscriptionEngineID = AppleSpeechTranscriptionEngine.descriptorValue.id
+
     public static let transcriptionEngines: [EngineDescriptor] = [
+        AppleSpeechTranscriptionEngine.descriptorValue,
         DemoTranscriptionEngine.descriptorValue,
-        EngineDescriptor(
-            id: "apple.speechanalyzer",
-            displayName: "Apple — sur l'appareil",
-            detail: "SpeechAnalyzer (macOS 26). Hors ligne, privé. Bientôt disponible.",
-            requiresNetwork: false,
-            isAvailable: false
-        ),
         EngineDescriptor(
             id: "cloud.deepgram",
             displayName: "Deepgram — cloud",
@@ -112,7 +120,7 @@ public enum EngineCatalog {
         EngineDescriptor(
             id: "apple.foundationmodels",
             displayName: "Apple Intelligence — sur l'appareil",
-            detail: "Foundation Models (macOS 26). Hors ligne. Bientôt disponible.",
+            detail: "Foundation Models (macOS 26). Hors ligne. Utilisé pour le ton des passages ; résumés reformulés bientôt disponibles.",
             requiresNetwork: false,
             isAvailable: false
         ),
@@ -125,10 +133,18 @@ public enum EngineCatalog {
         ),
     ]
 
-    public static func transcriptionEngine(id: String) -> any TranscriptionEngine {
-        DemoTranscriptionEngine()
+    /// Moteur correspondant à `id` ; un identifiant inconnu ou vide donne le moteur par défaut.
+    public static func transcriptionEngine(id: String, contextualStrings: [String] = []) -> any TranscriptionEngine {
+        switch id {
+        case DemoTranscriptionEngine.descriptorValue.id:
+            DemoTranscriptionEngine()
+        default:
+            AppleSpeechTranscriptionEngine(contextualStrings: contextualStrings)
+        }
     }
 
+    /// Seul moteur de synthèse disponible pour l'instant : l'`id` est ignoré.
+    /// Brancher Foundation Models ici quand les résumés reformulés seront prêts.
     public static func aiService(id: String) -> any NoteAIService {
         LocalExtractiveAIService()
     }

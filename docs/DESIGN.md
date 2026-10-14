@@ -54,6 +54,11 @@ images, mais s'affichent normalement dans l'application.
 | ![Note claire](screenshots/1-note-light.png) | ![Note sombre](screenshots/5-note-dark.png) |
 | ![Réunion](screenshots/2-meeting-light.png) | ![Carte mentale](screenshots/3-mindmap-light.png) |
 | ![Aide](screenshots/4-help-light.png) | ![Aide, sombre](screenshots/4-help-dark.png) |
+| ![Transcription enrichie](screenshots/6-transcript-light.png) | ![Citer avec le contexte](screenshots/7-quote-light.png) |
+
+Transcription enrichie : les annotations sont des puces grises discrètes (SF Symbols, sans emoji), toujours suivies
+de « automatique ». Le ton d'un passage est un bandeau dont le filet a un sens : vert pour un passage positif,
+orange pour un passage tendu, gris sinon.
 
 ### Tutoriel du premier lancement
 

@@ -159,10 +159,15 @@ public enum HelpContent {
             Block(kind: .numbered, text: "Confirmez que les participants sont informés de l'enregistrement : c'est une obligation légale."),
             Block(kind: .numbered, text: t("La transcription s'écrit en direct dans la note. `⇧⌘P` met en pause.")),
             Block(kind: .numbered, text: t("Arrêtez avec `⇧⌘R` : l'audio est chiffré et rangé avec la note.")),
-            Block(text: t("Ensuite, cliquez sur un horodatage de la transcription pour réécouter ce passage. Le menu ⋯ du bloc permet de copier la transcription en texte modifiable, ou de supprimer l'audio en gardant le texte.")),
+            Block(text: t("Ensuite, cliquez sur un horodatage de la transcription pour réécouter ce passage. Le menu ⋯ du bloc permet de copier la transcription en texte modifiable, d'analyser le ton des passages, ou de supprimer l'audio en gardant le texte.")),
+            Block(kind: .heading3, text: "Transcription enrichie"),
+            Block(kind: .bulleted, text: term("Sons et volume : ", "les rires, applaudissements, longs silences et passages au volume élevé apparaissent à leur place, marqués « automatique ».")),
+            Block(kind: .bulleted, text: term("Ton des passages : ", "après l'enregistrement, un bandeau peut résumer le ton d'un échange (« désaccord sur le budget »), à partir du texte seulement. À activer dans Réglages › Transcription.")),
+            Block(kind: .bulleted, text: term("Citer avec le contexte : ", "survolez une phrase et cliquez sur la bulle de citation : la phrase est insérée avec la précédente, la suivante et les horodatages, pour qu'elle ne soit jamais sortie de son contexte.")),
+            Block(kind: .bulleted, text: term("Transcription d'origine : ", "la transcription n'est pas modifiable ; l'inspecteur indique si elle a été altérée depuis l'enregistrement. Une annotation erronée se masque d'un clic droit.")),
             Block(kind: .callout, text: RichText(runs: [
-                TextRun("Version de démonstration : ", style: bold),
-                TextRun("le moteur de transcription actuel affiche un texte d'exemple au rythme de l'enregistrement. La reconnaissance vocale réelle, sur l'appareil, arrive dans une prochaine version."),
+                TextRun("Ce que Notitia ne fait pas : ", style: bold),
+                TextRun("deviner les émotions d'une personne à partir de sa voix. Les annotations décrivent un moment ou un passage, jamais quelqu'un. La reconnaissance vocale et toutes les analyses ont lieu sur ce Mac, sans Internet ; le modèle de chaque langue s'installe dans Réglages › Transcription."),
             ])),
         ]
     }

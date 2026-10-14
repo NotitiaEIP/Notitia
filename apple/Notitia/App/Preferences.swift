@@ -11,6 +11,22 @@ enum Preferences {
         static let transcriptionEngine = "transcriptionEngine"
         static let aiService = "aiService"
         static let noteSortOrder = "noteSortOrder"
+        /// Annoter les sons (rires, applaudissements) et le volume pendant l'enregistrement. Activé par défaut.
+        static let annotateSounds = "annotateSounds"
+        /// Analyser le ton des passages (texte seulement) après l'enregistrement. Désactivé par défaut (opt-in).
+        static let analyzeTone = "analyzeTone"
+    }
+
+    static var annotateSounds: Bool {
+        UserDefaults.standard.object(forKey: Keys.annotateSounds) as? Bool ?? true
+    }
+
+    static var analyzeTone: Bool {
+        UserDefaults.standard.bool(forKey: Keys.analyzeTone)
+    }
+
+    static var transcriptionEngineID: String {
+        UserDefaults.standard.string(forKey: Keys.transcriptionEngine) ?? EngineCatalog.defaultTranscriptionEngineID
     }
 
     static var retentionPolicy: RetentionPolicy {
