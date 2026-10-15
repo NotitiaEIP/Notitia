@@ -100,7 +100,8 @@ public final class AudioRecorder: @unchecked Sendable {
         isRunning = false
         continuation?.finish()
         continuation = nil
-        file = nil // la fermeture du fichier finalise l'en-tête AAC
+        file?.close() // finalise l'en-tête AAC : sans fermeture explicite, le fichier peut être illisible
+        file = nil
         return sampleRate > 0 ? Double(framesWritten) / sampleRate : 0
     }
 

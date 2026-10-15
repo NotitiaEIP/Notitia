@@ -72,6 +72,23 @@ struct BlockOperationsTests {
         #expect(result.blocks.map(\.id) == [text.id])
     }
 
+    @Test func leClavierNeSupprimeJamaisUneTranscription() {
+        let transcript = Block(kind: .transcript, recordingID: UUID())
+        let above = Block(text: "Avant")
+        let below = Block(text: "Après")
+        let blocks = [above, transcript, below]
+
+        let backspace = BlockOperations.backspaceAtStart(blocks, blockID: below.id)
+        #expect(backspace.blocks == blocks)
+        #expect(backspace.caret == Caret(blockID: below.id, offset: 0))
+
+        let deleteForward = BlockOperations.deleteForwardAtEnd(blocks, blockID: above.id)
+        #expect(deleteForward.blocks == blocks)
+        #expect(deleteForward.caret == Caret(blockID: above.id, offset: 5))
+
+        #expect(BlockOperations.convert(blocks, blockID: transcript.id, to: .paragraph) == blocks)
+    }
+
     @Test func retourArriereSurLePremierBlocNeFaitRien() {
         let only = Block(text: "Seul")
         let result = BlockOperations.backspaceAtStart([only], blockID: only.id)

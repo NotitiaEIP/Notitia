@@ -38,7 +38,7 @@ private struct NoteInspector: View {
         }
         .formStyle(.grouped)
         .confirmationDialog("Supprimer cet enregistrement ?", isPresented: Binding(get: { recordingToDelete != nil }, set: { if !$0 { recordingToDelete = nil } }), presenting: recordingToDelete) { recording in
-            Button("Supprimer l'audio et la transcription", role: .destructive) { deleteRecording(recording) }
+            Button("Supprimer l'audio et la transcription", role: .destructive) { workspace.deleteRecording(recording) }
         } message: { _ in
             Text("L'audio chiffré et le texte transcrit seront supprimés définitivement.")
         }
@@ -255,17 +255,5 @@ private struct NoteInspector: View {
         case .notSealed:
             EmptyView()
         }
-    }
-
-    private func deleteRecording(_ recording: Recording) {
-        if player.recordingID == recording.uid { player.stop() }
-        let uid = recording.uid
-        try? services.vault.delete(uid)
-        for block in model.blocks where block.recordingID == uid {
-            model.delete(block.id)
-        }
-        workspace.context.delete(recording)
-        model.flush()
-        try? workspace.context.save()
     }
 }

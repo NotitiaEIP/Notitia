@@ -93,6 +93,10 @@ public enum BlockOperations {
         }
 
         let previous = blocks[index - 1]
+        if previous.kind.requiresConfirmedDeletion {
+            // Une transcription au-dessus : un retour arrière de trop ne doit pas effacer une réunion.
+            return EditResult(blocks: blocks, caret: Caret(blockID: id, offset: 0))
+        }
         if !previous.kind.hasText {
             // Bloc non textuel au-dessus (séparateur, image…) : on le supprime.
             blocks.remove(at: index - 1)
@@ -113,6 +117,9 @@ public enum BlockOperations {
         var blocks = blocks
         let offset = blocks[index].text.length
         let next = blocks[index + 1]
+        if next.kind.requiresConfirmedDeletion {
+            return EditResult(blocks: blocks, caret: Caret(blockID: id, offset: offset))
+        }
         if next.kind.hasText {
             blocks[index].text = blocks[index].text.appending(next.text)
         }
@@ -141,7 +148,7 @@ public enum BlockOperations {
     // MARK: Conversion, insertion, suppression, déplacement
 
     public static func convert(_ blocks: [Block], blockID id: UUID, to kind: BlockKind) -> [Block] {
-        guard let index = blocks.firstIndex(where: { $0.id == id }) else { return blocks }
+        guard let index = blocks.firstIndex(where: { $0.id == id }), !blocks[index].kind.requiresConfirmedDeletion else { return blocks }
         var blocks = blocks
         blocks[index].kind = kind
         if kind != .todo { blocks[index].isChecked = false }

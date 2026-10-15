@@ -127,6 +127,22 @@ final class Workspace {
         try? context.save()
     }
 
+    /// Supprime un enregistrement : audio chiffré, transcription et blocs qui l'affichent dans la note ouverte.
+    func deleteRecording(_ recording: Recording) {
+        let uid = recording.uid
+        guard services.recorder.recordingID != uid else { return }
+        if services.player.recordingID == uid { services.player.stop() }
+        try? services.vault.delete(uid)
+        if let editor {
+            for block in editor.blocks where block.recordingID == uid {
+                editor.delete(block.id)
+            }
+            editor.flush()
+        }
+        context.delete(recording)
+        try? context.save()
+    }
+
     /// Ouvre la note d'aide (la recrée si elle a été supprimée, la restaure si elle est à la corbeille).
     func openHelp() {
         let help = HelpContent.install(in: context)

@@ -37,7 +37,9 @@ final class RecordingController {
     @ObservationIgnored private var pumpTask: Task<Void, Never>?
     @ObservationIgnored private var transcriptionTask: Task<Void, Never>?
     @ObservationIgnored private var detectionTasks: [Task<Void, Never>] = []
-    @ObservationIgnored private weak var recording: Recording?
+    /// Base où l'enregistrement a été créé. On y relit le `Recording` à l'arrêt, par son identifiant : une référence
+    /// faible à un modèle SwiftData peut tomber à `nil` après la sauvegarde, et la transcription était alors perdue.
+    @ObservationIgnored private var context: ModelContext?
 
     init(vault: AudioVault, paths: AppPaths) {
         self.vault = vault
@@ -64,7 +66,7 @@ final class RecordingController {
 
             self.recorder = recorder
             self.temporaryFile = file
-            self.recording = recording
+            self.context = context
             self.recordingID = recording.uid
             self.noteID = note.uid
             self.engineName = engine.descriptor.displayName
@@ -141,7 +143,7 @@ final class RecordingController {
         await transcriptionTask?.value
         for task in detectionTasks { await task.value }
 
-        if let recording, let file = temporaryFile {
+        if let file = temporaryFile, let recording = currentRecording() {
             recording.duration = duration
             recording.segments = segments.filter { !$0.text.isEmpty }.map { segment in
                 var final = segment
@@ -164,14 +166,17 @@ final class RecordingController {
             }.value
             recording.hasAudio = sealed
             recording.note?.updatedAt = .now
-            try? recording.modelContext?.save()
+            try? context?.save()
 
             if Preferences.analyzeTone { analyzeTone(of: recording) }
+        } else if let file = temporaryFile {
+            // Note supprimée pendant l'enregistrement : rien à rattacher, et l'audio en clair ne doit pas rester.
+            try? FileManager.default.removeItem(at: file)
         }
 
         self.recorder = nil
         self.temporaryFile = nil
-        self.recording = nil
+        self.context = nil
         self.pumpTask = nil
         self.transcriptionTask = nil
         self.detectionTasks = []
@@ -198,6 +203,11 @@ final class RecordingController {
             }
             self?.toneAnalysisInProgress.remove(id)
         }
+    }
+
+    private func currentRecording() -> Recording? {
+        guard let context, let id = recordingID else { return nil }
+        return try? context.fetch(FetchDescriptor<Recording>(predicate: #Predicate { $0.uid == id })).first
     }
 
     private func upsert(_ segment: TranscriptSegment) {
