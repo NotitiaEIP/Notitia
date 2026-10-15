@@ -1,4 +1,5 @@
 import NotitiaKit
+import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -7,7 +8,10 @@ struct BlockRowView: View {
     let block: Block
     let model: NoteEditorModel
     let number: Int?
+    @Environment(Workspace.self) private var workspace
+    @Environment(RecordingController.self) private var recorder
     @State private var isHovering = false
+    @State private var confirmDeleteRecording = false
     @State private var isDropTargeted = false
 
     var body: some View {
@@ -61,9 +65,12 @@ struct BlockRowView: View {
 
     private var gutter: some View {
         Menu {
-            Section("Transformer en") {
-                ForEach(BlockKind.insertable.filter(\.hasText)) { kind in
-                    Button { model.convert(block.id, to: kind) } label: { Label(kind.displayName, systemImage: kind.symbolName) }
+            // Une transcription ne se transforme pas et ne se duplique pas : elle représente un enregistrement.
+            if !block.kind.requiresConfirmedDeletion {
+                Section("Transformer en") {
+                    ForEach(BlockKind.insertable.filter(\.hasText)) { kind in
+                        Button { model.convert(block.id, to: kind) } label: { Label(kind.displayName, systemImage: kind.symbolName) }
+                    }
                 }
             }
             Section {
@@ -74,10 +81,17 @@ struct BlockRowView: View {
                 }
                 Button("Monter") { model.shift(block.id, by: -1) }
                 Button("Descendre") { model.shift(block.id, by: 1) }
-                Button("Dupliquer") { model.duplicate(block.id) }
+                if !block.kind.requiresConfirmedDeletion {
+                    Button("Dupliquer") { model.duplicate(block.id) }
+                }
             }
             Section {
-                Button("Supprimer le bloc", role: .destructive) { model.delete(block.id) }
+                if block.kind.requiresConfirmedDeletion {
+                    Button("Supprimer l'enregistrement…", role: .destructive) { confirmDeleteRecording = true }
+                        .disabled(block.recordingID != nil && recorder.recordingID == block.recordingID)
+                } else {
+                    Button("Supprimer le bloc", role: .destructive) { model.delete(block.id) }
+                }
             }
         } label: {
             Image(systemName: "line.3.horizontal")
@@ -98,6 +112,22 @@ struct BlockRowView: View {
         }
         .help("Glisser pour déplacer, cliquer pour les options")
         .disabled(model.isReadOnly)
+        .confirmationDialog("Supprimer cet enregistrement ?", isPresented: $confirmDeleteRecording) {
+            Button("Supprimer l'audio et la transcription", role: .destructive) { deleteRecording() }
+        } message: {
+            Text("L'audio chiffré et le texte transcrit seront supprimés définitivement.")
+        }
+    }
+
+    private func deleteRecording() {
+        guard let uid = block.recordingID,
+              let recording = try? workspace.context.fetch(FetchDescriptor<Recording>(predicate: #Predicate { $0.uid == uid })).first
+        else {
+            // Bloc sans enregistrement (déjà supprimé) : il n'y a plus rien à protéger.
+            model.delete(block.id)
+            return
+        }
+        workspace.deleteRecording(recording)
     }
 
     // MARK: Contenu

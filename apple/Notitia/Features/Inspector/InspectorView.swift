@@ -24,6 +24,7 @@ private struct NoteInspector: View {
     @Query(sort: \NotitiaKit.Tag.name) private var allTags: [NotitiaKit.Tag]
     @State private var newTag = ""
     @State private var focusKeywords = ""
+    @AppStorage(Preferences.Keys.aiService) private var aiServiceID = EngineCatalog.defaultAIServiceID
     @State private var recordingToDelete: Recording?
 
     private var note: Note { model.note }
@@ -37,7 +38,7 @@ private struct NoteInspector: View {
         }
         .formStyle(.grouped)
         .confirmationDialog("Supprimer cet enregistrement ?", isPresented: Binding(get: { recordingToDelete != nil }, set: { if !$0 { recordingToDelete = nil } }), presenting: recordingToDelete) { recording in
-            Button("Supprimer l'audio et la transcription", role: .destructive) { deleteRecording(recording) }
+            Button("Supprimer l'audio et la transcription", role: .destructive) { workspace.deleteRecording(recording) }
         } message: { _ in
             Text("L'audio chiffré et le texte transcrit seront supprimés définitivement.")
         }
@@ -125,36 +126,51 @@ private struct NoteInspector: View {
 
     private var intelligenceSection: some View {
         Section {
-            Button {
-                model.run(.summary(focus: []))
-            } label: {
-                Label("Résumer", systemImage: "text.badge.star")
-            }
-            Button {
-                model.run(.keywords)
-            } label: {
-                Label("Extraire les mots-clés", systemImage: "key")
-            }
-            Button {
-                model.run(.mindMap(focus: []))
-            } label: {
-                Label("Créer une carte mentale", systemImage: "point.3.connected.trianglepath.dotted")
-            }
-
-            VStack(alignment: .leading, spacing: Spacing.s) {
-                Text("Réécrire avec mes mots-clés").font(.callout.weight(.medium))
-                TextField("ex. : planning, design, RGPD", text: $focusKeywords)
-                    .textFieldStyle(.roundedBorder)
-                HStack {
-                    Button("Synthèse") { model.run(.summary(focus: keywords)) }
-                    Button("Carte mentale") { model.run(.mindMap(focus: keywords)) }
+            Group {
+                Button {
+                    model.run(.summary(focus: []))
+                } label: {
+                    Label("Résumer", systemImage: "text.badge.star")
                 }
-                .disabled(keywords.isEmpty)
-            }
-            .padding(.vertical, Spacing.xs)
+                Button {
+                    model.run(.keywords)
+                } label: {
+                    Label("Extraire les mots-clés", systemImage: "key")
+                }
+                Button {
+                    model.run(.mindMap(focus: []))
+                } label: {
+                    Label("Créer une carte mentale", systemImage: "point.3.connected.trianglepath.dotted")
+                }
 
-            if model.isGenerating {
-                ProgressView().controlSize(.small)
+                VStack(alignment: .leading, spacing: Spacing.s) {
+                    Text("Réécrire avec mes mots-clés").font(.callout.weight(.medium))
+                    TextField("ex. : planning, design, RGPD", text: $focusKeywords)
+                        .textFieldStyle(.roundedBorder)
+                    HStack {
+                        Button("Synthèse") { model.run(.summary(focus: keywords)) }
+                        Button("Carte mentale") { model.run(.mindMap(focus: keywords)) }
+                    }
+                    .disabled(keywords.isEmpty)
+                }
+                .padding(.vertical, Spacing.xs)
+            }
+            .disabled(model.isGenerating)
+
+            if let generation = model.generation {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    HStack(spacing: Spacing.s) {
+                        ProgressView().controlSize(.small)
+                        Text(generation.title).font(.callout.weight(.medium))
+                        Spacer()
+                        Button("Annuler") { model.cancelGeneration() }
+                    }
+                    if let progress = generation.progress, progress.total > 1 {
+                        ProgressView(value: progress.fraction)
+                    }
+                    Text(generation.detail).font(.caption).foregroundStyle(.secondary)
+                }
+                .padding(.vertical, Spacing.xs)
             }
             if let error = model.lastError {
                 Label(error, systemImage: "exclamationmark.triangle")
@@ -164,12 +180,11 @@ private struct NoteInspector: View {
         } header: {
             Text("Intelligence")
         } footer: {
-            Label("\(LocalExtractiveAIService.descriptorValue.displayName) · rien ne quitte ce Mac", systemImage: "lock.shield")
+            Label("\(EngineCatalog.effectiveAIServiceName(id: aiServiceID, locale: Locale(identifier: note.recordings.first?.localeIdentifier ?? "fr_FR"))) · rien ne quitte ce Mac", systemImage: "lock.shield")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .buttonStyle(.borderless)
-        .disabled(model.isGenerating)
     }
 
     private var keywords: [String] {
@@ -240,17 +255,5 @@ private struct NoteInspector: View {
         case .notSealed:
             EmptyView()
         }
-    }
-
-    private func deleteRecording(_ recording: Recording) {
-        if player.recordingID == recording.uid { player.stop() }
-        let uid = recording.uid
-        try? services.vault.delete(uid)
-        for block in model.blocks where block.recordingID == uid {
-            model.delete(block.id)
-        }
-        workspace.context.delete(recording)
-        model.flush()
-        try? workspace.context.save()
     }
 }

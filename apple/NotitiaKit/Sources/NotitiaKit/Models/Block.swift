@@ -27,6 +27,10 @@ public enum BlockKind: String, Codable, CaseIterable, Sendable, Identifiable {
         }
     }
 
+    /// Le bloc ne disparaît jamais au clavier ni par conversion : le supprimer efface un enregistrement
+    /// (audio chiffré et transcription), ce qui demande une confirmation.
+    public var requiresConfirmedDeletion: Bool { self == .transcript }
+
     public var isList: Bool { self == .bulleted || self == .numbered || self == .todo }
 
     public var isHeading: Bool { self == .heading1 || self == .heading2 || self == .heading3 }
