@@ -43,6 +43,7 @@ Tests = `NotitiaKit/Tests/NotitiaKitTests/`.
 | Éditeur par blocs | `Features/Editor/NoteEditorView`, `NoteEditorModel`, `BlockRowView` (rendu d'un bloc, menu `/`, images), `BlockTextView` (NSTextView), `RichTextView`, `RichTextConverter` | `Models/Block` (`BlockKind`, `NoteDocument`), `Models/RichText`, `Models/NoteColor`, `Editor/BlockOperations`, `Editor/MarkdownShortcut` | `BlockOperationsTests`, `RichTextTests` |
 | Enregistrement et transcription | `Features/Recording/RecordingController` (un flux micro → toutes les analyses), `RecordingViews` (consentement, barre, bloc transcription), `AudioPlaybackController` | `Audio/AudioRecorder`, `Models/TranscriptSegment`, `AI/AIProtocols` (`TranscriptionEngine`, `EngineCatalog`), `AI/AppleSpeechTranscriptionEngine` (SpeechAnalyzer), `AI/DemoTranscriptionEngine` | `TranscriptAnnotationTests` (« Transcription Apple et ton »), `AITests`, `AppleEnginesIntegrationTests` |
 | Transcription enrichie (sons, volume, ton, citations, empreinte) | `RecordingViews` (`TranscriptBlockView` : puces, bandeau de ton, « Citer avec le contexte »), `Features/Inspector/InspectorView` (état de l'empreinte), `Features/Settings/SettingsView` (`TranscriptionSettings`) | `Models/TranscriptAnnotation`, `AI/AnnotationDetectors` (`SoundEventDetector`, `LevelAnnotationDetector`), `AI/SoundEventAggregator` (+ `LevelAnalyzer`), `AI/ToneAnalyzer` (+ `TonePassages`), `Editor/TranscriptTimeline` (+ `TranscriptLink`), `Privacy/TranscriptIntegrity` | `TranscriptAnnotationTests`, `AppleEnginesIntegrationTests` |
+| Séparation des locuteurs | `RecordingController` (flux de mesures, attribution à l'arrêt), `RecordingViews` (participants dans le consentement, renommer un locuteur), `SettingsView` (« Distinguer les voix »), `App/DemoAudioImport` | `AI/SpeakerDiarization` (`VoiceFeatureExtractor`, `SpeakerDiarization`, `AgglomerativeClustering`), `AI/AppleSpeechTranscriptionEngine` (`TimedText.sentences` : découpage en phrases), `Recording.speakerNames` | `SpeakerDiarizationTests`, `SpeakerDiarizationIntegrationTests` |
 | IA locale (résumé, mots-clés, carte mentale) | `Features/Editor/GenerationBar` (avancement, annulation), `Features/MindMap/MindMapViews`, `Features/Settings/SettingsView` (`IntelligenceSettings`), `Features/Editor/NoteEditorModel` (`aiSource`, `run`) | `AI/AIProtocols` (`NoteAIService`, `AISource`), `AI/FoundationModelsAIService` (par défaut), `AI/SourceGrounding` (`TextChunker`, `SourceVerifier`, `SourceLocator`), `AI/SummaryAssembler`, `AI/LocalExtractiveAIService` (repli), `AI/TextAnalysis`, `Models/MindMap`, `Editor/MindMapLayout` | `FoundationModelsAITests`, `AITests`, `AppleEnginesIntegrationTests` |
 | Confidentialité, RGPD | `Features/Settings/SettingsView` (`PrivacySettings`), `Config/Notitia.entitlements`, `Resources/PrivacyInfo.xcprivacy` | `Privacy/AudioVault`, `Privacy/KeyStore`, `Privacy/RetentionPolicy`, `Export/DataExporter`, `Export/MarkdownRenderer`, `Storage/AppPaths` | `PrivacyTests` |
 | Prise en main (tutoriel, note « Aide ») | `Features/Welcome/TutorialView` | `Storage/HelpContent`, `Storage/SampleData` (mode démo) | `HelpContentTests` |
@@ -72,8 +73,11 @@ Le contenu d'une note est un `NoteDocument` sérialisé en **JSON versionné**, 
 }
 ```
 
-Les enregistrements (`Recording`) portent aussi deux champs JSON hors du document :
-`segmentsData` (`[TranscriptSegment]`) et `annotationsData` (`[TranscriptAnnotation]`, facultatif) :
+Les enregistrements (`Recording`) portent aussi des champs JSON hors du document :
+`segmentsData` (`[TranscriptSegment]`), `annotationsData` (`[TranscriptAnnotation]`, facultatif) et
+`speakerNamesData` (facultatif, par exemple `{"Locuteur 1": "Lucas"}`). Le `speaker` d'un segment est un libellé
+neutre (« Locuteur 1 »), scellé dans l'empreinte ; le nom choisi par l'utilisateur ne l'est pas et s'applique à
+l'affichage et à l'export. Les annotations :
 
 ```json
 [
@@ -158,15 +162,25 @@ protocol AnnotationDetector: Sendable {
 ```
 AudioRecorder → AudioChunk ─┬─▶ TranscriptionEngine (SpeechAnalyzer ou démo) ─▶ segments
                             ├─▶ SoundEventDetector (SoundAnalysis) ──────────▶ rires, applaudissements, cris
-                            └─▶ LevelAnnotationDetector (niveau) ────────────▶ silences, volume élevé
-                         à l'arrêt : empreinte SHA-256, puis ToneAnalyzer (texte) ─▶ ton des passages
+                            ├─▶ LevelAnnotationDetector (niveau) ────────────▶ silences, volume élevé
+                            └─▶ VoiceFeatureCollector (MFCC, hauteur) ───────▶ mesures en mémoire
+   à l'arrêt : locuteurs (SpeakerDiarization), empreinte SHA-256, puis ToneAnalyzer (texte) ─▶ ton des passages
 ```
 
 - Implémentations :
   - `AppleSpeechTranscriptionEngine` : **SpeechAnalyzer + SpeechTranscriber**, sur l'appareil. Résultats provisoires
     puis définitifs (`SpeechResultTracker`, pur et testé), conversion vers le format du modèle (16 kHz Int16 sur
     ce Mac), tags de la note passés comme `contextualStrings`. Moteur par défaut.
+    SpeechTranscriber ne coupe qu'aux longues pauses : chaque résultat définitif est découpé en **phrases** avec
+    l'horodatage de ses mots (`TimedText.sentences`), pour que chaque phrase ait son instant et son locuteur.
   - `DemoTranscriptionEngine` rejoue un script au rythme de l'audio, pour essayer l'app sans parler.
+  - **Séparation des locuteurs** (aucune API Apple ne la fournit) : `VoiceFeatureExtractor` mesure chaque trame de
+    25 ms (MFCC 1 à 12 et hauteur par autocorrélation, avec Accelerate) et cumule par blocs de 0,25 s, en mémoire.
+    À l'arrêt, `SpeakerDiarization.label` fait la moyenne par phrase, normalise chaque mesure par sa dispersion à
+    l'intérieur des phrases (le gain du micro n'intervient pas), puis regroupe les phrases (`AgglomerativeClustering` :
+    liaison moyenne, arrêt au seuil 1,5 ou au nombre de participants indiqué ; les groupes de moins de 5 % de la
+    parole sont rattachés au plus proche). Une seule voix : pas de locuteur. Réglé sur les trois voix de la réunion
+    de test (100 % des phrases bien attribuées) ; à vérifier sur de vraies réunions.
   - `SoundEventDetector` : classifieur intégré (`SNClassifierIdentifier.version1`, fenêtres de 1,5 s), puis
     `SoundEventAggregator` (seuils, hystérésis, fusion). `LevelAnnotationDetector` : `LevelAnalyzer`, pur.
   - `ToneAnalyzer` : passages de quelques phrases (`TonePassages`) ; Foundation Models (`@Generable` : catégorie +

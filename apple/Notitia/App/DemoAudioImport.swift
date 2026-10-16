@@ -29,6 +29,7 @@ enum DemoAudioImport {
             async let segments = collect(engine.transcribe(audio: AudioFileReader.stream(chunks), locale: Locale(identifier: localeID)))
             async let sounds = collect(SoundEventDetector().detect(audio: AudioFileReader.stream(chunks)))
             async let levels = collect(LevelAnnotationDetector().detect(audio: AudioFileReader.stream(chunks)))
+            async let voice = VoiceFeatureCollector.collect(AudioFileReader.stream(chunks))
 
             // Un segment est émis plusieurs fois (provisoire puis définitif) : on garde la dernière version.
             var latest: [UUID: TranscriptSegment] = [:]
@@ -37,11 +38,12 @@ enum DemoAudioImport {
                 if latest[segment.id] == nil { order.append(segment.id) }
                 latest[segment.id] = segment
             }
-            recording.segments = order.compactMap { latest[$0] }.filter { !$0.text.isEmpty }.map {
+            let finals = order.compactMap { latest[$0] }.filter { !$0.text.isEmpty }.map {
                 var final = $0
                 final.isFinal = true
                 return final
             }
+            recording.segments = SpeakerDiarization.label(finals, voice: await voice)
             recording.annotations = (try await sounds + levels).mergingOverlaps()
             recording.duration = duration
             recording.seal()
@@ -52,7 +54,10 @@ enum DemoAudioImport {
             try services.vault.seal(plaintextFile: copy, id: recording.uid)
             recording.hasAudio = true
 
-            NSLog("%@", "Import démo : \(recording.segments.count) segments, \(recording.annotations.count) annotations, \(Int(duration)) s — \(recording.segments.prefix(2).map(\.text))")
+            NSLog("%@", "Import démo : \(recording.segments.count) segments, \(recording.segments.speakers.count) locuteurs, \(recording.annotations.count) annotations, \(Int(duration)) s — \(recording.segments.prefix(2).map(\.text))")
+            for segment in recording.segments {
+                NSLog("%@", "  \(segment.speaker ?? "—") : \(segment.text.prefix(50))")
+            }
             note.document = NoteDocument(blocks: [
                 Block(kind: .paragraph, text: RichText("Réunion de test générée à partir d'un fichier audio (voix de synthèse). Essayez « Résumer », « Carte mentale » et « Analyser le ton des passages ».", style: TextStyle(italic: true, color: .gray))),
                 Block(kind: .transcript, recordingID: recording.uid),

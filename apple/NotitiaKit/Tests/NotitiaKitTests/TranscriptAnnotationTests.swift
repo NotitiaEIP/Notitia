@@ -253,6 +253,28 @@ struct TranscriptIntegrityTests {
     }
 }
 
+extension TranscriptIntegrityTests {
+    @Test func renommerUnLocuteurNeModifiePasLOriginal() {
+        let recording = Recording(localeIdentifier: "fr_FR", engineName: "test", consentConfirmedAt: .now)
+        recording.segments = [
+            TranscriptSegment(text: "Bonjour.", start: 0, end: 1, speaker: "Locuteur 1"),
+            TranscriptSegment(text: "Salut.", start: 1, end: 2, speaker: "Locuteur 2"),
+            TranscriptSegment(text: "On commence.", start: 2, end: 3, speaker: "Locuteur 1"),
+        ]
+        recording.seal()
+
+        recording.rename(speaker: "Locuteur 1", to: "  Lucas ")
+        #expect(recording.integrityStatus == .intact)
+        #expect(recording.segments.map(\.speaker) == ["Locuteur 1", "Locuteur 2", "Locuteur 1"], "l'original garde le libellé neutre")
+        #expect(recording.namedSegments.map(\.speaker) == ["Lucas", "Locuteur 2", "Lucas"])
+        #expect(recording.segments.speakers == ["Locuteur 1", "Locuteur 2"])
+
+        recording.rename(speaker: "Locuteur 1", to: "")
+        #expect(recording.speakerNames.isEmpty, "un nom vide rend le libellé d'origine")
+        #expect(recording.speakerNamesData == nil)
+    }
+}
+
 @Suite("Transcription Apple et ton")
 struct SpeechAndToneTests {
     @Test func resultatsProvisoiresPuisDefinitifs() throws {
@@ -273,6 +295,31 @@ struct SpeechAndToneTests {
         #expect(!first.isFinal && final.isFinal)
         #expect(final.text == "Bonjour à tous.")
         #expect(next.id != final.id)
+    }
+
+    @Test func resultatDefinitifDecoupeEnPhrases() throws {
+        var tracker = SpeechResultTracker()
+        let volatile = tracker.apply(words: [TimedText(text: "Bonjour", start: 0, end: 0.5)], start: 0, end: 0.5, isFinal: false)
+        let words = [
+            TimedText(text: "Bonjour", start: 0, end: 0.5), TimedText(text: " "), TimedText(text: "à", start: 0.5, end: 0.6),
+            TimedText(text: " "), TimedText(text: "tous.", start: 0.6, end: 1.1), TimedText(text: " "),
+            TimedText(text: "Premier", start: 1.9, end: 2.3), TimedText(text: " "), TimedText(text: "sujet ?", start: 2.3, end: 2.9),
+            TimedText(text: " "), TimedText(text: "Oui", start: 3.5, end: 3.8),
+        ]
+        let finals = tracker.apply(words: words, start: 0, end: 4, isFinal: true)
+        #expect(finals.map(\.text) == ["Bonjour à tous.", "Premier sujet ?", "Oui"])
+        #expect(finals.map(\.start) == [0, 1.9, 3.5])
+        #expect(finals.map(\.end) == [1.1, 2.9, 3.8])
+        #expect(finals.allSatisfy { $0.isFinal })
+        #expect(finals.first?.id == volatile.first?.id, "la première phrase remplace le passage provisoire")
+        #expect(Set(finals.map(\.id)).count == 3)
+        let next = tracker.apply(words: [TimedText(text: "Suite", start: 5, end: 5.4)], start: 5, end: 5.4, isFinal: false)
+        #expect(!finals.map(\.id).contains(next.first!.id), "le résultat suivant ouvre un nouveau passage")
+    }
+
+    @Test func phraseSansHorodatage() {
+        let sentences = TimedText.sentences([TimedText(text: "Oui. "), TimedText(text: "Non", start: 2, end: 2.5)], start: 1, end: 3)
+        #expect(sentences == [TimedText(text: "Oui.", start: 1, end: 2), TimedText(text: "Non", start: 2, end: 2.5)])
     }
 
     @Test func passagesDecoupesSurLesPauses() {

@@ -69,8 +69,10 @@ public enum SampleData {
         recording.segments = DemoTranscriptionEngine.defaultScript.enumerated().map { index, sentence in
             let duration = Double(sentence.split(separator: " ").count) / 2.6
             defer { time += duration + 0.6 }
-            return TranscriptSegment(text: sentence, start: time, end: time + duration, speaker: index.isMultiple(of: 3) ? "Lucas" : (index % 3 == 1 ? "Clément" : "Nathan"))
+            return TranscriptSegment(text: sentence, start: time, end: time + duration, speaker: SpeakerDiarization.label(index % 3 + 1))
         }
+        // Les voix sont distinguées (« Locuteur 1, 2, 3 ») ; les noms ont été donnés par l'utilisateur.
+        recording.speakerNames = ["Locuteur 1": "Lucas", "Locuteur 2": "Clément", "Locuteur 3": "Nathan"]
         recording.duration = time
         // Annotations d'exemple : rires après « sans mascotte », applaudissements après la décision,
         // et le ton du passage sur le thème (déduit du texte).

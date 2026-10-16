@@ -36,6 +36,7 @@ contient l'app **macOS** en Swift/SwiftUI et le package partagé `NotitiaKit`, q
 | Éditeur | Éditeur **par blocs typés**, texte riche. Chaque bloc est un `NSTextView` (`BlockTextView`), pas un `TextEditor` (il faut intercepter Entrée, Retour arrière, Tab et les flèches) |
 | Données | SwiftData en local. Contenu d'une note = `NoteDocument` en **JSON versionné**, le format commun à toutes les plateformes (positions en UTF-16, styles et couleurs sémantiques) |
 | Confidentialité | **100 % hors ligne, RGPD dès la conception** : sandbox **sans** `com.apple.security.network.client`, audio chiffré (AES-GCM, clé dans le trousseau), consentement avant chaque enregistrement, export complet, effacement total. Voir `docs/PRIVACY.md` |
+| Locuteurs | Séparation **sur l'appareil, sans modèle** (MFCC + hauteur, regroupement) : choix de Lucas pour rester sans dépendance. Les mesures de la voix ne sont **jamais conservées** ni comparées entre réunions (sinon identification biométrique). Voir `docs/PRIVACY.md` §6 |
 | Transcription / LLM | Tout **sur l'appareil**, derrière les protocoles de `NotitiaKit/AI/AIProtocols.swift`. Transcription : **SpeechAnalyzer** (`AppleSpeechTranscriptionEngine`, par défaut) ou `DemoTranscriptionEngine`. Résumés : `FoundationModelsAIService` (par défaut, sources vérifiées), repli `LocalExtractiveAIService`. Ton : `ToneAnalyzer` (Foundation Models, repli NaturalLanguage) |
 | Émotions | **Jamais déduites** (AI Act art. 5 §1 f : interdit au travail et à l'école). On annote ce qu'on entend (sons, volume) et le ton du **texte**, jamais une personne. Voir `docs/PRIVACY.md` §6 |
 | Dépendances | **Aucune** : pas de SPM externe, pas de CocoaPods, pas de clé d'API |
@@ -113,27 +114,43 @@ dans `~/Library/Containers/com.notitia.Notitia/Data/tmp/`, utilisées pour `docs
   nombre de segments. Un `AVAudioFile` en écriture doit être fermé (`close()`), sinon le fichier AAC est illisible.
   Les arguments sont dans le schéma partagé, **décochés** (Product › Scheme › Edit Scheme › Run › Arguments) : les
   cocher pour un ⌘R en mode démo. Le mode démo est en mémoire : tout disparaît en quittant l'app.
+- **Référence faible à un modèle SwiftData** : après `save()`, le contexte ne retient plus forcément l'objet, et un
+  `weak var` peut tomber à `nil`. Garder l'identifiant (`uid`) et relire le modèle dans le contexte. C'est ce qui
+  faisait perdre la transcription à l'arrêt (« Aucune transcription. »).
+- **`say` lancé depuis `swift test`** remplace sans prévenir la plupart des voix (Flo, Amélie, Grandpa…) par la voix
+  par défaut, même sans les variables `DYLD_*`. Toutes les voix se ressemblaient, et le premier réglage des
+  locuteurs était faux. Le test d'intégration des locuteurs lit donc les répliques produites par
+  `scripts/reunion-test/generer.sh` dans `scripts/reunion-test/.phrases/` (ignoré par git).
+- **SpeechAnalyzer ne coupe qu'aux longues pauses** : un résultat définitif contenait plusieurs répliques (11
+  segments pour 2 min 30). Il est découpé en phrases avec l'horodatage des mots (`TimedText.sentences`). Deux
+  répliques sans ponctuation entre elles restent dans la même phrase, donc avec un seul locuteur.
 - **Captures en mode démo** sans fermer l'app de Lucas : `open -n build/Build/Products/Debug/Notitia.app --args
   -NotitiaDemoMode YES -NotitiaSnapshots YES`, puis fermer cette seule instance.
 
-## État actuel (2026-10-14)
+## État actuel (2026-10-16)
 
-- `main` : itération 1. `feature/transcription-enrichie` (commit `d09f2bf`, par Lucas) : itération 2,
-  transcription SpeechAnalyzer et transcription enrichie.
-- Branche **`feature/foundation-models-summaries`** (partie de `d09f2bf`, non commitée au moment d'écrire) :
-  itération 3, résumés, mots-clés et cartes mentales reformulés par Foundation Models, avec sources vérifiées et
-  repères cliquables, barre de génération (étape, moteur, Annuler). **114 tests** passent, plus 4 tests d'intégration vérifiés sur le Mac de Lucas (résumé de la
-  réunion de démo en environ 7 s). Vérifié aussi dans l'app sandboxée (captures du mode démo). Compile sans
-  avertissement.
-- `CLAUDE.md` est versionné depuis `d09f2bf`.
-- Pas encore testé à la main : un vrai enregistrement (micro, rires réels, seuils), une réunion longue résumée,
-  l'installation du modèle de transcription depuis les Réglages, plusieurs Mac.
+- `main` (`5b478fb`) contient les itérations 1 à 3 et les correctifs de la PR #3 (transcription conservée à
+  l'arrêt, bloc de transcription protégé). Vérifié à la main par Lucas : un vrai enregistrement au micro est bien
+  conservé à l'arrêt.
+- Branche **`feature/locuteurs`** (non commitée au moment d'écrire, avec la mise à jour de CLAUDE.md et ROADMAP qui
+  était sur `docs/etat-apres-pr3`) : itération 4, séparation des locuteurs, renommage, nombre de participants,
+  découpage des résultats en phrases. **129 tests** passent (+ 2 tests d'intégration des locuteurs et 4 des
+  moteurs Apple). Compile sans avertissement. Vérifié dans l'app avec la réunion de test : 34 phrases, 3 locuteurs,
+  toutes bien attribuées (journal de `DemoAudioImport`).
+- Pas encore testé à la main : les locuteurs avec de vraies personnes (le seuil 1,5 est réglé sur des voix de
+  synthèse), l'interface de renommage, une réunion longue (enregistrement et résumé), les rires réels et les
+  seuils, l'installation du modèle de transcription depuis les Réglages, plusieurs Mac.
+- `gh` n'est pas installé sur le Mac de Lucas : pour une PR, pousser la branche et donner le lien
+  `https://github.com/NotitiaEIP/Notitia-macOS/compare/main...<branche>?expand=1`.
 
 ## Prochaine étape conseillée
 
-1. Tester un vrai enregistrement long dans l'app (`docs/ROADMAP.md` › Prochaines étapes, points 1 et 2), puis
-   relire et fusionner les deux branches par PR (`feature/transcription-enrichie`, puis celle-ci).
-2. Séparation des locuteurs (sur l'appareil uniquement).
+Finir l'app macOS avant iOS et les autres plateformes (demande de Lucas).
+
+1. Tester les locuteurs avec 2 à 4 vraies personnes, puis une vraie réunion longue (`docs/ROADMAP.md` ›
+   Prochaines étapes, points 1 et 2).
+2. Éditeur : ⌘Z sur les opérations structurelles, puis collage multi-lignes, sélection de plusieurs blocs, export
+   PDF, tableaux.
 
 ## À ne pas oublier
 

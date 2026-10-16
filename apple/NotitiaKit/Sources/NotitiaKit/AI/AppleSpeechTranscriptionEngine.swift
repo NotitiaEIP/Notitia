@@ -113,11 +113,15 @@ public struct AppleSpeechTranscriptionEngine: TranscriptionEngine {
                     let reader = Task {
                         var tracker = SpeechResultTracker()
                         for try await result in transcriber.results {
-                            let start = result.range.start.seconds
-                            let end = result.range.end.seconds
-                            if let segment = tracker.apply(text: String(result.text.characters), start: start, end: end, isFinal: result.isFinal) {
-                                continuation.yield(segment)
+                            // Un mot par morceau, avec son horodatage : sert à découper le résultat définitif en phrases.
+                            let words = result.text.runs.map { run in
+                                let range = run[AttributeScopes.SpeechAttributes.TimeRangeAttribute.self]
+                                return TimedText(text: String(result.text[run.range].characters),
+                                                 start: range?.start.seconds, end: range?.end.seconds)
                             }
+                            let segments = tracker.apply(words: words, start: result.range.start.seconds,
+                                                         end: result.range.end.seconds, isFinal: result.isFinal)
+                            segments.forEach { continuation.yield($0) }
                         }
                     }
 
@@ -176,10 +180,29 @@ public enum AppleSpeechError: LocalizedError {
 ///
 /// Un résultat **provisoire** remplace le précédent (même `id`) tant que le passage n'est pas figé ;
 /// un résultat **définitif** fige le segment, et le suivant en ouvre un nouveau.
+///
+/// SpeechTranscriber ne coupe qu'aux longues pauses : un résultat définitif peut contenir plusieurs répliques.
+/// Il est donc découpé en phrases (une phrase garde l'`id` du passage provisoire, les autres en reçoivent un
+/// nouveau) : chaque phrase a son horodatage et, ensuite, son locuteur.
 public struct SpeechResultTracker: Sendable {
     private var currentID: UUID?
 
     public init() {}
+
+    /// Résultat sous forme de mots horodatés : un segment par phrase s'il est définitif.
+    public mutating func apply(words: [TimedText], start: TimeInterval, end: TimeInterval, isFinal: Bool) -> [TranscriptSegment] {
+        let text = words.map(\.text).joined()
+        let sentences = isFinal ? TimedText.sentences(words, start: start, end: end) : []
+        guard sentences.count > 1 else {
+            return apply(text: text, start: start, end: end, isFinal: isFinal).map { [$0] } ?? []
+        }
+        let firstID = currentID ?? UUID()
+        currentID = nil
+        return sentences.enumerated().map { index, sentence in
+            TranscriptSegment(id: index == 0 ? firstID : UUID(), text: sentence.text,
+                              start: sentence.start ?? start, end: sentence.end ?? end, isFinal: true)
+        }
+    }
 
     public mutating func apply(text: String, start: TimeInterval, end: TimeInterval, isFinal: Bool) -> TranscriptSegment? {
         let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -223,5 +246,48 @@ private final class PCMConverter {
 
     private final class SuppliedFlag: @unchecked Sendable {
         var value = false
+    }
+}
+
+/// Morceau de texte (en général un mot) et son horodatage, s'il est connu.
+public struct TimedText: Sendable, Equatable {
+    public var text: String
+    public var start: TimeInterval?
+    public var end: TimeInterval?
+
+    public init(text: String, start: TimeInterval? = nil, end: TimeInterval? = nil) {
+        self.text = text
+        self.start = start
+        self.end = end
+    }
+
+    /// Regroupe les mots en phrases (fin sur « . », « ? », « ! » ou « … »), avec le début du premier mot horodaté
+    /// et la fin du dernier. Une phrase sans aucun horodatage reprend la fin de la précédente (ou `start`), et se
+    /// termine au début de la suivante (ou à `end`).
+    public static func sentences(_ words: [TimedText], start: TimeInterval, end: TimeInterval) -> [TimedText] {
+        var sentences: [TimedText] = []
+        var current = TimedText(text: "")
+        for word in words {
+            current.text += word.text
+            if let wordStart = word.start, current.start == nil { current.start = wordStart }
+            if let wordEnd = word.end { current.end = wordEnd }
+            let trimmed = word.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let last = trimmed.last, ".?!…".contains(last) {
+                sentences.append(current)
+                current = TimedText(text: "")
+            }
+        }
+        sentences.append(current)
+        sentences = sentences.compactMap { sentence in
+            let text = sentence.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return text.isEmpty ? nil : TimedText(text: text, start: sentence.start, end: sentence.end)
+        }
+        for index in sentences.indices {
+            if sentences[index].start == nil { sentences[index].start = index > 0 ? sentences[index - 1].end : start }
+        }
+        for index in sentences.indices.reversed() where sentences[index].end == nil {
+            sentences[index].end = index + 1 < sentences.count ? sentences[index + 1].start : end
+        }
+        return sentences
     }
 }

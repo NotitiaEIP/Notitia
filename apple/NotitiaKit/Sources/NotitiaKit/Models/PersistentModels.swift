@@ -192,6 +192,9 @@ public final class Recording {
     @Attribute(.externalStorage) public var annotationsData: Data?
     /// Empreinte SHA-256 de la transcription d'origine, calculée à l'arrêt (voir `TranscriptIntegrity`).
     public var integrityHash: String?
+    /// Noms donnés par l'utilisateur aux locuteurs (« Locuteur 1 » → « Lucas »). Hors de l'empreinte : la
+    /// transcription garde le libellé neutre, le nom est une interprétation de l'utilisateur.
+    public var speakerNamesData: Data?
 
     public var note: Note?
 
@@ -221,6 +224,24 @@ public final class Recording {
     public var annotations: [TranscriptAnnotation] {
         get { [TranscriptAnnotation].decode(annotationsData) }
         set { annotationsData = newValue.isEmpty ? nil : newValue.encoded() }
+    }
+
+    public var speakerNames: [String: String] {
+        get { speakerNamesData.flatMap { try? JSONDecoder().decode([String: String].self, from: $0) } ?? [:] }
+        set { speakerNamesData = newValue.isEmpty ? nil : try? JSONEncoder().encode(newValue) }
+    }
+
+    /// Segments avec le nom choisi par l'utilisateur à la place du libellé neutre, pour l'affichage et l'export.
+    public var namedSegments: [TranscriptSegment] {
+        segments.renamingSpeakers(speakerNames)
+    }
+
+    /// Renomme un locuteur dans tout l'enregistrement. Un nom vide rend le libellé d'origine.
+    public func rename(speaker: String, to name: String) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        var names = speakerNames
+        names[speaker] = name.isEmpty || name == speaker ? nil : name
+        speakerNames = names
     }
 
     /// Fige la transcription d'origine : à appeler une seule fois, à la fin de l'enregistrement.

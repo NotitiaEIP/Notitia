@@ -52,3 +52,21 @@ public extension Array where Element == TranscriptSegment {
         return (try? JSONDecoder().decode([TranscriptSegment].self, from: data)) ?? []
     }
 }
+
+extension [TranscriptSegment] {
+    /// Remplace les libellés de locuteur par les noms donnés (les autres restent inchangés).
+    public func renamingSpeakers(_ names: [String: String]) -> [TranscriptSegment] {
+        guard !names.isEmpty else { return self }
+        return map { segment in
+            var renamed = segment
+            if let speaker = segment.speaker, let name = names[speaker] { renamed.speaker = name }
+            return renamed
+        }
+    }
+
+    /// Libellés de locuteur, dans l'ordre d'apparition.
+    public var speakers: [String] {
+        var seen = Set<String>()
+        return compactMap(\.speaker).filter { seen.insert($0).inserted }
+    }
+}
