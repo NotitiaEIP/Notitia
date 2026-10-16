@@ -41,6 +41,8 @@ public struct ExportSnapshot: Codable, Sendable {
         public var annotations: [TranscriptAnnotation]
         /// Empreinte de la transcription d'origine (voir `TranscriptIntegrity`).
         public var integrityHash: String?
+        /// Noms donnés aux locuteurs (« Locuteur 1 » → « Lucas »), hors empreinte.
+        public var speakerNames: [String: String]?
     }
 
     public var format = "notitia-export"
@@ -71,7 +73,8 @@ public struct ExportSnapshot: Codable, Sendable {
                                locale: $0.localeIdentifier, engine: $0.engineName,
                                consentConfirmedAt: $0.consentConfirmedAt, hasAudio: $0.hasAudio,
                                audioDeletedAt: $0.audioDeletedAt, segments: $0.segments,
-                               annotations: $0.annotations, integrityHash: $0.integrityHash)
+                               annotations: $0.annotations, integrityHash: $0.integrityHash,
+                               speakerNames: $0.speakerNames.isEmpty ? nil : $0.speakerNames)
             }
         )
     }
@@ -115,7 +118,9 @@ public struct DataExporter: Sendable {
         try encoder.encode(snapshot).write(to: root.appending(path: "notitia-export.json"))
 
         // 2. Markdown, rangé comme dans l'application
-        let segments = Dictionary(uniqueKeysWithValues: snapshot.recordings.map { ($0.id, $0.segments) })
+        let segments = Dictionary(uniqueKeysWithValues: snapshot.recordings.map {
+            ($0.id, $0.segments.renamingSpeakers($0.speakerNames ?? [:]))
+        })
         let annotations = Dictionary(uniqueKeysWithValues: snapshot.recordings.map { ($0.id, $0.annotations.filter { !$0.isHidden }) })
         let notesRoot = root.appending(path: "Notes", directoryHint: .isDirectory)
         var usedNames = Set<String>()

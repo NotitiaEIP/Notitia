@@ -228,7 +228,7 @@ struct StoreTests {
         let f = try makeFixture(); defer { f.tmp.remove() }
         SampleData.populate(f.context)
         let meeting = try #require(try f.context.fetch(FetchDescriptor<Note>()).first { $0.hasRecording })
-        let segments = Dictionary(uniqueKeysWithValues: meeting.recordings.map { ($0.uid, $0.segments) })
+        let segments = Dictionary(uniqueKeysWithValues: meeting.recordings.map { ($0.uid, $0.namedSegments) })
         let markdown = MarkdownRenderer.render(title: meeting.title, document: meeting.document, segmentsByRecording: segments)
         #expect(markdown.contains("### Transcription"))
         #expect(markdown.contains("`[00:00]` **Lucas** Bonjour à tous"))

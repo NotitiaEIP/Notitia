@@ -67,6 +67,7 @@ private struct TranscriptionSettings: View {
     @AppStorage(Preferences.Keys.transcriptionLocale) private var localeID = "fr_FR"
     @AppStorage(Preferences.Keys.annotateSounds) private var annotateSounds = true
     @AppStorage(Preferences.Keys.analyzeTone) private var analyzeTone = false
+    @AppStorage(Preferences.Keys.separateSpeakers) private var separateSpeakers = true
     @State private var modelStatus: AppleSpeechTranscriptionEngine.ModelStatus?
     @State private var installProgress: Double?
     @State private var installError: String?
@@ -98,6 +99,9 @@ private struct TranscriptionSettings: View {
             Section {
                 Toggle("Annoter les sons et le volume", isOn: $annotateSounds)
                 Text("Rires, applaudissements, longs silences et passages au volume élevé, repérés pendant l'enregistrement.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Toggle("Distinguer les voix", isOn: $separateSpeakers)
+                Text("À l'arrêt, les passages sont attribués à « Locuteur 1 », « Locuteur 2 »… que vous pouvez renommer. Les mesures de la voix restent en mémoire le temps de l'enregistrement : elles ne sont jamais conservées et n'identifient personne.")
                     .font(.caption).foregroundStyle(.secondary)
                 Toggle("Analyser le ton des passages", isOn: $analyzeTone)
                 Text("Après l'enregistrement, à partir du texte seulement (par exemple « échange tendu sur le budget »). Utilise Apple Intelligence si elle est disponible.")

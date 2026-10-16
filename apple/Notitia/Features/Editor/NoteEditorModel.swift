@@ -363,7 +363,7 @@ final class NoteEditorModel {
     /// Copie la transcription dans la note sous forme de paragraphes éditables.
     func insertTranscriptAsText(recordingID: UUID, after id: UUID) {
         guard let recording = note.recordings.first(where: { $0.uid == recordingID }) else { return }
-        let paragraphs = recording.segments.filter(\.isFinal).map { segment in
+        let paragraphs = recording.namedSegments.filter(\.isFinal).map { segment in
             var runs: [TextRun] = []
             if let speaker = segment.speaker { runs.append(TextRun(speaker + " : ", style: TextStyle(bold: true))) }
             runs.append(TextRun(segment.text))
@@ -376,7 +376,7 @@ final class NoteEditorModel {
     /// et des horodatages cliquables. Contre les citations sorties de leur contexte.
     func insertQuote(recordingID: UUID, segmentID: UUID, after id: UUID) {
         guard let recording = note.recordings.first(where: { $0.uid == recordingID }),
-              let context = TranscriptTimeline.context(of: segmentID, segments: recording.segments, annotations: recording.annotations)
+              let context = TranscriptTimeline.context(of: segmentID, segments: recording.namedSegments, annotations: recording.annotations)
         else { return }
         insertBlocks(TranscriptTimeline.quoteBlocks(context, recordingID: recordingID, recordedAt: recording.createdAt), after: id)
     }

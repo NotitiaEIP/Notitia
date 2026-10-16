@@ -37,6 +37,9 @@ final class RecordingController {
     @ObservationIgnored private var pumpTask: Task<Void, Never>?
     @ObservationIgnored private var transcriptionTask: Task<Void, Never>?
     @ObservationIgnored private var detectionTasks: [Task<Void, Never>] = []
+    /// Mesures de la voix pour distinguer les locuteurs : en mémoire seulement, jetées à l'arrêt.
+    @ObservationIgnored private var voiceTask: Task<[VoiceBlock], Never>?
+    @ObservationIgnored private var expectedSpeakers: Int?
     /// Base où l'enregistrement a été créé. On y relit le `Recording` à l'arrêt, par son identifiant : une référence
     /// faible à un modèle SwiftData peut tomber à `nil` après la sauvegarde, et la transcription était alors perdue.
     @ObservationIgnored private var context: ModelContext?
@@ -47,7 +50,7 @@ final class RecordingController {
     }
 
     /// Démarre l'enregistrement dans `note`. Le consentement a été confirmé par l'appelant.
-    func start(note: Note, context: ModelContext, consentConfirmedAt: Date) async throws -> Recording {
+    func start(note: Note, context: ModelContext, consentConfirmedAt: Date, expectedSpeakers: Int? = nil) async throws -> Recording {
         guard state == .idle else { throw AudioRecorderError.alreadyRecording }
         state = .starting
         do {
@@ -67,6 +70,7 @@ final class RecordingController {
             self.recorder = recorder
             self.temporaryFile = file
             self.context = context
+            self.expectedSpeakers = expectedSpeakers
             self.recordingID = recording.uid
             self.noteID = note.uid
             self.engineName = engine.descriptor.displayName
@@ -91,6 +95,12 @@ final class RecordingController {
                         }
                     } catch {}
                 }
+            }
+
+            if Preferences.separateSpeakers {
+                let (voiceAudio, voiceInput) = AsyncStream.makeStream(of: AudioChunk.self, bufferingPolicy: .bufferingNewest(256))
+                inputs.append(voiceInput)
+                voiceTask = Task { await VoiceFeatureCollector.collect(voiceAudio) }
             }
 
             let allInputs = inputs
@@ -142,14 +152,20 @@ final class RecordingController {
         await pumpTask?.value
         await transcriptionTask?.value
         for task in detectionTasks { await task.value }
+        let voice = await voiceTask?.value ?? []
 
         if let file = temporaryFile, let recording = currentRecording() {
             recording.duration = duration
-            recording.segments = segments.filter { !$0.text.isEmpty }.map { segment in
+            let finals = segments.filter { !$0.text.isEmpty }.map { segment in
                 var final = segment
                 final.isFinal = true
                 return final
             }
+            // Les locuteurs sont attribués avant de sceller : ils font partie de la transcription d'origine.
+            let options = SpeakerDiarization.Options(expectedSpeakers: expectedSpeakers)
+            recording.segments = voice.isEmpty ? finals : await Task.detached {
+                SpeakerDiarization.label(finals, voice: voice, options: options)
+            }.value
             recording.annotations = annotations.mergingOverlaps()
             // Empreinte de la transcription d'origine (texte + sons captés).
             recording.seal()
@@ -180,6 +196,8 @@ final class RecordingController {
         self.pumpTask = nil
         self.transcriptionTask = nil
         self.detectionTasks = []
+        self.voiceTask = nil
+        self.expectedSpeakers = nil
         self.recordingID = nil
         self.noteID = nil
         self.annotations = []

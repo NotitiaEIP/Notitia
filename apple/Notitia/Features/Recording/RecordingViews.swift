@@ -20,11 +20,13 @@ extension Workspace {
         }
     }
 
-    func startRecording(consentConfirmedAt: Date) {
+    /// `expectedSpeakers` : nombre de participants indiqué dans la feuille de consentement (`nil` : estimé).
+    func startRecording(consentConfirmedAt: Date, expectedSpeakers: Int? = nil) {
         guard let editor else { return }
         Task {
             do {
-                let recording = try await services.recorder.start(note: editor.note, context: context, consentConfirmedAt: consentConfirmedAt)
+                let recording = try await services.recorder.start(note: editor.note, context: context, consentConfirmedAt: consentConfirmedAt,
+                                                                  expectedSpeakers: expectedSpeakers)
                 editor.insertBlocks([Block(kind: .transcript, recordingID: recording.uid)], after: editor.blocks.last?.id)
                 editor.flush()
             } catch {
@@ -40,6 +42,9 @@ struct ConsentSheet: View {
     @AppStorage(Preferences.Keys.askConsentBeforeRecording) private var askConsent = true
     @AppStorage(Preferences.Keys.annotateSounds) private var annotateSounds = true
     @AppStorage(Preferences.Keys.analyzeTone) private var analyzeTone = false
+    @AppStorage(Preferences.Keys.separateSpeakers) private var separateSpeakers = true
+    /// 0 : nombre de participants estimé automatiquement.
+    @State private var participants = 0
     @State private var confirmed = false
     @State private var dontAskAgain = false
 
@@ -64,6 +69,9 @@ struct ConsentSheet: View {
                 if annotateSounds {
                     Label("Les rires, applaudissements, silences et passages au volume élevé sont signalés dans la transcription.", systemImage: "waveform.badge.magnifyingglass")
                 }
+                if separateSpeakers {
+                    Label("Les voix sont distinguées (Locuteur 1, 2…) sans identifier personne ; les mesures de la voix ne sont pas conservées.", systemImage: "person.2.wave.2")
+                }
                 if analyzeTone {
                     Label("Le ton des passages est analysé à partir du texte, jamais de la voix, et sans qualifier les personnes.", systemImage: "text.bubble")
                 }
@@ -71,6 +79,16 @@ struct ConsentSheet: View {
             }
             .font(.callout)
             .foregroundStyle(.secondary)
+
+            if separateSpeakers {
+                Picker("Participants", selection: $participants) {
+                    Text("Nombre estimé").tag(0)
+                    Divider()
+                    ForEach(2...8, id: \.self) { Text("\($0)").tag($0) }
+                }
+                .help("Indiquer le nombre de personnes qui vont parler améliore la séparation des voix.")
+                .fixedSize()
+            }
 
             Toggle("J'ai informé les participants et ils acceptent l'enregistrement.", isOn: $confirmed)
                 .toggleStyle(.checkbox)
@@ -85,7 +103,7 @@ struct ConsentSheet: View {
                 Button("Démarrer l'enregistrement") {
                     if dontAskAgain { askConsent = false }
                     dismiss()
-                    workspace.startRecording(consentConfirmedAt: .now)
+                    workspace.startRecording(consentConfirmedAt: .now, expectedSpeakers: participants > 0 ? participants : nil)
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(!confirmed)
@@ -184,6 +202,9 @@ struct TranscriptBlockView: View {
     @State private var confirmDeleteAudio = false
     @State private var showHiddenAnnotations = false
     @State private var hoveredSegment: UUID?
+    /// Libellé neutre du locuteur en cours de renommage (« Locuteur 1 »).
+    @State private var speakerToRename: String?
+    @State private var speakerName = ""
 
     init(block: Block, model: NoteEditorModel) {
         self.block = block
@@ -209,6 +230,7 @@ struct TranscriptBlockView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             let items = TranscriptTimeline.merge(segments: segments, annotations: annotations, includeHidden: showHiddenAnnotations)
+            let speakerNames = isLive ? [:] : recording?.speakerNames ?? [:]
             if items.isEmpty {
                 Text(isLive ? "Parlez, la transcription s'affiche ici…" : "Aucune transcription.")
                     .foregroundStyle(.secondary)
@@ -218,7 +240,7 @@ struct TranscriptBlockView: View {
                     ForEach(items) { item in
                         switch item {
                         case .segment(let segment):
-                            segmentRow(segment)
+                            segmentRow(segment, speakerNames: speakerNames)
                         case .annotation(let annotation) where annotation.kind == .tone:
                             toneRow(annotation)
                         case .annotation(let annotation):
@@ -248,6 +270,27 @@ struct TranscriptBlockView: View {
         } message: {
             Text("La transcription est conservée. Cette action est définitive.")
         }
+        .alert("Renommer « \(speakerToRename ?? "") »", isPresented: Binding(get: { speakerToRename != nil }, set: { if !$0 { speakerToRename = nil } })) {
+            TextField("Nom", text: $speakerName)
+            Button("Renommer") { renameSpeaker() }
+            Button("Annuler", role: .cancel) {}
+        } message: {
+            Text("Le nom remplace « \(speakerToRename ?? "") » dans toute la transcription. Laissez vide pour revenir au libellé d'origine, qui reste celui de la transcription scellée.")
+        }
+    }
+
+    private var canRenameSpeakers: Bool { !isLive && !model.isReadOnly && recording != nil }
+
+    private func beginRename(_ speaker: String) {
+        speakerName = recording?.speakerNames[speaker] ?? ""
+        speakerToRename = speaker
+    }
+
+    private func renameSpeaker() {
+        guard let recording, let speaker = speakerToRename else { return }
+        recording.rename(speaker: speaker, to: speakerName)
+        try? recording.modelContext?.save()
+        speakerToRename = nil
     }
 
     private var header: some View {
@@ -330,7 +373,7 @@ struct TranscriptBlockView: View {
         .help("Écouter à partir d'ici")
     }
 
-    private func segmentRow(_ segment: TranscriptSegment) -> some View {
+    private func segmentRow(_ segment: TranscriptSegment, speakerNames: [String: String]) -> some View {
         let isCurrent = player.recordingID == block.recordingID && player.isPlaying
             && player.currentTime >= segment.start && player.currentTime < segment.end + 0.5
         let isHighlighted = model.sourceHighlight.map { segment.text.contains($0) || $0.contains(segment.text) } ?? false
@@ -338,7 +381,18 @@ struct TranscriptBlockView: View {
         return HStack(alignment: .firstTextBaseline, spacing: Spacing.m) {
             timestamp(segment.start)
 
-            Text("\(Text(segment.speaker.map { "\($0)  " } ?? "").bold())\(segment.text)")
+            if let speaker = segment.speaker {
+                Button {
+                    beginRename(speaker)
+                } label: {
+                    Text(speakerNames[speaker] ?? speaker).bold()
+                }
+                .buttonStyle(.plain)
+                .disabled(!canRenameSpeakers)
+                .help("Renommer ce locuteur dans toute la transcription")
+            }
+
+            Text(segment.text)
                 .foregroundStyle(segment.isFinal ? .primary : .secondary)
                 .italic(!segment.isFinal)
                 .textSelection(.enabled)
@@ -369,6 +423,10 @@ struct TranscriptBlockView: View {
         .contextMenu {
             Button("Citer avec le contexte") { quote(segment) }
                 .disabled(!canQuote)
+            if let speaker = segment.speaker {
+                Button("Renommer « \(speakerNames[speaker] ?? speaker) »…") { beginRename(speaker) }
+                    .disabled(!canRenameSpeakers)
+            }
         }
     }
 

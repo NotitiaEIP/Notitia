@@ -15,10 +15,16 @@ enum Preferences {
         static let annotateSounds = "annotateSounds"
         /// Analyser le ton des passages (texte seulement) après l'enregistrement. Désactivé par défaut (opt-in).
         static let analyzeTone = "analyzeTone"
+        /// Distinguer les voix (« Locuteur 1, 2… ») à l'arrêt de l'enregistrement. Activé par défaut.
+        static let separateSpeakers = "separateSpeakers"
     }
 
     static var annotateSounds: Bool {
         UserDefaults.standard.object(forKey: Keys.annotateSounds) as? Bool ?? true
+    }
+
+    static var separateSpeakers: Bool {
+        UserDefaults.standard.object(forKey: Keys.separateSpeakers) as? Bool ?? true
     }
 
     static var analyzeTone: Bool {

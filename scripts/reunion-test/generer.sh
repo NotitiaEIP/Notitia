@@ -3,6 +3,7 @@
 # du conteneur de Notitia, le seul que l'app sandboxée peut lire. Puis, en Debug :
 #   apple/build/Build/Products/Debug/Notitia.app/Contents/MacOS/Notitia -NotitiaDemoMode YES -NotitiaDemoAudio notitia-reunion-test.m4a
 # La note « Réunion de test — sprint 3 » apparaît dans Réunions (mode démo : base en mémoire, vraies données intactes).
+# Les répliques restent aussi dans .phrases/ (ignoré par git) pour les tests d'intégration.
 set -e
 cd "${0:A:h}"
 work=$(mktemp -d)
@@ -20,5 +21,8 @@ swiftc -swift-version 5 -o "$work/concat" concat.swift
 out=~/Library/Containers/com.notitia.Notitia/Data/tmp/notitia-reunion-test.m4a
 mkdir -p "${out:h}"
 "$work/concat" "$work" "$out"
+# Répliques séparées, pour le test d'intégration des locuteurs (SpeakerDiarizationIntegrationTests) : lancé depuis
+# `swift test`, `say` remplace sans prévenir la plupart des voix par la voix par défaut.
+rm -rf .phrases && mkdir .phrases && cp "$work"/*.aiff .phrases/
 rm -rf "$work"
 echo "Fichier prêt : $out"

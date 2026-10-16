@@ -13,6 +13,9 @@ build/
 .swiftpm/
 Package.resolved
 
+# Répliques générées par scripts/reunion-test/generer.sh
+scripts/reunion-test/.phrases/
+
 # Secrets : ne jamais versionner de clés
 *.env
 Secrets.xcconfig

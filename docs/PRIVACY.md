@@ -28,6 +28,7 @@ l'utilisateur est seul maître de ses données. Ce registre décrit ce que fait 
 | Transcription | Texte transcrit, noms de locuteurs | Notes de réunion | idem | Jusqu'à suppression (survit à l'audio) | Aucun |
 | Résumé, carte mentale | Dérivés du texte | Synthèse | idem | Comme la note | Aucun (Foundation Models sur l'appareil, ou moteur extractif local) |
 | Annotation des sons et du volume (activée par défaut, désactivable) | Événements horodatés : rires, applaudissements, longs silences, volume élevé. **Aucune attribution à une personne** | Compte rendu fidèle | idem | Comme la transcription | Aucun (SoundAnalysis, sur l'appareil) |
+| Séparation des locuteurs (activée par défaut, désactivable) | Mesures de la voix (enveloppe du spectre, hauteur) par blocs de 0,25 s, **en mémoire seulement** ; résultat : libellés neutres « Locuteur 1, 2… » et noms saisis par l'utilisateur | Savoir qui dit quoi dans le compte rendu | idem | Mesures **jetées à l'arrêt** ; libellés et noms comme la transcription | Aucun (Accelerate, sur l'appareil) |
 | Ton des passages (**opt-in**) | Libellé du ton d'un passage, déduit du **texte** seul | Compte rendu fidèle | idem | Comme la transcription | Aucun (NaturalLanguage ou Foundation Models, sur l'appareil) |
 
 **Sous-traitants : aucun.** Si un moteur cloud est ajouté (voir §5), ce tableau devra être mis à jour.
@@ -46,7 +47,8 @@ l'utilisateur est seul maître de ses données. Ce registre décrit ce que fait 
 | Outils d'écriture Apple | Désactivés dans l'éditeur (ils peuvent utiliser le Private Cloud Compute d'Apple) | `BlockTextView.make()` |
 | Aucun secret dans le code | Les futures clés éventuelles iront dans le trousseau | — |
 | Transcription sur l'appareil | SpeechAnalyzer (macOS 26). Le modèle de chaque langue est fourni et installé par macOS (`AssetInventory`) ; l'app reste sans `network.client`. Jamais de téléchargement pendant un enregistrement | `AppleSpeechTranscriptionEngine` |
-| Pas d'inférence d'émotion | Seuls des sons (classifieur intégré d'Apple), le volume mesuré et le ton du **texte** sont annotés. Les mesures de la voix (`SFVoiceAnalytics`) ne sont pas utilisées | `SoundEventDetector`, `LevelAnalyzer`, `ToneAnalyzer` |
+| Pas d'inférence d'émotion | Seuls des sons (classifieur intégré d'Apple), le volume mesuré et le ton du **texte** sont annotés. Les mesures de la voix d'Apple (`SFVoiceAnalytics`) ne sont pas utilisées | `SoundEventDetector`, `LevelAnalyzer`, `ToneAnalyzer` |
+| Distinguer les voix sans identifier | Les mesures de la voix restent en mémoire pendant l'enregistrement et sont jetées à l'arrêt : jamais écrites sur le disque, exportées ni comparées d'un enregistrement à l'autre. Les locuteurs sont « Locuteur 1, 2… » ; seul l'utilisateur leur donne un nom, hors de l'empreinte | `SpeakerDiarization`, `RecordingController.stop`, `Recording.speakerNames` |
 | Modèle de langage local uniquement | Foundation Models via `SystemLanguageModel` (sur l'appareil). `PrivateCloudComputeLanguageModel` n'est **jamais** utilisé | `ToneAnalyzer`, `FoundationModelsAIService` |
 | Résumés vérifiables | Chaque point d'un résumé ou d'une carte mentale reformulés doit citer sa phrase source ; un point dont la citation est introuvable est écarté. Les points renvoient à l'instant de l'enregistrement | `SourceVerifier`, `SourceLocator`, `SummaryAssembler` |
 | Annotations transparentes | Chaque annotation est marquée « automatique » avec sa source et sa confiance ; elle peut être masquée (l'original est conservé) | `TranscriptAnnotation`, `TranscriptBlockView` |
@@ -94,12 +96,23 @@ Ce que fait Notitia, et pourquoi c'est hors de ce champ (à faire valider, voir 
 | Volume élevé, long silence | **Mesure** du niveau sonore | Grandeur physique ; libellé « volume élevé », jamais « énervé » |
 | Ton d'un passage | **Texte** de la transcription | Le texte n'est pas une donnée biométrique ; le libellé qualifie l'échange (« désaccord sur le budget »), jamais une personne |
 
+**Séparation des locuteurs.** Pour savoir qui parle, Notitia mesure la voix (enveloppe du spectre et hauteur).
+Ces mesures relèvent des caractéristiques physiques d'une personne. Le RGPD (art. 4 §14 et art. 9) encadre
+strictement les données biométriques traitées **pour identifier** une personne, et l'AI Act interdit la
+catégorisation biométrique selon des attributs sensibles (art. 5 §1 g). Notitia ne fait ni l'un ni l'autre : les
+mesures servent seulement à distinguer des voix **à l'intérieur d'un enregistrement**, ne sont pas conservées, ne
+sont jamais rapprochées d'une autre réunion et ne déduisent rien sur la personne (ni âge, ni genre, ni émotion).
+Le résultat est un libellé neutre, que seul l'utilisateur remplace par un nom. À faire valider (voir l'avertissement
+en tête).
+
 Règles à conserver dans toute évolution :
 - ne jamais déduire une émotion, une intention ou un trait de caractère à partir de la voix ou du visage ;
 - ne jamais attribuer une annotation à un locuteur ;
+- ne jamais conserver les mesures de la voix, ni créer d'empreinte vocale pour reconnaître une personne d'un
+  enregistrement à l'autre (ce serait une identification biométrique) ;
 - toujours marquer une annotation comme automatique, avec sa source, et permettre de la masquer ;
 - le ton est **désactivé par défaut** (opt-in, Réglages › Transcription) ; le rappel de consentement mentionne
-  les analyses actives.
+  les analyses actives, y compris la séparation des voix.
 
 ## 7. Ébauche de politique de confidentialité
 

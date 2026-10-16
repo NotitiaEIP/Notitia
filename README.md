@@ -31,6 +31,8 @@ C'est le projet EIP Epitech de l'équipe Notitia, version 2 : une réécriture c
 - **Enregistrement et transcription** : capture micro, **reconnaissance vocale réelle sur l'appareil**
   (Apple SpeechAnalyzer), audio **chiffré**, lecture synchronisée (cliquer un horodatage), rappel du consentement
   des participants.
+- **Qui parle** : à l'arrêt, chaque phrase est attribuée à « Locuteur 1, 2… » (voix distinguées sur l'appareil, sans
+  modèle ni identification), que l'on peut renommer ; nombre de participants facultatif dans le rappel de consentement.
 - **Transcription enrichie et fidèle** : rires, applaudissements, longs silences et volume élevé repérés sur
   l'appareil (SoundAnalysis), ton des passages déduit du texte (Foundation Models), « Citer avec le contexte »,
   transcription d'origine en lecture seule avec empreinte. **Aucune déduction d'émotion** : les annotations décrivent
@@ -86,17 +88,26 @@ cd apple/NotitiaKit
 swift test
 ```
 
-112 tests couvrent : note d'aide, texte riche (dont Unicode/UTF-16), opérations de l'éditeur, raccourcis Markdown,
+129 tests couvrent : note d'aide, texte riche (dont Unicode/UTF-16), opérations de l'éditeur, raccourcis Markdown,
 format de document, recherche, IA locale, moteur de démonstration, disposition des cartes mentales,
 chiffrement de l'audio, conservation des données, export et effacement RGPD, annotations (sons, volume, ton),
-chronologie et citations, empreinte de la transcription, suivi des résultats de SpeechAnalyzer, découpage et
-vérification des sources des résumés reformulés.
+chronologie et citations, empreinte de la transcription, suivi et découpage en phrases des résultats de
+SpeechAnalyzer, séparation des locuteurs (voix synthétiques), découpage et vérification des sources des résumés
+reformulés.
 
 Quatre tests d'**intégration** utilisent les vrais moteurs d'Apple (parole de synthèse produite par `say`, voix
 française « Thomas », modèle de langue français, Apple Intelligence). Ils sont désactivés par défaut :
 
 ```bash
 NOTITIA_INTEGRATION=1 swift test --filter AppleEnginesIntegrationTests
+```
+
+La séparation des locuteurs se teste sur les trois voix de la réunion de test, générées d'abord par le script
+(lancé depuis `swift test`, `say` remplace la plupart des voix par la voix par défaut) :
+
+```bash
+scripts/reunion-test/generer.sh
+NOTITIA_INTEGRATION=1 swift test --filter SpeakerDiarizationIntegrationTests
 ```
 
 ## Structure
