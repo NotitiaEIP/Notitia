@@ -27,7 +27,8 @@ C'est le projet EIP Epitech de l'équipe Notitia, version 2 : une réécriture c
 - **Éditeur par blocs** : texte, titres, listes à puces / numérotées / de tâches, citations, encadrés, code,
   séparateurs, images. Menu `/`, raccourcis Markdown (`# `, `- `, `[] `, `> `, ` ``` `, `---`),
   gras / italique / souligné / barré / code / couleur / surlignage / lien, indentation (Tab), réorganisation
-  par glisser-déposer.
+  par glisser-déposer. ⌘Z annule aussi les opérations sur les blocs ; sélection de plusieurs blocs (Échap, ⇧↑/⇧↓,
+  ⌘A) ; coller plusieurs lignes crée un bloc par ligne (Markdown reconnu).
 - **Enregistrement et transcription** : capture micro, **reconnaissance vocale réelle sur l'appareil**
   (Apple SpeechAnalyzer), audio **chiffré**, lecture synchronisée (cliquer un horodatage), rappel du consentement
   des participants.
@@ -88,7 +89,8 @@ cd apple/NotitiaKit
 swift test
 ```
 
-129 tests couvrent : note d'aide, texte riche (dont Unicode/UTF-16), opérations de l'éditeur, raccourcis Markdown,
+152 tests couvrent : note d'aide, texte riche (dont Unicode/UTF-16), opérations de l'éditeur (dont annulation,
+collage et sélection de plusieurs blocs), raccourcis Markdown,
 format de document, recherche, IA locale, moteur de démonstration, disposition des cartes mentales,
 chiffrement de l'audio, conservation des données, export et effacement RGPD, annotations (sons, volume, ton),
 chronologie et citations, empreinte de la transcription, suivi et découpage en phrases des résultats de

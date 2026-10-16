@@ -16,6 +16,12 @@ final class BlockTextView: NSTextView {
     var onFocus: (() -> Void)?
     /// Appelé quand un bloc est déposé sur ce bloc (réorganisation).
     var onBlockDrop: ((UUID) -> Void)?
+    /// Collage de plusieurs lignes : l'éditeur crée un bloc par ligne. Renvoie `false` pour le collage habituel.
+    var onMultilinePaste: ((String, NSRange) -> Bool)?
+    /// Collage de blocs copiés depuis Notitia (voir `BlockPasteboard`). Renvoie `false` pour le collage habituel.
+    var onBlocksPaste: (([Block], NSRange) -> Bool)?
+    /// ⌘A quand tout le texte du bloc est déjà sélectionné : sélection de tous les blocs.
+    var onSelectAllBlocks: (() -> Void)?
 
     static func make() -> BlockTextView {
         let storage = NSTextStorage()
@@ -30,7 +36,8 @@ final class BlockTextView: NSTextView {
         let view = BlockTextView(frame: NSRect(x: 0, y: 0, width: 400, height: 20), textContainer: container)
         view.isRichText = true
         view.importsGraphics = false
-        view.allowsUndo = true
+        // L'annulation est gérée par l'éditeur pour toute la note (`NoteEditorModel.undo`, `EditHistory`).
+        view.allowsUndo = false
         view.drawsBackground = false
         view.textContainerInset = .zero
         view.isVerticallyResizable = false
@@ -145,6 +152,26 @@ final class BlockTextView: NSTextView {
     // MARK: Collage : texte brut uniquement (le style du point d'insertion s'applique)
 
     override var readablePasteboardTypes: [NSPasteboard.PasteboardType] { [.string] }
+
+    override func paste(_ sender: Any?) {
+        if let blocks = BlockPasteboard.readBlocks(), onBlocksPaste?(blocks, selectedRange()) == true {
+            return
+        }
+        if let text = NSPasteboard.general.string(forType: .string), text.contains(where: \.isNewline),
+           onMultilinePaste?(text, selectedRange()) == true {
+            return
+        }
+        super.paste(sender)
+    }
+
+    override func selectAll(_ sender: Any?) {
+        let length = textStorage?.length ?? 0
+        if let onSelectAllBlocks, selectedRange() == NSRange(location: 0, length: length) {
+            onSelectAllBlocks()
+        } else {
+            super.selectAll(sender)
+        }
+    }
 
     // MARK: Réorganisation des blocs par glisser-déposer
 

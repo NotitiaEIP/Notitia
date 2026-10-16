@@ -42,6 +42,15 @@
 - [x] Réunion de test à trois voix : 3 locuteurs, toutes les phrases bien attribuées ; 129 tests + 2 tests
       d'intégration des locuteurs
 
+## Fait — macOS, itération 5 : éditeur (en cours)
+
+- [x] ⌘Z / ⇧⌘Z pour toute la note : frappe et opérations sur les blocs (fusion, suppression, déplacement, IA…)
+- [x] Coller plusieurs lignes : un bloc par ligne, listes, titres, cases à cocher et code Markdown reconnus
+- [x] Sélection de plusieurs blocs (Échap, ⇧↑/⇧↓, ⌘A, ⇧-clic) : supprimer, copier, couper, coller, indenter,
+      déplacer, dupliquer, transformer ; copier-coller entre notes sans perte (styles, images)
+- [x] Images collées ou notes dupliquées : chaque note a ses propres fichiers (supprimer l'original effaçait les
+      images de la copie) ; 152 tests
+
 ## Prochaines étapes (ordre conseillé)
 
 Priorité : finir l'app macOS avant toute autre plateforme.
@@ -54,8 +63,7 @@ Priorité : finir l'app macOS avant toute autre plateforme.
    regroupements entre morceaux (la barre de génération affiche déjà l'étape en cours).
 3. **Locuteurs, suite** : corriger le locuteur d'un passage (sans toucher à la transcription scellée), donner les
    noms des locuteurs aux résumés (« Lucas propose… ») sans casser la vérification des citations.
-4. **Éditeur** : annulation des opérations structurelles (aujourd'hui ⌘Z agit dans un bloc), collage
-   multi-lignes en plusieurs blocs, sélection sur plusieurs blocs, export PDF d'une note, tableaux.
+4. **Éditeur, suite** : tableaux, export PDF et impression d'une note.
 5. **Questions sur toutes les notes** (RAG local) : embeddings sur l'appareil (`NLContextualEmbedding`), réponses
    de Foundation Models avec sources vérifiées, en reprenant le découpage de l'ancienne app.
 6. **Localisation anglaise** : les textes sont en français (langue source) ; remplir `Localizable.xcstrings`,

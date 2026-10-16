@@ -97,13 +97,15 @@ struct NoteEditorView: View {
     // MARK: Blocs
 
     private var blockList: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let selected = Set(model.selectedBlockIDs)
+        return VStack(alignment: .leading, spacing: 0) {
             ForEach(model.blocks) { block in
-                BlockRowView(block: block, model: model, number: model.listNumbers[block.id])
+                BlockRowView(block: block, model: model, number: model.listNumbers[block.id], isSelected: selected.contains(block.id))
                     .id(block.id)
                     .zIndex(model.slashMenu?.blockID == block.id ? 1 : 0)
             }
         }
+        .background(BlockSelectionResponder(model: model).frame(width: 0, height: 0))
     }
 }
 

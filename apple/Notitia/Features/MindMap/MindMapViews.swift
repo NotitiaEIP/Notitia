@@ -41,7 +41,7 @@ struct MindMapBlockView: View {
     private func binding(for map: MindMapDocument) -> Binding<MindMapDocument> {
         Binding(
             get: { block.mindMap ?? map },
-            set: { newValue in model.updateBlock(block.id) { $0.mindMap = newValue } }
+            set: { newValue in model.updateBlock(block.id, coalescing: true) { $0.mindMap = newValue } }
         )
     }
 }

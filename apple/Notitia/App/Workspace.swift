@@ -110,7 +110,7 @@ final class Workspace {
 
     func duplicate(_ note: Note) {
         var document = note.document
-        document.blocks = document.blocks.filter { $0.kind != .transcript }.map { block in
+        document.blocks = services.paths.copyingAttachments(of: document.blocks.filter { $0.kind != .transcript }).map { block in
             var copy = block
             copy.id = UUID()
             return copy
@@ -134,9 +134,7 @@ final class Workspace {
         if services.player.recordingID == uid { services.player.stop() }
         try? services.vault.delete(uid)
         if let editor {
-            for block in editor.blocks where block.recordingID == uid {
-                editor.delete(block.id)
-            }
+            editor.removeTranscriptBlocks(of: uid)
             editor.flush()
         }
         context.delete(recording)

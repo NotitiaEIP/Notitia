@@ -41,6 +41,17 @@ public struct AppPaths: Sendable {
         return name
     }
 
+    /// Donne à chaque image ses propres fichiers (blocs collés dans une autre note, note dupliquée) : supprimer une
+    /// note efface ses images, elle ne doit pas emporter celles d'une autre. Une image introuvable garde son nom.
+    public func copyingAttachments(of blocks: [Block]) -> [Block] {
+        blocks.map { block in
+            guard let name = block.attachment, let copy = try? importAttachment(from: attachmentURL(name)) else { return block }
+            var block = block
+            block.attachment = copy
+            return block
+        }
+    }
+
     /// Taille totale occupée sur disque, en octets.
     public func diskUsage() -> Int64 {
         guard let enumerator = FileManager.default.enumerator(
