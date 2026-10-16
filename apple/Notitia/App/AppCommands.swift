@@ -22,6 +22,15 @@ struct AppCommands: Commands {
                 .disabled(workspace == nil)
         }
 
+        // ⌘Z agit sur toute la note (frappe et opérations sur les blocs). Dans un autre champ (titre, recherche,
+        // réglages), la commande est transmise au champ, qui garde son propre historique.
+        CommandGroup(replacing: .undoRedo) {
+            Button("Annuler") { EditorUndo.perform(.undo, in: workspace?.editor) }
+                .keyboardShortcut("z")
+            Button("Rétablir") { EditorUndo.perform(.redo, in: workspace?.editor) }
+                .keyboardShortcut("z", modifiers: [.command, .shift])
+        }
+
         CommandGroup(after: .textEditing) {
             Button("Rechercher dans les notes") { searchFocus?.wrappedValue = true }
                 .keyboardShortcut("f", modifiers: [.command, .option])
@@ -50,6 +59,7 @@ struct AppCommands: Commands {
                     Button("Cocher / décocher") { workspace?.editor?.toggleActiveTodo() }.keyboardShortcut(.return, modifiers: .command)
                     Button("Monter le bloc") { workspace?.editor?.shiftActiveBlock(by: -1) }.keyboardShortcut(.upArrow, modifiers: [.command, .option])
                     Button("Descendre le bloc") { workspace?.editor?.shiftActiveBlock(by: 1) }.keyboardShortcut(.downArrow, modifiers: [.command, .option])
+                    Button("Dupliquer le bloc") { workspace?.editor?.duplicateActiveBlock() }.keyboardShortcut("d")
                 }
             }
             .disabled(workspace?.editor == nil)
@@ -122,4 +132,22 @@ enum TextCommand {
 final class ColorCommandSender: NSObject {
     let color: NoteColor?
     init(color: NoteColor?) { self.color = color }
+}
+
+/// Aiguillage de ⌘Z : l'éditeur de la note, ou le champ de texte qui a le focus.
+enum EditorUndo {
+    enum Action { case undo, redo }
+
+    static func perform(_ action: Action, in editor: NoteEditorModel?) {
+        let responder = NSApp.keyWindow?.firstResponder
+        let isOtherTextField = responder is NSText && !(responder is BlockTextView)
+        if let editor, !isOtherTextField, NSApp.keyWindow === NSApp.mainWindow {
+            switch action {
+            case .undo: editor.canUndo ? editor.undo() : NSSound.beep()
+            case .redo: editor.canRedo ? editor.redo() : NSSound.beep()
+            }
+        } else {
+            NSApp.sendAction(Selector(action == .undo ? "undo:" : "redo:"), to: nil, from: nil)
+        }
+    }
 }

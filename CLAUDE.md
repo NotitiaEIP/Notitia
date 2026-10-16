@@ -129,28 +129,27 @@ dans `~/Library/Containers/com.notitia.Notitia/Data/tmp/`, utilisées pour `docs
 
 ## État actuel (2026-10-16)
 
-- `main` (`5b478fb`) contient les itérations 1 à 3 et les correctifs de la PR #3 (transcription conservée à
-  l'arrêt, bloc de transcription protégé). Vérifié à la main par Lucas : un vrai enregistrement au micro est bien
-  conservé à l'arrêt.
-- Branche **`feature/locuteurs`** (non commitée au moment d'écrire, avec la mise à jour de CLAUDE.md et ROADMAP qui
-  était sur `docs/etat-apres-pr3`) : itération 4, séparation des locuteurs, renommage, nombre de participants,
-  découpage des résultats en phrases. **129 tests** passent (+ 2 tests d'intégration des locuteurs et 4 des
-  moteurs Apple). Compile sans avertissement. Vérifié dans l'app avec la réunion de test : 34 phrases, 3 locuteurs,
-  toutes bien attribuées (journal de `DemoAudioImport`).
-- Pas encore testé à la main : les locuteurs avec de vraies personnes (le seuil 1,5 est réglé sur des voix de
-  synthèse), l'interface de renommage, une réunion longue (enregistrement et résumé), les rires réels et les
-  seuils, l'installation du modèle de transcription depuis les Réglages, plusieurs Mac.
+- `main` (`e755bed`) contient les itérations 1 à 4 : transcription enrichie, résumés Foundation Models, correctifs
+  de la PR #3, séparation des locuteurs (PR #4).
+- Branche **`feature/editeur`** (non commitée au moment d'écrire) : ⌘Z global (`EditHistory`), coller plusieurs
+  lignes, sélection de plusieurs blocs, copie des images entre notes. **152 tests** passent. Compile sans
+  avertissement. L'app démarre en mode démo ; **les interactions n'ont pas encore été essayées à la main**.
+- Plan validé pour la suite (UI/UX, dans l'ordre) : tableaux (`feature/tableaux`), export PDF et impression
+  (`feature/export-pdf`), accessibilité et taille du texte (`feature/accessibilite`), anglais (`feature/anglais`),
+  icône Liquid Glass (`feature/icone`). Puis le RAG local. Les autres plateformes attendent la fin de macOS.
+- Pas encore testé à la main : les locuteurs avec de vraies personnes (seuil 1,5 réglé sur des voix de synthèse),
+  une réunion longue, les rires réels, l'installation du modèle depuis les Réglages, plusieurs Mac.
 - `gh` n'est pas installé sur le Mac de Lucas : pour une PR, pousser la branche et donner le lien
-  `https://github.com/NotitiaEIP/Notitia-macOS/compare/main...<branche>?expand=1`.
+  `https://github.com/NotitiaEIP/Notitia-macOS/compare/main...<branche>?expand=1`. Lucas préfère commiter lui-même.
+- Dans ce terminal, `grep` est une fonction du shell qui peut échouer : utiliser `/usr/bin/grep`.
 
 ## Prochaine étape conseillée
 
 Finir l'app macOS avant iOS et les autres plateformes (demande de Lucas).
 
-1. Tester les locuteurs avec 2 à 4 vraies personnes, puis une vraie réunion longue (`docs/ROADMAP.md` ›
-   Prochaines étapes, points 1 et 2).
-2. Éditeur : ⌘Z sur les opérations structurelles, puis collage multi-lignes, sélection de plusieurs blocs, export
-   PDF, tableaux.
+1. Essayer `feature/editeur` à la main (⌘Z après fusion / suppression / IA, coller du Markdown, Échap puis ⇧↓,
+   copier des blocs dans une autre note), puis PR.
+2. Tableaux, puis export PDF (plan dans `docs/ROADMAP.md`).
 
 ## À ne pas oublier
 

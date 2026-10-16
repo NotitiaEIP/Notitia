@@ -13,9 +13,6 @@
     "/ti" : {
 
     },
-    "%@  " : {
-
-    },
     "%@  %@" : {
       "localizations" : {
         "fr" : {
@@ -72,16 +69,6 @@
         }
       }
     },
-    "%@%@" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@%2$@"
-          }
-        }
-      }
-    },
     "%lld" : {
 
     },
@@ -116,6 +103,9 @@
 
     },
     "1 note" : {
+
+    },
+    "À l'arrêt, les passages sont attribués à « Locuteur 1 », « Locuteur 2 »… que vous pouvez renommer. Les mesures de la voix restent en mémoire le temps de l'enregistrement : elles ne sont jamais conservées et n'identifient personne." : {
 
     },
     "Afficher l'annotation" : {
@@ -407,6 +397,9 @@
         }
       }
     },
+    "Distinguer les voix" : {
+
+    },
     "Dossier" : {
 
     },
@@ -414,6 +407,9 @@
 
     },
     "Dupliquer" : {
+
+    },
+    "Dupliquer le bloc" : {
 
     },
     "Échec de l'effacement : %@" : {
@@ -551,6 +547,9 @@
     "Impossible de démarrer l'enregistrement" : {
 
     },
+    "Indiquer le nombre de personnes qui vont parler améliore la séparation des voix." : {
+
+    },
     "Insérer en dessous" : {
 
     },
@@ -617,6 +616,9 @@
     "Le moteur d'Apple reconnaît réellement la parole, sur ce Mac et sans Internet. Le moteur de démonstration rejoue un texte d'exemple, pour essayer l'application sans parler." : {
 
     },
+    "Le nom remplace « %@ » dans toute la transcription. Laissez vide pour revenir au libellé d'origine, qui reste celui de la transcription scellée." : {
+
+    },
     "Le texte ou les sons captés ne correspondent plus à l'empreinte calculée à la fin de l'enregistrement." : {
 
     },
@@ -642,6 +644,9 @@
 
     },
     "Les tons" : {
+
+    },
+    "Les voix sont distinguées (Locuteur 1, 2…) sans identifier personne ; les mesures de la voix ne sont pas conservées." : {
 
     },
     "Lien" : {
@@ -708,7 +713,13 @@
     "Ne plus afficher ce rappel" : {
 
     },
+    "Nom" : {
+
+    },
     "Nom (par exemple : Chinois, Réunions d'équipe…)" : {
+
+    },
+    "Nombre estimé" : {
 
     },
     "Note" : {
@@ -781,6 +792,9 @@
     "Partez de zéro et créez vos propres dossiers." : {
 
     },
+    "Participants" : {
+
+    },
     "Pas d'audio" : {
 
     },
@@ -820,6 +834,18 @@
     "Réglages › Confidentialité : durée de conservation, export, effacement" : {
 
     },
+    "Renommer" : {
+
+    },
+    "Renommer « %@ »" : {
+
+    },
+    "Renommer « %@ »…" : {
+
+    },
+    "Renommer ce locuteur dans toute la transcription" : {
+
+    },
     "Renommer et personnaliser…" : {
 
     },
@@ -850,6 +876,9 @@
     "Résumez et visualisez" : {
 
     },
+    "Rétablir" : {
+
+    },
     "Retirer %@" : {
 
     },
@@ -869,6 +898,9 @@
 
     },
     "Sans titre" : {
+
+    },
+    "Sélectionner" : {
 
     },
     "Sélectionnez une note pour voir ses informations." : {

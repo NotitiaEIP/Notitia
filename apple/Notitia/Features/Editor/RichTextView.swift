@@ -55,6 +55,18 @@ struct RichTextView: NSViewRepresentable {
         let blockID = block.id
         view.onFocus = { [weak model] in model?.didFocus(blockID) }
         view.onBlockDrop = { [weak model] dragged in model?.move(dragged, before: blockID) }
+        let isCode = block.kind == .code
+        view.onMultilinePaste = { [weak model] text, range in
+            guard let model, !isCode else { return false }
+            model.paste(text, in: blockID, selection: range.location..<range.upperBound)
+            return true
+        }
+        view.onBlocksPaste = { [weak model] copied, range in
+            guard let model, !isCode else { return false }
+            model.pasteBlocks(copied, in: blockID, selection: range.location..<range.upperBound)
+            return true
+        }
+        view.onSelectAllBlocks = { [weak model] in model?.selectAllBlocks() }
 
         // Re-rendu uniquement si le texte a changé hors de la saisie (mise en forme,
         // fusion de blocs, raccourci Markdown…) : sinon le curseur sauterait à chaque frappe.
@@ -82,8 +94,6 @@ struct RichTextView: NSViewRepresentable {
         var lastText: RichText
         var lastFocusToken: UUID?
         private var isRendering = false
-        /// Un gestionnaire d'annulation par bloc : ⌘Z n'agit que sur le bloc actif.
-        private let undo = UndoManager()
 
         init(parent: RichTextView) {
             self.parent = parent
@@ -103,12 +113,8 @@ struct RichTextView: NSViewRepresentable {
             let typingStyle = text.style(at: min(selection.location, length))
             view.typingAttributes = RichTextConverter.attributes(for: typingStyle, appearance: view.blockAppearance)
             lastText = text
-            // Les actions d'annulation pointent vers l'ancien texte : on les invalide.
-            undo.removeAllActions()
             view.invalidateHeightIfNeeded()
         }
-
-        func undoManager(for view: NSTextView) -> UndoManager? { undo }
 
         func textDidChange(_ notification: Notification) {
             guard !isRendering, let view = notification.object as? BlockTextView, let storage = view.textStorage else { return }
@@ -173,6 +179,21 @@ struct RichTextView: NSViewRepresentable {
 
             case #selector(NSResponder.insertBacktab(_:)):
                 model.outdent(blockID)
+                return true
+
+            case #selector(NSResponder.cancelOperation(_:)):
+                // Échap : sélectionne le bloc entier (puis ⇧↑ / ⇧↓ pour en ajouter).
+                model.selectBlock(blockID)
+                return true
+
+            case #selector(NSResponder.moveUpAndModifySelection(_:)):
+                guard view.isCaretOnFirstLine, range.location == 0 else { return false }
+                model.beginBlockSelection(from: blockID, by: -1)
+                return true
+
+            case #selector(NSResponder.moveDownAndModifySelection(_:)):
+                guard view.isCaretOnLastLine, range.upperBound == length else { return false }
+                model.beginBlockSelection(from: blockID, by: 1)
                 return true
 
             case #selector(NSResponder.moveUp(_:)):

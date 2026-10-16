@@ -43,6 +43,11 @@ final class NoteEditorModel {
     private(set) var activeSelection: Range<Int> = 0..<0
     var slashMenu: SlashMenuState?
 
+    /// Blocs sélectionnés en entier (Échap, ⇧↑ / ⇧↓, ⌘A) ; `nil` quand on écrit dans un bloc.
+    private(set) var blockSelection: BlockSelection?
+    /// Change quand la vue de sélection doit prendre le focus (le texte du bloc le perd).
+    private(set) var blockSelectionFocusToken: UUID?
+
     /// Passage source mis en évidence dans la transcription (clic sur un nœud de carte mentale).
     var sourceHighlight: String?
     /// Bloc vers lequel faire défiler l'éditeur.
@@ -52,6 +57,11 @@ final class NoteEditorModel {
     private(set) var generation: Generation?
     var isGenerating: Bool { generation != nil }
     var lastError: String?
+
+    /// Une seule pile d'annulation pour toute la note : frappe et opérations sur les blocs (⌘Z, ⇧⌘Z).
+    private var history = EditHistory()
+    var canUndo: Bool { !isReadOnly && history.canUndo }
+    var canRedo: Bool { !isReadOnly && history.canRedo }
 
     @ObservationIgnored private let services: AppServices
     @ObservationIgnored private var saveTask: Task<Void, Never>?
@@ -70,7 +80,9 @@ final class NoteEditorModel {
 
     // MARK: Sauvegarde
 
-    private func commit(_ newBlocks: [Block], focus caret: Caret? = nil) {
+    /// - `historyKey` : regroupe des modifications successives en une étape d'annulation ; `nil` : étape à part.
+    private func commit(_ newBlocks: [Block], focus caret: Caret? = nil, recordsHistory: Bool = true, historyKey: String? = nil) {
+        if recordsHistory, newBlocks != blocks { history.record(currentSnapshot, key: historyKey) }
         blocks = newBlocks
         listNumbers = BlockOperations.listNumbers(newBlocks)
         if let caret { focusRequest = FocusRequest(blockID: caret.blockID, offset: caret.offset) }
@@ -98,6 +110,35 @@ final class NoteEditorModel {
         try? note.modelContext?.save()
     }
 
+    // MARK: Annulation
+
+    private var currentSnapshot: EditHistory.Snapshot {
+        EditHistory.Snapshot(blocks: blocks, caret: activeBlockID.map { Caret(blockID: $0, offset: activeSelection.lowerBound) })
+    }
+
+    func undo() {
+        guard !isReadOnly, let previous = history.undo(current: currentSnapshot) else { return }
+        restore(previous)
+    }
+
+    func redo() {
+        guard !isReadOnly, let next = history.redo(current: currentSnapshot) else { return }
+        restore(next)
+    }
+
+    private func restore(_ snapshot: EditHistory.Snapshot) {
+        // Un enregistrement supprimé depuis (audio et texte effacés) ne revient pas.
+        let recordings = Set(note.recordings.map(\.uid))
+        var restored = snapshot.blocks.filter { $0.kind != .transcript || $0.recordingID.map(recordings.contains) == true }
+        if restored.isEmpty { restored = [Block()] }
+        slashMenu = nil
+        blockSelection = nil
+        let caret = snapshot.caret.flatMap { caret in
+            restored.first { $0.id == caret.blockID && $0.kind.hasText }.map { _ in caret }
+        }
+        commit(restored, focus: caret, recordsHistory: false)
+    }
+
     func titleChanged() {
         note.updatedAt = .now
         scheduleSave()
@@ -108,6 +149,8 @@ final class NoteEditorModel {
     // MARK: Focus
 
     func didFocus(_ id: UUID) {
+        if activeBlockID != id { history.endTyping() }
+        blockSelection = nil
         activeBlockID = id
         if slashMenu?.blockID != id { slashMenu = nil }
     }
@@ -191,6 +234,7 @@ final class NoteEditorModel {
             return
         }
 
+        if blocks[index].text != text { history.record(currentSnapshot, key: "saisie:\(id)") }
         blocks[index] = block
         updateSlashMenu(for: block)
         scheduleSave()
@@ -258,6 +302,16 @@ final class NoteEditorModel {
         apply(BlockOperations.deleteForwardAtEnd(blocks, blockID: id))
     }
 
+    /// Blocs copiés depuis Notitia (styles, images, cartes mentales) : insérés au curseur.
+    func pasteBlocks(_ copied: [Block], in id: UUID, selection: Range<Int>) {
+        apply(BlockOperations.insertCopies(services.paths.copyingAttachments(of: copied), into: blocks, blockID: id, selection: selection))
+    }
+
+    /// Collage de plusieurs lignes : un bloc par ligne (voir `BlockOperations.paste`).
+    func paste(_ text: String, in id: UUID, selection: Range<Int>) {
+        apply(BlockOperations.paste(text, into: blocks, blockID: id, selection: selection))
+    }
+
     func indent(_ id: UUID) { commit(BlockOperations.indent(blocks, blockID: id)) }
     func outdent(_ id: UUID) { commit(BlockOperations.outdent(blocks, blockID: id)) }
 
@@ -266,6 +320,7 @@ final class NoteEditorModel {
     }
 
     func convertActiveBlock(to kind: BlockKind) {
+        if blockSelection != nil { return convertSelectedBlocks(to: kind) }
         guard let id = activeBlockID else { return }
         convert(id, to: kind)
     }
@@ -297,8 +352,16 @@ final class NoteEditorModel {
     }
 
     func shiftActiveBlock(by delta: Int) {
+        if blockSelection != nil { return shiftSelectedBlocks(by: delta) }
         guard let id = activeBlockID else { return }
         shift(id, by: delta)
+    }
+
+    /// ⌘D : la sélection de blocs, ou le bloc actif.
+    func duplicateActiveBlock() {
+        if blockSelection != nil { return duplicateSelectedBlocks() }
+        guard let id = activeBlockID else { return }
+        duplicate(id)
     }
 
     func insertBlock(_ kind: BlockKind, after id: UUID) {
@@ -312,15 +375,116 @@ final class NoteEditorModel {
         scrollTarget = newBlocks.first?.id
     }
 
-    func updateBlock(_ id: UUID, _ transform: (inout Block) -> Void) {
+    /// - `coalescing` : les modifications rapprochées du même bloc (renommer un nœud de carte mentale lettre par
+    ///   lettre) forment une seule étape d'annulation.
+    func updateBlock(_ id: UUID, coalescing: Bool = false, _ transform: (inout Block) -> Void) {
         guard let index = blocks.firstIndex(where: { $0.id == id }) else { return }
         var newBlocks = blocks
         transform(&newBlocks[index])
-        commit(newBlocks)
+        commit(newBlocks, historyKey: coalescing ? "bloc:\(id)" : nil)
+    }
+
+    /// Retire les blocs d'un enregistrement supprimé. Pas d'étape d'annulation : l'audio et le texte sont effacés.
+    func removeTranscriptBlocks(of recordingID: UUID) {
+        let remaining = blocks.filter { $0.recordingID != recordingID }
+        guard remaining.count != blocks.count else { return }
+        commit(remaining.isEmpty ? [Block()] : remaining, recordsHistory: false)
     }
 
     private func apply(_ result: EditResult) {
         commit(result.blocks, focus: result.caret)
+    }
+
+    // MARK: Sélection de blocs
+
+    var selectedBlockIDs: [UUID] { blockSelection?.ids(in: blocks) ?? [] }
+
+    func selectBlock(_ id: UUID, extending: Bool = false) {
+        guard !isReadOnly, blocks.contains(where: { $0.id == id }) else { return }
+        if extending, let current = blockSelection {
+            blockSelection = BlockSelection(anchor: current.anchor, head: id)
+        } else {
+            blockSelection = BlockSelection(anchor: id)
+        }
+        slashMenu = nil
+        history.endTyping()
+        blockSelectionFocusToken = UUID()
+    }
+
+    /// ⇧↑ / ⇧↓ en bord de bloc : sélectionne le bloc et son voisin.
+    func beginBlockSelection(from id: UUID, by delta: Int) {
+        selectBlock(id)
+        moveBlockSelection(by: delta, extending: true)
+    }
+
+    /// ⇧-clic : étend la sélection jusqu'à ce bloc (depuis le bloc où l'on écrivait s'il n'y en a pas).
+    func extendBlockSelection(to id: UUID) {
+        if blockSelection == nil { selectBlock(activeBlockID ?? id) }
+        selectBlock(id, extending: true)
+    }
+
+    func moveBlockSelection(by delta: Int, extending: Bool) {
+        guard let selection = blockSelection else { return }
+        blockSelection = selection.moved(by: delta, extending: extending, in: blocks)
+        scrollTarget = blockSelection?.head
+    }
+
+    func selectAllBlocks() {
+        guard let first = blocks.first, let last = blocks.last else { return }
+        selectBlock(first.id)
+        blockSelection = BlockSelection(anchor: first.id, head: last.id)
+    }
+
+    func clearBlockSelection() { blockSelection = nil }
+
+    /// Entrée : revient à l'écriture dans le dernier bloc sélectionné.
+    func editBlockSelection() {
+        guard let head = blockSelection?.head else { return }
+        blockSelection = nil
+        if blocks.first(where: { $0.id == head })?.kind.hasText == true { focus(head) }
+    }
+
+    func deleteSelectedBlocks() {
+        let ids = Set(selectedBlockIDs)
+        guard !ids.isEmpty else { return }
+        blockSelection = nil
+        apply(BlockOperations.delete(blocks, ids: ids))
+    }
+
+    func indentSelectedBlocks() { commit(BlockOperations.indent(blocks, ids: Set(selectedBlockIDs))) }
+    func outdentSelectedBlocks() { commit(BlockOperations.outdent(blocks, ids: Set(selectedBlockIDs))) }
+
+    func shiftSelectedBlocks(by delta: Int) {
+        commit(BlockOperations.shift(blocks, ids: Set(selectedBlockIDs), by: delta))
+        scrollTarget = blockSelection?.head
+    }
+
+    func duplicateSelectedBlocks() {
+        let (newBlocks, copies) = BlockOperations.duplicate(blocks, ids: Set(selectedBlockIDs))
+        guard let first = copies.first, let last = copies.last else { return }
+        commit(newBlocks)
+        blockSelection = BlockSelection(anchor: first, head: last)
+    }
+
+    func convertSelectedBlocks(to kind: BlockKind) {
+        commit(BlockOperations.convert(blocks, ids: Set(selectedBlockIDs), to: kind))
+    }
+
+    /// Blocs à copier et leur version Markdown (pour les autres applications).
+    func copySelectedBlocks() -> (blocks: [Block], markdown: String)? {
+        let copied = BlockOperations.copyable(blocks, ids: Set(selectedBlockIDs))
+        let selected = blocks.filter { Set(selectedBlockIDs).contains($0.id) }
+        guard !selected.isEmpty else { return nil }
+        let segments = Dictionary(uniqueKeysWithValues: note.recordings.map { ($0.uid, $0.namedSegments) })
+        return (copied, MarkdownRenderer.render(blocks: selected, segmentsByRecording: segments))
+    }
+
+    /// Colle des blocs après la sélection, qui passe sur les blocs collés.
+    func pasteBlocksAfterSelection(_ copied: [Block]) {
+        guard let last = selectedBlockIDs.last, !copied.isEmpty else { return }
+        let (newBlocks, copies) = BlockOperations.insertCopies(services.paths.copyingAttachments(of: copied), into: blocks, after: last)
+        commit(newBlocks)
+        if let first = copies.first, let lastCopy = copies.last { blockSelection = BlockSelection(anchor: first, head: lastCopy) }
     }
 
     // MARK: Images

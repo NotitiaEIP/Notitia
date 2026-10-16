@@ -8,6 +8,8 @@ struct BlockRowView: View {
     let block: Block
     let model: NoteEditorModel
     let number: Int?
+    /// Bloc compris dans une sélection de blocs.
+    var isSelected = false
     @Environment(Workspace.self) private var workspace
     @Environment(RecordingController.self) private var recorder
     @State private var isHovering = false
@@ -22,6 +24,16 @@ struct BlockRowView: View {
         }
         .padding(.top, topPadding)
         .padding(.bottom, bottomPadding)
+        .background {
+            if isSelected {
+                RoundedRectangle(cornerRadius: Radius.s)
+                    .fill(Color.accentColor.opacity(0.18))
+                    .padding(.leading, Metrics.gutterWidth - Spacing.xs)
+            }
+        }
+        // ⇧-clic (hors du texte, ou sur un bloc sans texte) : sélection de plusieurs blocs.
+        .gesture(TapGesture().modifiers(.shift).onEnded { model.extendBlockSelection(to: block.id) })
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .overlay(alignment: .top) {
             if isDropTargeted {
                 Rectangle().fill(Color.accentColor).frame(height: 2).padding(.leading, Metrics.gutterWidth)
@@ -79,6 +91,7 @@ struct BlockRowView: View {
                         Button { model.insertBlock(kind, after: block.id) } label: { Label(kind.displayName, systemImage: kind.symbolName) }
                     }
                 }
+                Button("Sélectionner") { model.selectBlock(block.id) }
                 Button("Monter") { model.shift(block.id, by: -1) }
                 Button("Descendre") { model.shift(block.id, by: 1) }
                 if !block.kind.requiresConfirmedDeletion {

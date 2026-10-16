@@ -107,6 +107,9 @@ public enum HelpContent {
             Block(kind: .bulleted, text: term("Poignée ≡ : ", "survolez un bloc, elle apparaît à gauche. Glissez-la pour déplacer le bloc ; cliquez-la pour le transformer, le dupliquer ou le supprimer.")),
             Block(kind: .bulleted, text: term("Clavier : ", "`⌥⌘↑` et `⌥⌘↓` montent et descendent le bloc courant.")),
             Block(kind: .bulleted, text: term("Retour arrière ", "au début d'un bloc le transforme d'abord en texte simple, puis le fusionne avec le bloc précédent.")),
+            Block(kind: .bulleted, text: term("Plusieurs blocs : ", "`Échap` sélectionne le bloc entier, `⇧↑` et `⇧↓` ajoutent les blocs voisins, `⌘A` deux fois sélectionne toute la note, `⇧`-clic étend la sélection. Ensuite : supprimer, copier, couper, `Tab` pour indenter, `⌥⌘↑` `⌥⌘↓` pour déplacer, `⌘D` pour dupliquer, `Entrée` pour revenir au texte.")),
+            Block(kind: .bulleted, text: term("Coller : ", "un texte de plusieurs lignes devient un bloc par ligne, en reconnaissant les listes, les titres et le code Markdown. Des blocs copiés dans Notitia gardent leurs styles et leurs images.")),
+            Block(kind: .bulleted, text: term("Annuler : ", "`⌘Z` défait aussi bien une frappe qu'une suppression, une fusion ou un déplacement de blocs ; `⇧⌘Z` rétablit.")),
         ]
     }
 
@@ -218,7 +221,9 @@ public enum HelpContent {
             shortcut("⌘ Entrée", "Cocher ou décocher une tâche"),
             shortcut("Tab  ⇧ Tab", "Indenter, désindenter"),
             shortcut("⌥⌘↑  ⌥⌘↓", "Déplacer le bloc"),
-            shortcut("⌘Z", "Annuler (dans le bloc en cours)"),
+            shortcut("⌘D", "Dupliquer le bloc"),
+            shortcut("Échap  ⇧↑  ⇧↓", "Sélectionner des blocs entiers"),
+            shortcut("⌘Z  ⇧⌘Z", "Annuler, rétablir (texte et blocs)"),
             Block(kind: .heading3, text: "Enregistrement"),
             shortcut("⇧⌘R", "Démarrer ou arrêter"),
             shortcut("⇧⌘P", "Pause ou reprise"),

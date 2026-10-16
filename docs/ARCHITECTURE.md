@@ -40,7 +40,7 @@ Tests = `NotitiaKit/Tests/NotitiaKitTests/`.
 | Démarrage, fenêtre, menus | `App/NotitiaApp`, `RootView`, `Workspace` (sélection, glisser-déposer, alertes), `AppCommands`, `AppServices` (services partagés), `Preferences` | — | — |
 | Organisation (dossiers, tags, corbeille) | `Features/Sidebar/SidebarView`, `Features/NoteList/NoteListView`, `Features/Inspector/InspectorView` | `Models/PersistentModels` (`Folder`, `Note`, `Tag`, `Recording`), `Storage/NotitiaStore` | `PrivacyTests` (« Base de données et RGPD ») |
 | Recherche, ouverture rapide (⌘K) | `Features/Welcome/QuickOpenView` | `Search/NoteSearch` | `AITests` (« Recherche ») |
-| Éditeur par blocs | `Features/Editor/NoteEditorView`, `NoteEditorModel`, `BlockRowView` (rendu d'un bloc, menu `/`, images), `BlockTextView` (NSTextView), `RichTextView`, `RichTextConverter` | `Models/Block` (`BlockKind`, `NoteDocument`), `Models/RichText`, `Models/NoteColor`, `Editor/BlockOperations`, `Editor/MarkdownShortcut` | `BlockOperationsTests`, `RichTextTests` |
+| Éditeur par blocs | `Features/Editor/NoteEditorView`, `NoteEditorModel` (annulation, sélection), `BlockRowView` (rendu d'un bloc, menu `/`, images), `BlockTextView` (NSTextView, collage), `RichTextView`, `RichTextConverter`, `BlockSelectionResponder` (+ `BlockPasteboard`), `App/AppCommands` (`EditorUndo`) | `Models/Block` (`BlockKind`, `NoteDocument`), `Models/RichText`, `Models/NoteColor`, `Editor/BlockOperations`, `Editor/BlockSelection`, `Editor/PasteOperations`, `Editor/EditHistory`, `Editor/MarkdownShortcut` | `BlockOperationsTests`, `BlockSelectionTests`, `PasteOperationsTests`, `EditHistoryTests`, `RichTextTests` |
 | Enregistrement et transcription | `Features/Recording/RecordingController` (un flux micro → toutes les analyses), `RecordingViews` (consentement, barre, bloc transcription), `AudioPlaybackController` | `Audio/AudioRecorder`, `Models/TranscriptSegment`, `AI/AIProtocols` (`TranscriptionEngine`, `EngineCatalog`), `AI/AppleSpeechTranscriptionEngine` (SpeechAnalyzer), `AI/DemoTranscriptionEngine` | `TranscriptAnnotationTests` (« Transcription Apple et ton »), `AITests`, `AppleEnginesIntegrationTests` |
 | Transcription enrichie (sons, volume, ton, citations, empreinte) | `RecordingViews` (`TranscriptBlockView` : puces, bandeau de ton, « Citer avec le contexte »), `Features/Inspector/InspectorView` (état de l'empreinte), `Features/Settings/SettingsView` (`TranscriptionSettings`) | `Models/TranscriptAnnotation`, `AI/AnnotationDetectors` (`SoundEventDetector`, `LevelAnnotationDetector`), `AI/SoundEventAggregator` (+ `LevelAnalyzer`), `AI/ToneAnalyzer` (+ `TonePassages`), `Editor/TranscriptTimeline` (+ `TranscriptLink`), `Privacy/TranscriptIntegrity` | `TranscriptAnnotationTests`, `AppleEnginesIntegrationTests` |
 | Séparation des locuteurs | `RecordingController` (flux de mesures, attribution à l'arrêt), `RecordingViews` (participants dans le consentement, renommer un locuteur), `SettingsView` (« Distinguer les voix »), `App/DemoAudioImport` | `AI/SpeakerDiarization` (`VoiceFeatureExtractor`, `SpeakerDiarization`, `AgglomerativeClustering`), `AI/AppleSpeechTranscriptionEngine` (`TimedText.sentences` : découpage en phrases), `Recording.speakerNames` | `SpeakerDiarizationTests`, `SpeakerDiarizationIntegrationTests` |
@@ -127,7 +127,17 @@ Les futures apps Android, Windows et Linux doivent lire et écrire exactement ce
 - `RichTextConverter` traduit `RichText` ↔ `NSAttributedString`. Le style d'origine est porté par un attribut
   privé (`com.notitia.style`) : la relecture ne dépend jamais du rendu (un titre est en gras visuellement
   sans que son texte soit « gras »).
-- Chaque bloc a son propre `UndoManager` (⌘Z agit sur le bloc actif).
+- **Annulation** : une seule pile pour toute la note (`EditHistory`, photos des blocs et du curseur). `commit` et
+  `updateText` y enregistrent l'état d'avant ; la frappe continue dans un bloc forme une étape (pause de 1,5 s).
+  Les `NSTextView` n'ont plus d'annulation propre (`allowsUndo = false`) ; ⌘Z passe par `EditorUndo` (AppCommands),
+  qui transmet la commande au champ de texte s'il s'agit d'un autre champ (titre, recherche). Un enregistrement
+  supprimé n'est jamais restauré par ⌘Z.
+- **Coller** : plusieurs lignes → `BlockOperations.paste` (`PastedText` : Markdown, retraits, blocs de code).
+  Les blocs copiés dans Notitia passent par un type de presse-papiers interne (`BlockPasteboard`, JSON) en plus du
+  Markdown ; les images collées ou dupliquées ont leurs propres fichiers (`AppPaths.copyingAttachments`).
+- **Sélection de blocs** : `BlockSelection` (ancre, tête) dans `NoteEditorModel` ; pendant la sélection,
+  `BlockSelectionResponder` (une `NSView` vide) a le focus clavier et traduit les touches et les commandes
+  copier / couper / coller / tout sélectionner en opérations de `BlockOperations` (`delete(ids:)`, `shift(ids:)`…).
 - Mise en forme : les menus envoient des actions dans la chaîne des répondeurs (`NSApp.sendAction`),
   reçues par le `BlockTextView` qui a le focus.
 - Mesure de hauteur : un `NSLayoutManager` de mesure séparé, et des réponses de taille indépendantes du
