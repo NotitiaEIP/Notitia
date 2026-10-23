@@ -1,31 +1,63 @@
-This is a Kotlin Multiplatform project targeting Android, iOS.
+# Notitia Mobile
 
-* [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
-  you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
+L'app Android et iOS de Notitia : elle enregistre une réunion, la transcrit et en tire un compte rendu, sans que rien ne sorte du téléphone.
 
-* [/shared](./shared/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-  - [commonMain](./shared/src/commonMain/kotlin) is for code that’s common for all targets.
-  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-    For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-    the [iosMain](./shared/src/iosMain/kotlin) folder would be the right place for such calls.
-    Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./shared/src/jvmMain/kotlin)
-    folder is the appropriate location.
+## Lancer le projet
 
-### Running the apps
+À la racine du repo, une seule commande :
 
-Use the run configurations provided by the run widget in your IDE's toolbar. You can also use these commands and options:
+```bash
+./notitia
+```
 
-- Android app: `./gradlew :androidApp:assembleDebug`
-- iOS app: open the [/iosApp](./iosApp) directory in Xcode and run it from there.
+Un menu s'ouvre. Choisis avec les flèches ↑ ↓, valide avec Entrée.
 
-### Running tests
+Sous Windows, lance-la dans **Git Bash** (installé avec Git), pas dans PowerShell.
 
-Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:
+### Quelle option choisir
 
-- Android tests: `./gradlew :shared:testAndroidHostTest`
-- iOS tests: `./gradlew :shared:iosSimulatorArm64Test`
+| Ta situation | Option | Ce qu'il te faut |
+| --- | --- | --- |
+| Première fois, ou quelque chose bloque | Diagnostiquer mon installation | Rien : elle te dit ce qui manque |
+| Tu veux voir l'app sur ton téléphone Android | Lancer sur mon téléphone Android | Un câble USB et le débogage USB activé (voir plus bas) |
+| Tu codes sans téléphone sous la main | Lancer sur un émulateur Android | Un appareil virtuel créé dans Android Studio (Tools > Device Manager) |
+| Tu dois envoyer l'app à un testeur | Construire l'APK | Rien de plus. Le testeur installe le fichier .apk reçu |
+| Tu es sur Mac et veux tester sur iPhone | Ouvrir le projet iOS dans Xcode | Xcode et un JDK 21 |
+| Tu vas ouvrir une PR | Vérifier avant une PR | Rien de plus : c'est la même vérification que la CI |
 
----
+### Première installation (une seule fois)
 
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
+1. Installe [Android Studio](https://developer.android.com/studio). Il apporte Java et le SDK Android.
+2. Clone le repo, puis ouvre-le une fois dans Android Studio pour qu'il télécharge le SDK :
+
+   ```bash
+   git clone https://github.com/NotitiaEIP/Notitia_Mobile.git
+   cd Notitia_Mobile
+   ```
+
+3. Lance `./notitia` et choisis « Diagnostiquer mon installation ».
+
+### Activer le débogage USB (une fois par téléphone)
+
+1. Paramètres > À propos du téléphone : touche 7 fois « Numéro de build ». Le chemin change un peu selon la marque.
+2. Paramètres > Système > Options pour les développeurs : active « Débogage USB ».
+3. Branche le téléphone et accepte la fenêtre « Autoriser le débogage USB ».
+
+### Sans le menu
+
+```bash
+./notitia phone      # téléphone Android branché
+./notitia emulator   # émulateur Android
+./notitia apk        # fichier .apk
+./notitia ios        # Xcode (Mac)
+./notitia check      # build et tests, comme la CI
+./notitia doctor     # diagnostic
+```
+
+## Organisation du code
+
+- `shared/` : le code partagé entre Android et iOS (écrans, logique, données). `src/commonMain` pour ce qui est commun, `src/androidMain` et `src/iosMain` pour ce qui dépend de la plateforme.
+- `androidApp/` : le point d'entrée Android.
+- `iosApp/` : le projet Xcode, point d'entrée iOS.
+
+Les règles du projet (produit, code, Git) sont dans [AGENTS.md](AGENTS.md).
