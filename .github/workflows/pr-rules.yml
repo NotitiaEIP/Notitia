@@ -1,0 +1,42 @@
+name: PR rules
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions: {}
+
+jobs:
+  pr-rules:
+    name: pr-rules
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the title and the description
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # Same rules as AGENTS.md, section "Le message de commit et la description de PR".
+          types='feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert'
+          scopes='audio|transcription|minutes|search|ui|storage|ai|dependencies|android|ios'
+          pattern="^(${types})(\((${scopes})\))?!?: [^ ].*$"
+          body="${BODY//$'\r'/}"
+          errors=0
+
+          if [[ ! "$TITLE" =~ $pattern ]]; then
+            echo "::error::Titre « $TITLE » : format attendu <type>(<scope>): <description>, par exemple feat(audio): keep recording when the screen is locked. Types et scopes dans AGENTS.md."
+            errors=1
+          fi
+          if (( ${#TITLE} > 72 )); then
+            echo "::error::Titre : ${#TITLE} caractères, 72 au plus."
+            errors=1
+          fi
+          if ! grep -qiE '^Test plan: *[^ ]' <<< "$body"; then
+            echo "::error::Description : il manque le paragraphe « Test plan: » qui dit comment le changement a été vérifié."
+            errors=1
+          fi
+          if ! grep -qiE '^(closes|fixes) NotitiaEIP/Notitia_Mobile#[0-9]+' <<< "$body"; then
+            echo "::error::Description : il manque la ligne « Closes NotitiaEIP/Notitia_Mobile#<numéro de l'issue> »."
+            errors=1
+          fi
+          exit "$errors"

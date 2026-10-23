@@ -19,15 +19,15 @@ En cas de doute sur une de ces règles, arrête-toi et demande plutôt que devin
 ## Stack
 
 - Kotlin Multiplatform et Compose Multiplatform : l'interface est partagée entre Android et iOS.
-- Gradle 9.4.0 via le wrapper (`./gradlew`). Les versions des dépendances vivent uniquement dans `gradle/libs.versions.toml`.
+- Gradle via le wrapper (`./gradlew`), dont la version est fixée dans `gradle/wrapper/gradle-wrapper.properties`. Les versions des dépendances vivent uniquement dans `gradle/libs.versions.toml`.
 - Android Studio avec le plugin Kotlin Multiplatform. Xcode sur Mac pour iOS.
 
 ## Organisation du code
 
-Les modules sont listés dans `settings.gradle.kts`. Dans chacun :
-
-- `src/commonMain` : tout ce qui peut être partagé (écrans, logique, modèles de données, accès aux modèles IA).
-- `src/androidMain` et `src/iosMain` : seulement ce qui dépend de la plateforme (micro, enregistrement en arrière-plan, widget, exécution des modèles).
+- `shared/` : le code partagé entre Android et iOS. Dans `shared/src/` :
+  - `commonMain` : tout ce qui peut être partagé (écrans, logique, modèles de données, accès aux modèles IA) ;
+  - `androidMain` et `iosMain` : seulement ce qui dépend de la plateforme (micro, enregistrement en arrière-plan, widget, exécution des modèles).
+- `androidApp/` : le point d'entrée Android (activité, manifeste, icônes).
 - `iosApp/` : le projet Xcode qui embarque le code partagé.
 
 Le code propre à une plateforme se cache derrière une interface déclarée dans `commonMain` :
@@ -46,15 +46,15 @@ Préférer une interface injectée à `expect`/`actual` dès que l'implémentati
 
 ## Commandes
 
-- Compiler et tester : `./gradlew build`
-- APK de debug : `./gradlew assembleDebug`
-- Installer sur le téléphone branché : `./gradlew installDebug`
-- iOS : ouvrir `iosApp/iosApp.xcodeproj` dans Xcode, sur un Mac. Sous Linux et Windows, les cibles iOS ne compilent pas : c'est normal, ne cherche pas à « réparer » une erreur iOS depuis ces machines.
+- Lancer l'app : `./notitia` ouvre un menu. Sans menu : `./notitia phone` (téléphone branché), `./notitia emulator`, `./notitia apk`.
+- Compiler et tester avant une PR : `./notitia check`, qui lance `./gradlew build`.
+- Tests du code partagé seuls : `./gradlew :shared:testAndroidHostTest`.
+- iOS : `./notitia ios` ouvre `iosApp/iosApp.xcodeproj` dans Xcode, sur un Mac. Sous Linux et Windows, les cibles iOS ne compilent pas : c'est normal, ne cherche pas à « réparer » une erreur iOS depuis ces machines.
 
 ## Conventions
 
 - Code, noms, commentaires et messages de commit en anglais. Textes de l'interface en français et en anglais, toujours dans les ressources Compose (`composeResources`), jamais en dur.
-- Commits au format Conventional Commits : `<type>(<scope>): <description>`, avec les types `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`. Une PR traite un seul sujet et se fusionne en squash.
+- Commits au format Conventional Commits (voir « Le message de commit et la description de PR »). Une PR traite un seul sujet et se fusionne en squash.
 - La logique métier vit dans `commonMain` et se teste dans `commonTest`.
 - Une nouvelle dépendance passe par `gradle/libs.versions.toml`, avec une licence vérifiée (Apache 2.0, MIT ou BSD de préférence).
 - Jamais de fichier de modèle IA dans le repo (`.gguf`, `.onnx`, `.tflite`, `.bin`...). Les modèles sont livrés par les stores (Play for On-device AI sur Android, Background Assets sur iOS).
@@ -78,14 +78,15 @@ Ni `Co-Authored-By`, ni « Generated with », ni mention d'une IA dans un messag
 
 ## Le cycle d'une tâche
 
-Une tâche = une issue = une branche = une PR. Si la tâche dépasse deux ou trois jours de travail ou environ 400 lignes modifiées, propose de la découper en plusieurs issues avant de commencer.
+Une tâche = une issue = une branche = une PR. Pas de PR sans issue. Si la tâche dépasse deux ou trois jours de travail ou environ 400 lignes modifiées, propose de la découper en plusieurs issues avant de commencer.
 
 ### 1. Démarrer
 
 1. Si le développeur ne dit pas sur quoi il travaille, liste ses tâches au statut « Todo » dans le GitHub Project et laisse-le choisir.
-2. Lis l'issue (`gh issue view 12`). Résume en trois lignes le besoin et les critères d'acceptation, puis attends son accord.
-3. Passe la tâche en « In progress » (voir « Changer un statut »).
-4. Crée la branche depuis `main` à jour, au format `<type>/<numéro>-<description-courte>` :
+2. S'il décrit un travail qui n'a pas encore d'issue, crée-la avant de coder. Pars du modèle du repo, `.github/ISSUE_TEMPLATE/feature.md` ou `bug.md` : remplis ses sections telles quelles, sans en ajouter ni en retirer, et reprends les labels indiqués en tête du modèle. Montre le texte au développeur, puis crée l'issue après son accord (`gh issue create --title "..." --body "..." --label "..."`).
+3. Lis l'issue (`gh issue view 12`). Résume en trois lignes le besoin et les critères d'acceptation, puis attends son accord.
+4. Passe la tâche en « In progress » (voir « Changer un statut »).
+5. Crée la branche depuis `main` à jour, au format `<type>/<numéro>-<description-courte>` :
 
    ```bash
    git switch main
@@ -103,12 +104,12 @@ Une tâche = une issue = une branche = une PR. Si la tâche dépasse deux ou tro
 Seulement quand le développeur dit que c'est terminé et qu'il a relu le code. Avant, tu ne proposes ni commit ni PR.
 
 1. Mets la branche à jour avec `main` (voir « Mettre la branche à jour avec main »).
-2. Lance `./gradlew build`. S'il échoue, corrige ou explique pourquoi, et ne propose rien d'autre.
+2. Lance `./notitia check`. S'il échoue, corrige ou explique pourquoi, et ne propose rien d'autre.
 3. Rappelle la checklist : aucune clé ni token, aucun fichier de modèle IA, aucun contenu de réunion envoyé sur le réseau, textes d'interface en français et en anglais dans les ressources, testé sur un vrai téléphone si la tâche touche l'audio, l'arrière-plan ou l'IA.
 4. Propose les commandes dans un seul bloc, sans les lancer. Nomme les fichiers un par un dans `git add`. Adapte les guillemets au terminal du développeur (bash, zsh ou PowerShell).
 
    ```bash
-   git add <module>/src/androidMain/kotlin/<package>/audio/AndroidAudioRecorder.kt
+   git add shared/src/androidMain/kotlin/<package>/audio/AndroidAudioRecorder.kt
    git commit -m "feat(audio): keep recording when the screen is locked" -m "Android stopped the recorder after ten minutes with the screen off. It now runs in a foreground service of type microphone." -m "Test plan: 45-minute recording on a Pixel 7 with the screen locked, the file plays to the end." -m "Closes NotitiaEIP/Notitia_Mobile#12"
    git push -u origin feat/12-record-lock-screen
    gh pr create --base main --title "feat(audio): keep recording when the screen is locked" --body "Android stopped the recorder after ten minutes with the screen off. It now runs in a foreground service of type microphone.
@@ -119,18 +120,37 @@ Seulement quand le développeur dit que c'est terminé et qu'il a relu le code. 
    gh pr merge --auto --squash
    ```
 
-5. Quand le développeur confirme que la PR est ouverte, vérifie qu'elle est liée à l'issue (`gh pr view --json closingIssuesReferences`) et passe la tâche en « Need review ».
+5. Quand le développeur confirme que la PR est ouverte, vérifie qu'elle est liée à l'issue (`gh pr view --json closingIssuesReferences`) et passe la tâche en « Need review ». Si la tâche change l'interface, rappelle-lui d'ajouter des captures d'écran dans un commentaire de la PR.
 
 Ensuite, un humain relit. Quand il approuve et que la CI est verte, la PR se fusionne toute seule, l'issue se ferme et la tâche passe en « Acquise ».
 
 ### Le message de commit et la description de PR
 
-- Première ligne : Conventional Commits, en anglais, 72 caractères au plus.
+- Première ligne : `<type>(<scope>): <description>`, en anglais, à l'impératif, sans point final, 72 caractères au plus.
 - Un paragraphe qui dit pourquoi.
 - Un paragraphe `Test plan:` qui dit comment le changement a été vérifié, et sur quel appareil.
 - Dernière ligne : `Closes NotitiaEIP/Notitia_Mobile#<numéro de l'issue>`.
 
-La description de la PR reprend le même texte, car c'est elle qui devient le commit sur `main` au moment du squash.
+Types : `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
+
+Le scope est facultatif. S'il y en a un, il vient de cette liste :
+
+| Scope | Pour |
+| --- | --- |
+| `audio` | Enregistrement, micro, fichiers audio |
+| `transcription` | Passage de l'audio au texte, séparation des locuteurs |
+| `minutes` | Compte rendu : décisions, actions, responsables |
+| `search` | Recherche dans les réunions |
+| `ui` | Écrans et composants d'interface |
+| `storage` | Base de données, fichiers, chiffrement, suppression après 30 jours |
+| `ai` | Chargement et exécution des modèles |
+| `dependencies` | Versions dans `gradle/libs.versions.toml` |
+| `android` | Code propre à Android qui ne relève d'aucun autre scope |
+| `ios` | Code propre à iOS qui ne relève d'aucun autre scope |
+
+Un `!` après le type ou le scope signale une rupture, par exemple un format de données qui change : `feat(storage)!: store speakers per meeting`.
+
+Le titre de la PR reprend la première ligne, et sa description le reste du message, sans checklist ni autre section : au moment du squash, c'est ce titre et cette description qui deviennent le commit sur `main`. Les captures d'écran vont dans un commentaire de la PR. La CI vérifie le titre et la description de chaque PR et signale ce qui manque.
 
 ### Mettre la branche à jour avec main
 
