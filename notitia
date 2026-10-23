@@ -1,0 +1,473 @@
+#!/usr/bin/env bash
+# Notitia launcher: build and run the app in one command, with an arrow-key menu.
+#
+#   ./notitia             open the menu
+#   ./notitia <command>   phone | emulator | apk | ios | check | doctor | help
+#
+# Runs on Linux, macOS (bash 3.2 or later) and Git Bash on Windows.
+
+set -o pipefail
+
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+cd "$ROOT" || exit 1
+
+APK_DIR="androidApp/build/outputs/apk/debug"
+SDK=""
+APK=""
+
+if [ -t 1 ]; then
+  BOLD=$'\033[1m'; DIM=$'\033[2m'; REV=$'\033[7m'; RESET=$'\033[0m'
+  GREEN=$'\033[32m'; RED=$'\033[31m'; YELLOW=$'\033[33m'
+else
+  BOLD=""; DIM=""; REV=""; RESET=""; GREEN=""; RED=""; YELLOW=""
+fi
+
+ok()   { printf '%s✓%s %s\n' "$GREEN" "$RESET" "$1"; }
+bad()  { printf '%s✗%s %s\n' "$RED" "$RESET" "$1"; }
+warn() { printf '%s!%s %s\n' "$YELLOW" "$RESET" "$1"; }
+info() { printf '%s\n' "$1"; }
+die()  { bad "$1"; exit 1; }
+
+is_mac()     { [ "$(uname -s)" = "Darwin" ]; }
+is_windows() { case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) return 0 ;; esac; return 1; }
+
+# Git Bash uses /c/Users/... paths, while Java and Gradle on Windows expect C:\Users\...
+to_unix()   { if is_windows && command -v cygpath >/dev/null 2>&1; then cygpath -u "$1"; else printf '%s\n' "$1"; fi; }
+to_native() { if is_windows && command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s\n' "$1"; fi; }
+
+# ---------------------------------------------------------------------------
+# Menu
+# ---------------------------------------------------------------------------
+
+# Draws MENU_ITEMS (with the matching MENU_HELP line under the selection) and
+# sets MENU_CHOICE to the chosen index, or -1 when the user quits.
+menu() {
+  local title="$1" selected=0 count=${#MENU_ITEMS[@]} key rest i
+  MENU_CHOICE=-1
+  trap 'printf "\033[?25h"; exit 130' INT
+  printf '\033[?25l'
+  while :; do
+    printf '\033[H\033[2J'
+    printf '%s%s%s\n' "$BOLD" "$title" "$RESET"
+    printf '%s↑ ↓ pour choisir, Entrée pour valider, q pour quitter%s\n\n' "$DIM" "$RESET"
+    for i in "${!MENU_ITEMS[@]}"; do
+      if [ "$i" -eq "$selected" ]; then
+        printf '%s> %s %s\n' "$REV" "${MENU_ITEMS[$i]}" "$RESET"
+      else
+        printf '  %s\n' "${MENU_ITEMS[$i]}"
+      fi
+    done
+    if [ "${#MENU_HELP[@]}" -gt "$selected" ] && [ -n "${MENU_HELP[$selected]}" ]; then
+      printf '\n%s%s%s\n' "$DIM" "${MENU_HELP[$selected]}" "$RESET"
+    fi
+
+    IFS= read -rsn1 key || break
+    if [ "$key" = $'\033' ]; then
+      rest=""
+      IFS= read -rsn2 -t 1 rest
+      key="$key$rest"
+    fi
+    case "$key" in
+      $'\033[A'|$'\033OA'|k) selected=$(( (selected + count - 1) % count )) ;;
+      $'\033[B'|$'\033OB'|j) selected=$(( (selected + 1) % count )) ;;
+      [1-9]) if [ "$key" -le "$count" ]; then MENU_CHOICE=$((key - 1)); break; fi ;;
+      '') MENU_CHOICE=$selected; break ;;
+      q|Q) break ;;
+    esac
+  done
+  printf '\033[?25h\033[H\033[2J'
+  trap - INT
+}
+
+# ---------------------------------------------------------------------------
+# Tools: Java, Android SDK, adb, Gradle
+# ---------------------------------------------------------------------------
+
+# Gradle needs a JDK. Android Studio ships one (jbr), so look there when none is set up.
+find_java() {
+  if [ -n "$JAVA_HOME" ] || command -v java >/dev/null 2>&1; then return 0; fi
+  local d
+  for d in \
+    "/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
+    "$HOME/android-studio/jbr" \
+    "$HOME/Downloads/android-studio/jbr" \
+    "$HOME/Téléchargements/android-studio/jbr" \
+    "/opt/android-studio/jbr" \
+    "/usr/local/android-studio/jbr" \
+    "/snap/android-studio/current/jbr" \
+    "$HOME/.local/share/JetBrains/Toolbox/apps/android-studio/jbr" \
+    "$(to_unix "${PROGRAMFILES:-/nonexistent}")/Android/Android Studio/jbr"; do
+    if [ -x "$d/bin/java" ] || [ -x "$d/bin/java.exe" ]; then
+      JAVA_HOME="$(to_native "$d")"
+      export JAVA_HOME
+      return 0
+    fi
+  done
+  return 1
+}
+
+java_major() {
+  local java_bin
+  if [ -n "$JAVA_HOME" ]; then java_bin="$(to_unix "$JAVA_HOME")/bin/java"; else java_bin="java"; fi
+  "$java_bin" -version 2>&1 | sed -n 's/.*version "\([0-9]*\).*/\1/p' | head -1
+}
+
+# Android Studio writes the SDK path in local.properties, escaped (C\:\\Users\\...).
+sdk_from_local_properties() {
+  [ -f local.properties ] || return 0
+  local raw
+  raw="$(sed -n 's/^sdk\.dir=//p' local.properties | head -1 | sed 's/\\:/:/g; s/\\\\/\\/g')"
+  if [ -n "$raw" ]; then to_unix "$raw"; fi
+}
+
+find_sdk() {
+  local d
+  for d in "$ANDROID_HOME" "$ANDROID_SDK_ROOT" "$(sdk_from_local_properties)" \
+           "$HOME/Android/Sdk" "$HOME/Library/Android/sdk" \
+           "$(to_unix "${LOCALAPPDATA:-/nonexistent}")/Android/Sdk"; do
+    [ -n "$d" ] || continue
+    d="$(to_unix "$d")"
+    if [ -d "$d/platform-tools" ]; then
+      SDK="$d"
+      ANDROID_HOME="$(to_native "$SDK")"
+      export ANDROID_HOME
+      return 0
+    fi
+  done
+  return 1
+}
+
+need_android() {
+  find_java || die "Java introuvable. Installe Android Studio (il contient Java), puis relance."
+  find_sdk || die "SDK Android introuvable. Ouvre le projet une fois dans Android Studio pour qu'il l'installe, puis relance."
+}
+
+adb() { "$SDK/platform-tools/adb" "$@"; }
+
+# One "serial<TAB>state" line per device adb can see.
+adb_devices() {
+  adb devices 2>/dev/null | tr -d '\r' \
+    | awk '/^List of devices/ {next} /^\*/ {next} NF >= 2 {print $1 "\t" $2}'
+}
+
+device_label() {
+  local model
+  model="$(adb -s "$1" shell getprop ro.product.model 2>/dev/null | tr -d '\r')"
+  printf '%s\n' "${model:-$1}"
+}
+
+gradle() {
+  info "${DIM}./gradlew $*${RESET}"
+  ./gradlew "$@"
+}
+
+app_id() {
+  sed -n 's/.*applicationId *= *"\([^"]*\)".*/\1/p' androidApp/build.gradle.kts | head -1
+}
+
+build_apk() {
+  gradle :androidApp:assembleDebug \
+    || die "Le build a échoué. Lis l'erreur au-dessus, ou lance « Diagnostiquer mon installation »."
+  local f
+  APK=""
+  for f in "$APK_DIR"/*.apk; do
+    if [ -f "$f" ]; then APK="$f"; break; fi
+  done
+  [ -n "$APK" ] || die "APK introuvable dans $APK_DIR."
+}
+
+install_apk() {
+  local serial="$1" out answer
+  info "Installation sur $(device_label "$serial")..."
+  out="$(adb -s "$serial" install -r "$APK" 2>&1)"
+  case "$out" in
+    *Success*) return 0 ;;
+    *INSTALL_FAILED_UPDATE_INCOMPATIBLE*)
+      warn "Une version de Notitia compilée sur un autre ordinateur est déjà sur cet appareil."
+      printf "La désinstaller pour installer la tienne ? Ses données sur l'appareil seront effacées. (o/N) "
+      IFS= read -r answer
+      case "$answer" in
+        o|O|oui|Oui) adb -s "$serial" uninstall "$(app_id)" >/dev/null 2>&1 ;;
+        *) die "Installation annulée." ;;
+      esac
+      out="$(adb -s "$serial" install -r "$APK" 2>&1)"
+      case "$out" in *Success*) return 0 ;; esac
+      ;;
+  esac
+  printf '%s\n' "$out"
+  die "L'installation a échoué (message au-dessus)."
+}
+
+launch_app() {
+  local serial="$1"
+  if adb -s "$serial" shell monkey -p "$(app_id)" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1; then
+    ok "Notitia est lancée sur $(device_label "$serial")."
+  else
+    warn "Installée, mais impossible de l'ouvrir automatiquement : ouvre-la à la main sur l'appareil."
+  fi
+}
+
+running_emulator() {
+  adb_devices | awk -F'\t' '$1 ~ /^emulator-/ && $2 == "device" {print $1; exit}'
+}
+
+# ---------------------------------------------------------------------------
+# Commands
+# ---------------------------------------------------------------------------
+
+cmd_phone() {
+  need_android
+  adb start-server >/dev/null 2>&1
+  local serial state unauthorized=0 phones=()
+  while IFS=$'\t' read -r serial state; do
+    case "$serial" in ""|emulator-*) continue ;; esac
+    case "$state" in
+      device) phones+=("$serial") ;;
+      unauthorized) unauthorized=1 ;;
+    esac
+  done <<EOF
+$(adb_devices)
+EOF
+
+  if [ "${#phones[@]}" -eq 0 ]; then
+    if [ "$unauthorized" -eq 1 ]; then
+      die "Ton téléphone est branché mais n'a pas autorisé cet ordinateur : déverrouille-le et accepte « Autoriser le débogage USB »."
+    fi
+    die "Aucun téléphone détecté. Branche-le en USB et active le débogage USB (voir le README)."
+  fi
+
+  serial="${phones[0]}"
+  if [ "${#phones[@]}" -gt 1 ]; then
+    MENU_ITEMS=(); MENU_HELP=()
+    for serial in "${phones[@]}"; do MENU_ITEMS+=("$(device_label "$serial") ($serial)"); done
+    menu "Sur quel téléphone ?"
+    [ "$MENU_CHOICE" -ge 0 ] || exit 0
+    serial="${phones[$MENU_CHOICE]}"
+  fi
+
+  build_apk
+  install_apk "$serial"
+  launch_app "$serial"
+}
+
+cmd_emulator() {
+  need_android
+  adb start-server >/dev/null 2>&1
+  local serial avd avds=() line emu="$SDK/emulator/emulator" waited=0 booted=0
+
+  serial="$(running_emulator)"
+  if [ -z "$serial" ]; then
+    [ -x "$emu" ] || [ -x "$emu.exe" ] \
+      || die "L'émulateur n'est pas installé. Dans Android Studio : Tools > SDK Manager > SDK Tools > Android Emulator."
+    while IFS= read -r line; do
+      case "$line" in ""|*"|"*) continue ;; esac
+      avds+=("$line")
+    done <<EOF
+$("$emu" -list-avds 2>/dev/null | tr -d '\r')
+EOF
+    [ "${#avds[@]}" -gt 0 ] \
+      || die "Aucun appareil virtuel. Crée-en un dans Android Studio : Tools > Device Manager > bouton +."
+
+    avd="${avds[0]}"
+    if [ "${#avds[@]}" -gt 1 ]; then
+      MENU_ITEMS=("${avds[@]}"); MENU_HELP=()
+      menu "Quel appareil virtuel ?"
+      [ "$MENU_CHOICE" -ge 0 ] || exit 0
+      avd="${avds[$MENU_CHOICE]}"
+    fi
+
+    info "Démarrage de $avd (jusqu'à 3 minutes la première fois)..."
+    nohup "$emu" -avd "$avd" >/dev/null 2>&1 &
+    while [ "$waited" -lt 180 ]; do
+      serial="$(running_emulator)"
+      if [ -n "$serial" ] && [ "$(adb -s "$serial" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
+        booted=1
+        break
+      fi
+      sleep 3
+      waited=$((waited + 3))
+      printf '.'
+    done
+    printf '\n'
+    [ "$booted" -eq 1 ] \
+      || die "L'émulateur n'a pas fini de démarrer. Attends qu'il affiche l'écran d'accueil, puis relance cette option."
+  fi
+
+  build_apk
+  install_apk "$serial"
+  launch_app "$serial"
+}
+
+cmd_apk() {
+  need_android
+  build_apk
+  ok "APK prêt : $ROOT/$APK"
+  info "Pour l'installer, envoie ce fichier sur un téléphone Android et ouvre-le (il faudra autoriser l'installation d'applications inconnues)."
+}
+
+cmd_ios() {
+  is_mac || die "Le projet iOS ne se construit que sur un Mac avec Xcode. Ici, choisis une option Android."
+  command -v xcodebuild >/dev/null 2>&1 || die "Xcode introuvable. Installe-le depuis l'App Store, puis relance."
+  open iosApp/iosApp.xcodeproj || die "Impossible d'ouvrir iosApp/iosApp.xcodeproj."
+  ok "Xcode s'ouvre. En haut de la fenêtre, choisis un iPhone (simulateur), puis clique sur ▶."
+  info "Le premier build est long : Xcode compile aussi le code Kotlin partagé."
+}
+
+cmd_check() {
+  need_android
+  if gradle build; then
+    ok "Build et tests OK : tu peux ouvrir ta PR."
+  else
+    die "Le build ou un test échoue : corrige avant d'ouvrir la PR."
+  fi
+}
+
+cmd_doctor() {
+  local fail=0 major serial state phone_count=0 unauthorized=0 avds
+  printf '%sDiagnostic%s\n\n' "$BOLD" "$RESET"
+
+  if find_java; then
+    major="$(java_major)"
+    if [ -n "$major" ] && [ "$major" -ge 17 ]; then
+      ok "Java $major"
+    else
+      bad "Java ${major:-?} trouvé, il faut la version 17 ou plus (celle d'Android Studio convient)."
+      fail=1
+    fi
+  else
+    bad "Java introuvable : installe Android Studio, il le contient."
+    fail=1
+  fi
+
+  if find_sdk; then
+    ok "SDK Android : $SDK"
+    adb start-server >/dev/null 2>&1
+    while IFS=$'\t' read -r serial state; do
+      case "$serial" in ""|emulator-*) continue ;; esac
+      case "$state" in
+        device) phone_count=$((phone_count + 1)) ;;
+        unauthorized) unauthorized=1 ;;
+      esac
+    done <<EOF
+$(adb_devices)
+EOF
+    if [ "$phone_count" -gt 0 ]; then
+      ok "Téléphone(s) branché(s) : $phone_count"
+    elif [ "$unauthorized" -eq 1 ]; then
+      warn "Un téléphone est branché mais n'a pas autorisé cet ordinateur : accepte « Autoriser le débogage USB »."
+    else
+      warn "Aucun téléphone branché (utile seulement pour l'option téléphone)."
+    fi
+    if [ -x "$SDK/emulator/emulator" ] || [ -x "$SDK/emulator/emulator.exe" ]; then
+      avds="$("$SDK/emulator/emulator" -list-avds 2>/dev/null | tr -d '\r' | grep -v '|' | paste -sd ' ' -)"
+      if [ -n "$avds" ]; then ok "Appareils virtuels : $avds"; else warn "Aucun appareil virtuel (utile seulement pour l'option émulateur)."; fi
+    else
+      warn "Émulateur non installé (utile seulement pour l'option émulateur)."
+    fi
+  else
+    bad "SDK Android introuvable : ouvre le projet une fois dans Android Studio pour qu'il l'installe."
+    fail=1
+  fi
+
+  if is_mac; then
+    if command -v xcodebuild >/dev/null 2>&1; then ok "Xcode"; else warn "Xcode absent (utile seulement pour iOS)."; fi
+    # Xcode builds the shared Kotlin code through Gradle, and only sees a JDK registered with macOS.
+    if /usr/libexec/java_home -v 17+ >/dev/null 2>&1; then
+      ok "JDK visible par Xcode"
+    else
+      warn "Xcode ne trouvera pas Java pour compiler le code partagé : installe un JDK 21 (par exemple : brew install --cask temurin@21)."
+    fi
+  fi
+
+  if command -v gh >/dev/null 2>&1; then
+    if gh auth status >/dev/null 2>&1; then
+      if gh auth status 2>&1 | grep -q "'project'"; then
+        ok "gh connecté, avec l'accès au GitHub Project"
+      else
+        warn "gh connecté, mais sans l'accès au GitHub Project : lance gh auth refresh -s project"
+      fi
+    else
+      warn "gh installé mais pas connecté : lance gh auth login"
+    fi
+  else
+    warn "gh absent : il sert à l'IA pour lire et mettre à jour le GitHub Project (https://cli.github.com)."
+  fi
+
+  printf '\n'
+  if [ "$fail" -eq 0 ]; then
+    ok "Prêt à lancer Notitia."
+  else
+    info "Corrige les lignes marquées ✗, puis relance ce diagnostic."
+    return 1
+  fi
+}
+
+usage() {
+  cat <<EOF
+Usage : ./notitia [commande]
+
+Sans commande, un menu s'ouvre : flèches ↑ ↓ pour choisir, Entrée pour valider.
+
+  phone      Lancer sur mon téléphone Android (câble USB)
+  emulator   Lancer sur un émulateur Android
+  apk        Construire l'APK (fichier à installer ou partager)
+  ios        Ouvrir le projet iOS dans Xcode (Mac)
+  check      Vérifier avant une PR (build et tests)
+  doctor     Diagnostiquer mon installation
+EOF
+}
+
+run() {
+  case "$1" in
+    phone) cmd_phone ;;
+    emulator) cmd_emulator ;;
+    apk) cmd_apk ;;
+    ios) cmd_ios ;;
+    check) cmd_check ;;
+    doctor) cmd_doctor ;;
+    help|-h|--help) usage ;;
+    *) usage; return 1 ;;
+  esac
+}
+
+main_menu() {
+  MENU_ITEMS=(
+    "Lancer sur mon téléphone Android (câble USB)"
+    "Lancer sur un émulateur Android"
+    "Construire l'APK (fichier à installer ou partager)"
+    "Ouvrir le projet iOS dans Xcode (Mac)"
+    "Vérifier avant une PR (build et tests)"
+    "Diagnostiquer mon installation"
+    "Quitter"
+  )
+  MENU_HELP=(
+    "Pour tester sur ton téléphone. Il faut un câble USB et le débogage USB activé (voir le README)."
+    "Pour coder sans téléphone. Il faut un appareil virtuel créé dans Android Studio (Device Manager)."
+    "Produit un fichier .apk à envoyer à un testeur, qui l'installe sans rien d'autre."
+    "Sur Mac seulement. Xcode s'ouvre, tu choisis un iPhone en haut, puis tu cliques sur ▶."
+    "La même vérification que la CI. À lancer avant chaque PR."
+    "Vérifie Java, le SDK Android, les appareils, Xcode et gh. À lancer la première fois ou si quelque chose bloque."
+    ""
+  )
+  menu "Notitia : que veux-tu faire ?"
+  case "$MENU_CHOICE" in
+    0) run phone ;;
+    1) run emulator ;;
+    2) run apk ;;
+    3) run ios ;;
+    4) run check ;;
+    5) run doctor ;;
+    *) exit 0 ;;
+  esac
+}
+
+if [ $# -gt 0 ]; then
+  run "$1"
+  exit $?
+fi
+
+if [ -t 0 ] && [ -t 1 ]; then
+  main_menu
+else
+  usage
+fi
