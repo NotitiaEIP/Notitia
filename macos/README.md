@@ -1,34 +1,15 @@
-# Notitia
+# Notitia pour Mac
 
-**Vos notes, vos cours et vos réunions — sur votre appareil, et nulle part ailleurs.**
+L'app Mac de Notitia, en Swift/SwiftUI. Le projet et ses autres dossiers sont présentés dans le
+[README de la racine](../README.md), et ses règles (produit, code, Git) dans l'[AGENTS.md](../AGENTS.md).
 
-Notitia est une application de prise de notes riche (dans l'esprit de Notion et d'Apple Notes) qui sait aussi
-enregistrer et transcrire des réunions, puis transformer la transcription en résumé ou en carte mentale.
-C'est le projet EIP Epitech de l'équipe Notitia, version 2 : une réécriture complète, native sur chaque plateforme.
+![Transcription enrichie](docs/screenshots/6-transcript-light.png)
 
-| Plateforme | Langage | État |
-|---|---|---|
-| macOS | Swift / SwiftUI | **En cours** (`apple/`) |
-| iOS | Swift / SwiftUI (partage `NotitiaKit`) | Prévu |
-| Android | Kotlin / Jetpack Compose | Prévu |
-| Windows | C# / WinUI 3 | Prévu |
-| Linux | à décider (GTK 4) | Prévu |
-
-![Note de cours](docs/screenshots/1-note-light.png)
-
-## Fonctionnalités (macOS)
+## Fonctionnalités
 
 - **Prise en main** : tutoriel en 7 pages au premier lancement, puis une note **« Aide »** épinglée qui montre
   chaque type de bloc, chaque style et tous les raccourcis. Les deux restent accessibles depuis le menu
   Aide (`⌘?` et « Revoir le tutoriel »).
-- **Organisation** : dossiers et sous-dossiers illimités (Cours › Chinois, Anglais, Maths…), icônes et couleurs,
-  glisser-déposer des notes et des dossiers, épinglage, tags, corbeille (30 jours), recherche plein texte
-  insensible aux accents, ouverture rapide (⌘K).
-- **Éditeur par blocs** : texte, titres, listes à puces / numérotées / de tâches, citations, encadrés, code,
-  séparateurs, images. Menu `/`, raccourcis Markdown (`# `, `- `, `[] `, `> `, ` ``` `, `---`),
-  gras / italique / souligné / barré / code / couleur / surlignage / lien, indentation (Tab), réorganisation
-  par glisser-déposer. ⌘Z annule aussi les opérations sur les blocs ; sélection de plusieurs blocs (Échap, ⇧↑/⇧↓,
-  ⌘A) ; coller plusieurs lignes crée un bloc par ligne (Markdown reconnu).
 - **Enregistrement et transcription** : capture micro, **reconnaissance vocale réelle sur l'appareil**
   (Apple SpeechAnalyzer), audio **chiffré**, lecture synchronisée (cliquer un horodatage), rappel du consentement
   des participants.
@@ -45,7 +26,19 @@ C'est le projet EIP Epitech de l'équipe Notitia, version 2 : une réécriture c
 - **Confidentialité** : 100 % hors ligne, aucune connexion réseau autorisée, export complet, effacement total.
   Voir [docs/PRIVACY.md](docs/PRIVACY.md).
 
-![Transcription enrichie](docs/screenshots/6-transcript-light.png)
+Les notes viennent de la première version. Elles restent dans l'app, mais on ne leur ajoute plus de
+fonctionnalités : les entretiens demandent un compte rendu, pas un carnet de notes.
+
+- **Organisation** : dossiers et sous-dossiers illimités (Cours › Chinois, Anglais, Maths…), icônes et couleurs,
+  glisser-déposer des notes et des dossiers, épinglage, tags, corbeille (30 jours), recherche plein texte
+  insensible aux accents, ouverture rapide (⌘K).
+- **Éditeur par blocs** : texte, titres, listes à puces / numérotées / de tâches, citations, encadrés, code,
+  séparateurs, images. Menu `/`, raccourcis Markdown (`# `, `- `, `[] `, `> `, ` ``` `, `---`),
+  gras / italique / souligné / barré / code / couleur / surlignage / lien, indentation (Tab), réorganisation
+  par glisser-déposer. ⌘Z annule aussi les opérations sur les blocs ; sélection de plusieurs blocs (Échap, ⇧↑/⇧↓,
+  ⌘A) ; coller plusieurs lignes crée un bloc par ligne (Markdown reconnu).
+
+![Note de cours](docs/screenshots/1-note-light.png)
 
 > La transcription utilise le modèle de langue fourni par macOS : installez-le une fois dans
 > Réglages › Transcription. Le moteur de **démonstration** (texte d'exemple) reste disponible pour essayer
@@ -57,18 +50,19 @@ C'est le projet EIP Epitech de l'équipe Notitia, version 2 : une réécriture c
 - macOS 26 (Tahoe) ou plus récent
 - Xcode 26.3 ou plus récent (Swift 6.2)
 
-Aucune dépendance externe, aucun gestionnaire de paquets, aucune clé d'API.
+Aucune dépendance externe, aucun gestionnaire de paquets, aucune clé d'API. Les commandes ci-dessous se lancent
+depuis la racine du repo.
 
 ## Lancer le projet
 
 ```bash
-open apple/Notitia.xcodeproj      # puis ⌘R dans Xcode
+open macos/apple/Notitia.xcodeproj      # puis ⌘R dans Xcode
 ```
 
 En ligne de commande :
 
 ```bash
-cd apple
+cd macos/apple
 xcodebuild -project Notitia.xcodeproj -scheme Notitia -destination 'platform=macOS' build
 ```
 
@@ -85,11 +79,11 @@ Options de lancement utiles (Xcode › Product › Scheme › Edit Scheme › Ar
 La logique métier vit dans le package `NotitiaKit` et se teste sans interface :
 
 ```bash
-cd apple/NotitiaKit
+cd macos/apple/NotitiaKit
 swift test
 ```
 
-152 tests couvrent : note d'aide, texte riche (dont Unicode/UTF-16), opérations de l'éditeur (dont annulation,
+Les tests couvrent : note d'aide, texte riche (dont Unicode/UTF-16), opérations de l'éditeur (dont annulation,
 collage et sélection de plusieurs blocs), raccourcis Markdown,
 format de document, recherche, IA locale, moteur de démonstration, disposition des cartes mentales,
 chiffrement de l'audio, conservation des données, export et effacement RGPD, annotations (sons, volume, ton),
@@ -101,6 +95,7 @@ Quatre tests d'**intégration** utilisent les vrais moteurs d'Apple (parole de s
 française « Thomas », modèle de langue français, Apple Intelligence). Ils sont désactivés par défaut :
 
 ```bash
+cd macos/apple/NotitiaKit
 NOTITIA_INTEGRATION=1 swift test --filter AppleEnginesIntegrationTests
 ```
 
@@ -108,15 +103,16 @@ La séparation des locuteurs se teste sur les trois voix de la réunion de test,
 (lancé depuis `swift test`, `say` remplace la plupart des voix par la voix par défaut) :
 
 ```bash
-scripts/reunion-test/generer.sh
+macos/scripts/reunion-test/generer.sh
+cd macos/apple/NotitiaKit
 NOTITIA_INTEGRATION=1 swift test --filter SpeakerDiarizationIntegrationTests
 ```
 
 ## Structure
 
 ```
-Notitia-macOS/
-├── CLAUDE.md               ← contexte pour reprendre le travail (décisions prises, règles, pièges, état)
+macos/
+├── CLAUDE.md               ← ce que l'IA doit savoir en plus de l'AGENTS.md de la racine (décisions, règles, pièges)
 ├── apple/
 │   ├── Notitia.xcodeproj   ← projet Xcode (dossiers synchronisés : tout fichier ajouté dans Notitia/ est compilé)
 │   ├── Config/             ← entitlements (sandbox, micro, PAS de réseau)
@@ -125,20 +121,22 @@ Notitia-macOS/
 │   │   ├── DesignSystem/   ← jetons et composants visuels
 │   │   ├── Features/       ← Sidebar, NoteList, Editor, Inspector, Recording, MindMap, Settings, Welcome
 │   │   └── Resources/      ← icône, textes localisables, manifeste de confidentialité
-│   └── NotitiaKit/         ← package Swift partagé : modèles, éditeur, IA, audio, confidentialité, export
+│   └── NotitiaKit/         ← package Swift : modèles, éditeur, IA, audio, confidentialité, export
 │       ├── Sources/NotitiaKit/   ← Models, Editor, AI, Audio, Privacy, Storage, Export, Search
 │       └── Tests/NotitiaKitTests/
-└── docs/
-    ├── ARCHITECTURE.md     ← couches, « où est quoi » par fonctionnalité, format de données portable
-    ├── DESIGN.md           ← nouvelle identité visuelle
-    ├── PRIVACY.md          ← RGPD : registre des traitements, mesures, droits
-    ├── ROADMAP.md          ← suite du projet
-    └── screenshots/        ← captures générées (mode démo)
+├── docs/
+│   ├── ARCHITECTURE.md     ← couches, « où est quoi » par fonctionnalité, format de données portable
+│   ├── DESIGN.md           ← identité visuelle
+│   ├── PRIVACY.md          ← RGPD : registre des traitements, mesures, droits
+│   ├── ROADMAP.md          ← l'ancienne feuille de route (la suite se suit dans le GitHub Project)
+│   └── screenshots/        ← captures générées (mode démo)
+└── scripts/reunion-test/   ← réunion de test à trois voix de synthèse
 ```
 
 ## Contribuer
 
-1. Une branche par fonctionnalité (`feature/…`), une pull request relue par un membre de l'équipe.
-2. `swift test` doit passer et l'application doit compiler sans avertissement.
-3. Toute logique non visuelle va dans `NotitiaKit`, avec ses tests.
-4. **Jamais de clé d'API ni de secret dans le code.** Voir [docs/PRIVACY.md](docs/PRIVACY.md).
+Les branches, les commits et les PR suivent l'[AGENTS.md](../AGENTS.md) de la racine. En plus, pour l'app Mac :
+
+1. `swift test` doit passer et l'application doit compiler sans avertissement.
+2. Toute logique non visuelle va dans `NotitiaKit`, avec ses tests.
+3. **Jamais de clé d'API ni de secret dans le code.** Voir [docs/PRIVACY.md](docs/PRIVACY.md).
