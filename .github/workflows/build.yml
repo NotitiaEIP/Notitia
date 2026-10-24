@@ -40,3 +40,4 @@ jobs:
 
       # Android and the shared tests. The iOS targets cannot build on Linux and are skipped.
       - run: ./gradlew build
+        working-directory: mobile
