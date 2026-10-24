@@ -4,7 +4,7 @@ Instructions pour toute IA qui code dans ce repo : Claude Code, GitHub Copilot, 
 
 ## Le projet
 
-Notitia est une app mobile (Android et iOS) qui enregistre une réunion, la transcrit et en tire un compte rendu : décisions, actions et responsables. Tout se passe sur le téléphone. C'est l'EIP d'une équipe d'Epitech Nice (promo 2028). Les autres briques vivent dans l'organisation GitHub NotitiaEIP (`Notitia-macOS`, `Notitia_Documentation`...).
+Notitia est une app mobile (Android et iOS) qui enregistre une réunion, la transcrit et en tire un compte rendu : décisions, actions et responsables. Tout se passe sur l'appareil. C'est l'EIP d'une équipe d'Epitech Nice (promo 2028). L'app Mac vit dans `macos/`, la documentation dans le repo `Notitia_Documentation` de l'organisation NotitiaEIP.
 
 Le cadre de l'année, ce qu'on fait et ce qu'on ne fait pas, est dans [CADRE.md](https://github.com/NotitiaEIP/notitia_documentation/blob/main/CADRE.md). Si une demande le contredit, signale-le avant de coder.
 
@@ -31,6 +31,7 @@ En cas de doute sur une de ces règles, arrête-toi et demande plutôt que devin
   - `androidMain` et `iosMain` : seulement ce qui dépend de la plateforme (micro, enregistrement en arrière-plan, widget, exécution des modèles).
 - `androidApp/` : le point d'entrée Android (activité, manifeste, icônes).
 - `iosApp/` : le projet Xcode qui embarque le code partagé.
+- `macos/` : l'app Mac en Swift, avec son projet Xcode et le package `NotitiaKit` dans `macos/apple/`. Ses règles propres sont dans `macos/CLAUDE.md`.
 
 Le code propre à une plateforme se cache derrière une interface déclarée dans `commonMain` :
 
@@ -52,6 +53,7 @@ Préférer une interface injectée à `expect`/`actual` dès que l'implémentati
 - Compiler et tester avant une PR : `./notitia check`, qui lance `./gradlew build`.
 - Tests du code partagé seuls : `./gradlew :shared:testAndroidHostTest`.
 - iOS : `./notitia ios` ouvre `iosApp/iosApp.xcodeproj` dans Xcode, sur un Mac. Sous Linux et Windows, les cibles iOS ne compilent pas : c'est normal, ne cherche pas à « réparer » une erreur iOS depuis ces machines.
+- Mac : ouvrir `macos/apple/Notitia.xcodeproj` dans Xcode, et tester `NotitiaKit` avec `cd macos/apple/NotitiaKit && swift test`, sur un Mac seulement. Le build Gradle ignore `macos/`.
 
 ## Conventions
 
@@ -77,7 +79,7 @@ Préférer une interface injectée à `expect`/`actual` dès que l'implémentati
 
 ## Aucune trace d'IA
 
-Ni `Co-Authored-By`, ni « Generated with », ni mention d'une IA dans un message de commit, un titre ou une description de PR, le code ou un commentaire. Aucun autre fichier d'instructions pour IA que celui-ci et `CLAUDE.md`.
+Ni `Co-Authored-By`, ni « Generated with », ni mention d'une IA dans un message de commit, un titre ou une description de PR, le code ou un commentaire. Aucun autre fichier d'instructions pour IA que celui-ci, `CLAUDE.md` et le `CLAUDE.md` d'un dossier comme `macos/`, qui ne garde que les règles propres à ce dossier.
 
 ## Le cycle d'une tâche
 
