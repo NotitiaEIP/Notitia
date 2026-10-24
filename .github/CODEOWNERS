@@ -1,0 +1,15 @@
+# Each area is reviewed by its pair (CADRE.md, part 9). The last matching line wins.
+*                         @clembdn @nathanderenty
+
+/androidApp/              @nathanderenty @clembdn
+/shared/src/androidMain/  @nathanderenty @clembdn
+
+/iosApp/                  @Lucasljn @AdamLbrz
+/shared/src/iosMain/      @Lucasljn @AdamLbrz
+
+**/minutes/               @AdamLbrz @Lucasljn
+**/ai/                    @Alexou52 @sadikamine1
+
+/AGENTS.md                @clembdn @nathanderenty
+/CLAUDE.md                @clembdn @nathanderenty
+/.github/                 @clembdn @nathanderenty

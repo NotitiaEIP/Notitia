@@ -6,9 +6,11 @@ Instructions pour toute IA qui code dans ce repo : Claude Code, GitHub Copilot, 
 
 Notitia est une app mobile (Android et iOS) qui enregistre une réunion, la transcrit et en tire un compte rendu : décisions, actions et responsables. Tout se passe sur le téléphone. C'est l'EIP d'une équipe d'Epitech Nice (promo 2028). Les autres briques vivent dans l'organisation GitHub NotitiaEIP (`Notitia-macOS`, `Notitia_Documentation`...).
 
+Le cadre de l'année, ce qu'on fait et ce qu'on ne fait pas, est dans [CADRE.md](https://github.com/NotitiaEIP/notitia_documentation/blob/main/CADRE.md). Si une demande le contredit, signale-le avant de coder.
+
 ## Règles produit non négociables
 
-1. **Rien ne sort du téléphone.** Aucun appel réseau ne transporte d'audio, de transcription, de compte rendu ou de métadonnées de réunion. Pas de SDK d'analytics ou de crash reporting qui verrait ce contenu. Seule exception prévue : une gateway de secours, désactivée par défaut, activée explicitement par l'utilisateur, et jamais pour une organisation de santé. Toute exception passe par une PR dédiée.
+1. **Rien ne sort du téléphone.** Aucun appel réseau ne transporte d'audio, de transcription, de compte rendu ou de métadonnées de réunion. Pas de SDK d'analytics ou de crash reporting qui verrait ce contenu. Seule exception prévue : une gateway de secours, désactivée par défaut, activée explicitement par l'utilisateur, et jamais pour une organisation de santé. Toute exception passe par une PR dédiée. Aucun texte de réunion dans les journaux de l'app (`Log`, `println`), ni dans une issue, une PR ou un log de CI : le repo est public.
 2. **Aucun secret dans le code** : pas de clé d'API, de token ni de mot de passe en dur, pas de `local.properties` ou de `.env` commité.
 3. **Pas de sauvegarde cloud des réunions** : données exclues de la sauvegarde Android (`dataExtractionRules`) et d'iCloud (`isExcludedFromBackup`). Stockage local chiffré.
 4. **Ni empreinte vocale persistante, ni analyse d'émotion** (RGPD article 9, AI Act article 5). Les locuteurs sont séparés réunion par réunion et l'utilisateur les renomme.
@@ -53,7 +55,7 @@ Préférer une interface injectée à `expect`/`actual` dès que l'implémentati
 
 ## Conventions
 
-- Code, noms, commentaires et messages de commit en anglais. Textes de l'interface en français et en anglais, toujours dans les ressources Compose (`composeResources`), jamais en dur.
+- Code, noms, commentaires et messages de commit en anglais. Textes de l'interface en français, toujours dans les ressources Compose (`composeResources`), jamais en dur : l'anglais viendra après le Greenlight.
 - Commits au format Conventional Commits (voir « Le message de commit et la description de PR »). Une PR traite un seul sujet et se fusionne en squash.
 - La logique métier vit dans `commonMain` et se teste dans `commonTest`.
 - Une nouvelle dépendance passe par `gradle/libs.versions.toml`, avec une licence vérifiée (Apache 2.0, MIT ou BSD de préférence).
@@ -67,7 +69,8 @@ Préférer une interface injectée à `expect`/`actual` dès que l'implémentati
 | Lire le code, les issues, les PR et le GitHub Project | Toi |
 | Modifier des fichiers, lancer le build et les tests | Toi |
 | Créer une branche locale | Toi |
-| Changer le statut d'une tâche dans le GitHub Project | Toi |
+| Créer une issue depuis un modèle, après l'accord du développeur | Toi |
+| Changer le statut et les champs d'une tâche dans le GitHub Project | Toi |
 | `git commit`, `git push`, `git tag`, `gh pr create`, `gh pr merge` | Tu écris la commande, le développeur la lance |
 | Approuver une PR, fermer une issue | Un humain, jamais toi |
 | Travailler directement sur `main` | Personne |
@@ -82,10 +85,12 @@ Une tâche = une issue = une branche = une PR. Pas de PR sans issue. Si la tâch
 
 ### 1. Démarrer
 
-1. Si le développeur ne dit pas sur quoi il travaille, liste ses tâches au statut « Todo » dans le GitHub Project et laisse-le choisir.
-2. S'il décrit un travail qui n'a pas encore d'issue, crée-la avant de coder. Pars du modèle du repo, `.github/ISSUE_TEMPLATE/feature.md` ou `bug.md` : remplis ses sections telles quelles, sans en ajouter ni en retirer, et reprends les labels indiqués en tête du modèle. Montre le texte au développeur, puis crée l'issue après son accord (`gh issue create --title "..." --body "..." --label "..."`).
+1. Si le développeur ne dit pas sur quoi il travaille, liste ses tâches au statut « Todo » du sprint en cours dans le GitHub Project et laisse-le choisir.
+2. S'il décrit un travail qui n'a pas encore d'issue, crée-la avant de coder. Pars du modèle du repo : `.github/ISSUE_TEMPLATE/feature.md` pour une user story, `task.md` pour une tâche technique ou business, `bug.md` pour un bug. Remplis ses sections telles quelles, sans en ajouter ni en retirer, et reprends les labels indiqués en tête du modèle.
+   - Le titre commence par le prochain identifiant libre : `US-` suivi du numéro de l'epic et d'un rang (US-13 est la troisième story de l'epic E1, US-102 la deuxième de E10), `T-` pour une tâche technique, `B-` pour le business. Un bug n'a pas d'identifiant. Pour trouver le prochain : `gh issue list --state all --search "US-1 in:title" --json title`.
+   - Montre le texte au développeur, puis crée l'issue après son accord (`gh issue create --title "..." --body "..." --label "..." --milestone "..."`). Range-la sous son epic et remplis ses champs dans le Project (voir « Le GitHub Project »).
 3. Lis l'issue (`gh issue view 12`). Résume en trois lignes le besoin et les critères d'acceptation, puis attends son accord.
-4. Passe la tâche en « In progress » (voir « Changer un statut »).
+4. Assigne-la au développeur (`gh issue edit 12 --add-assignee @me`) et passe-la en « In progress » (voir « Le GitHub Project »).
 5. Crée la branche depuis `main` à jour, au format `<type>/<numéro>-<description-courte>` :
 
    ```bash
@@ -105,7 +110,7 @@ Seulement quand le développeur dit que c'est terminé et qu'il a relu le code. 
 
 1. Mets la branche à jour avec `main` (voir « Mettre la branche à jour avec main »).
 2. Lance `./notitia check`. S'il échoue, corrige ou explique pourquoi, et ne propose rien d'autre.
-3. Rappelle la checklist : aucune clé ni token, aucun fichier de modèle IA, aucun contenu de réunion envoyé sur le réseau, textes d'interface en français et en anglais dans les ressources, testé sur un vrai téléphone si la tâche touche l'audio, l'arrière-plan ou l'IA.
+3. Rappelle la checklist : aucune clé ni token, aucun fichier de modèle IA, aucun contenu de réunion envoyé sur le réseau, textes d'interface en français dans les ressources, testé sur un vrai téléphone si la tâche touche l'audio, l'arrière-plan ou l'IA.
 4. Propose les commandes dans un seul bloc, sans les lancer. Nomme les fichiers un par un dans `git add`. Adapte les guillemets au terminal du développeur (bash, zsh ou PowerShell).
 
    ```bash
@@ -120,9 +125,9 @@ Seulement quand le développeur dit que c'est terminé et qu'il a relu le code. 
    gh pr merge --auto --squash
    ```
 
-5. Quand le développeur confirme que la PR est ouverte, vérifie qu'elle est liée à l'issue (`gh pr view --json closingIssuesReferences`) et passe la tâche en « Need review ». Si la tâche change l'interface, rappelle-lui d'ajouter des captures d'écran dans un commentaire de la PR.
+5. Quand le développeur confirme que la PR est ouverte, vérifie qu'elle est liée à l'issue (`gh pr view --json closingIssuesReferences`) et passe la tâche en « Need review ». Demande-lui combien de temps la tâche a pris, en jours-homme (une demi-journée vaut 0,5), et remplis le champ « Réel (j/h) » : à la revue de sprint, l'équipe le compare à l'estimation. Si la tâche change l'interface, rappelle-lui d'ajouter des captures d'écran dans un commentaire de la PR.
 
-Ensuite, un humain relit. Quand il approuve et que la CI est verte, la PR se fusionne toute seule, l'issue se ferme et la tâche passe en « Acquise ».
+Ensuite, un humain relit : GitHub demande lui-même le binôme du domaine, listé dans `.github/CODEOWNERS`. Quand il approuve et que la CI est verte, la PR se fusionne toute seule, l'issue se ferme et la tâche passe en « Acquise ».
 
 ### Le message de commit et la description de PR
 
@@ -187,15 +192,63 @@ Seulement quand le développeur le demande.
 
 Préfixes de tag : `android-v` et `ios-v`.
 
-## Changer un statut dans le GitHub Project
+## Le GitHub Project
 
-<!-- Numéro du Project et identifiants à remplir quand le Project sera créé. -->
+Tout le travail de l'équipe vit dans le Project [Notitia](https://github.com/orgs/NotitiaEIP/projects/10) (numéro 10) : une issue par tâche, rangée sous son epic, avec ses champs. Une issue créée dans ce repo y entre toute seule, au statut « Todo ».
 
-Statuts : Todo, In progress, Need review, Acquise.
+| Champ | Valeurs |
+| --- | --- |
+| Status | Todo, In progress, Need review, Acquise |
+| Plateforme | Android, iOS, Commun, Ordinateur, IA, Hors code |
+| Priorité | P0 indispensable au jalon, P1 important, P2 si le temps le permet |
+| Terrain | Validé terrain, Hypothèse, À décider, Remis en cause |
+| Estimation (j/h), Difficulté, Réel (j/h) | Des nombres : jours-homme, difficulté de 1 à 5 |
+| Sprint | Deux semaines, du lundi au dimanche |
+
+Les epics et leur responsable :
+
+| Epic | Issue | Responsable |
+| --- | --- | --- |
+| E1 Enregistrer d'un geste sur le téléphone | #5 | @nathanderenty |
+| E2 Transcrire sur l'appareil et savoir qui parle | #6 | @Lucasljn |
+| E3 Compte rendu | #7 | @AdamLbrz |
+| E4 Envoyer le compte rendu | #8 | @AdamLbrz |
+| E5 Suivre les actions | #9 | @clembdn |
+| E6 Retrouver une info | #10 | @Alexou52 |
+| E7 Capter les visios sur l'ordinateur | #11 | @sadikamine1 |
+| E8 Mes données | #12 | @nathanderenty |
+| E9 Modèles maison | #13 | @Alexou52 |
+| E10 Retrouver mes réunions sur tous mes appareils | #14 | @nathanderenty |
+| E11 Notitia pour les organisations | #15 | @sadikamine1 |
+| Socle technique | #16 | @clembdn |
+| Business et rendus EIP | #17 | @clembdn |
+
+Les identifiants dont `gh` a besoin :
+
+| Quoi | Identifiant |
+| --- | --- |
+| Project | `PVT_kwDOD4mZuM4BofzF` |
+| Champ Status | `PVTSSF_lADOD4mZuM4BofzFzhm_qII` |
+| Todo | `162fef56` |
+| In progress | `09676934` |
+| Need review | `9e1f8211` |
+| Acquise | `b659614a` |
+| Champ Réel (j/h) | `PVTF_lADOD4mZuM4BofzFzhm_qM4` |
+
+Les autres champs et leurs options : `gh project field-list 10 --owner NotitiaEIP --format json`.
+
+Retrouver l'item d'une issue (ici la 12), puis changer son statut ou remplir le temps réel :
 
 ```bash
-gh project item-list <numéro> --owner NotitiaEIP --format json
-gh project item-edit --project-id <id du project> --id <id de l'item> --field-id <id du champ Status> --single-select-option-id <id du statut>
+gh project item-list 10 --owner NotitiaEIP --format json --limit 1000 --jq '.items[] | select(.content.number == 12) | .id'
+gh project item-edit --project-id PVT_kwDOD4mZuM4BofzF --id <id de l'item> --field-id PVTSSF_lADOD4mZuM4BofzFzhm_qII --single-select-option-id 09676934
+gh project item-edit --project-id PVT_kwDOD4mZuM4BofzF --id <id de l'item> --field-id PVTF_lADOD4mZuM4BofzFzhm_qM4 --number 1.5
 ```
 
-Il faut `gh` connecté avec le droit `project` (`gh auth refresh -s project`). Si la commande échoue, dis-le au développeur au lieu de contourner.
+Ranger une nouvelle issue sous son epic (ici la 12 sous l'epic 5) :
+
+```bash
+gh api -X POST repos/NotitiaEIP/notitia_mobile/issues/5/sub_issues -F sub_issue_id=$(gh api repos/NotitiaEIP/notitia_mobile/issues/12 --jq .id)
+```
+
+Il faut `gh` connecté avec le droit `project` (`gh auth refresh -s project`). Si une commande échoue, dis-le au développeur au lieu de contourner.
