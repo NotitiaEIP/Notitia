@@ -4,7 +4,7 @@ Instructions pour toute IA qui code dans ce repo : Claude Code, GitHub Copilot, 
 
 ## Le projet
 
-Notitia est une app mobile (Android et iOS) qui enregistre une réunion, la transcrit et en tire un compte rendu : décisions, actions et responsables. Tout se passe sur l'appareil. C'est l'EIP d'une équipe d'Epitech Nice (promo 2028). L'app Mac vit dans `macos/`, la documentation dans le repo `Notitia_Documentation` de l'organisation NotitiaEIP.
+Notitia est une app mobile (Android et iOS) qui enregistre une réunion, la transcrit et en tire un compte rendu : décisions, actions et responsables. Tout se passe sur l'appareil. C'est l'EIP d'une équipe d'Epitech Nice (promo 2028). L'app Android et iOS vit dans `mobile/`, l'app Mac dans `macos/`, la documentation dans le repo `Notitia_Documentation` de l'organisation NotitiaEIP.
 
 Le cadre de l'année, ce qu'on fait et ce qu'on ne fait pas, est dans [CADRE.md](https://github.com/NotitiaEIP/notitia_documentation/blob/main/CADRE.md). Si une demande le contredit, signale-le avant de coder.
 
@@ -21,16 +21,16 @@ En cas de doute sur une de ces règles, arrête-toi et demande plutôt que devin
 ## Stack
 
 - Kotlin Multiplatform et Compose Multiplatform : l'interface est partagée entre Android et iOS.
-- Gradle via le wrapper (`./gradlew`), dont la version est fixée dans `gradle/wrapper/gradle-wrapper.properties`. Les versions des dépendances vivent uniquement dans `gradle/libs.versions.toml`.
-- Android Studio avec le plugin Kotlin Multiplatform. Xcode sur Mac pour iOS.
+- Gradle via le wrapper (`mobile/gradlew`), dont la version est fixée dans `mobile/gradle/wrapper/gradle-wrapper.properties`. Les versions des dépendances vivent uniquement dans `mobile/gradle/libs.versions.toml`.
+- Android Studio avec le plugin Kotlin Multiplatform, ouvert sur le dossier `mobile/`. Xcode sur Mac pour iOS.
 
 ## Organisation du code
 
-- `shared/` : le code partagé entre Android et iOS. Dans `shared/src/` :
+- `mobile/shared/` : le code partagé entre Android et iOS. Dans `mobile/shared/src/` :
   - `commonMain` : tout ce qui peut être partagé (écrans, logique, modèles de données, accès aux modèles IA) ;
   - `androidMain` et `iosMain` : seulement ce qui dépend de la plateforme (micro, enregistrement en arrière-plan, widget, exécution des modèles).
-- `androidApp/` : le point d'entrée Android (activité, manifeste, icônes).
-- `iosApp/` : le projet Xcode qui embarque le code partagé.
+- `mobile/androidApp/` : le point d'entrée Android (activité, manifeste, icônes).
+- `mobile/iosApp/` : le projet Xcode qui embarque le code partagé.
 - `macos/` : l'app Mac en Swift, avec son projet Xcode et le package `NotitiaKit` dans `macos/apple/`. Ses règles propres sont dans `macos/CLAUDE.md`.
 
 Le code propre à une plateforme se cache derrière une interface déclarée dans `commonMain` :
@@ -49,10 +49,10 @@ Préférer une interface injectée à `expect`/`actual` dès que l'implémentati
 
 ## Commandes
 
-- Lancer l'app : `./notitia` ouvre un menu. Sans menu : `./notitia phone` (téléphone branché), `./notitia emulator`, `./notitia apk`.
-- Compiler et tester avant une PR : `./notitia check`, qui lance `./gradlew build`.
-- Tests du code partagé seuls : `./gradlew :shared:testAndroidHostTest`.
-- iOS : `./notitia ios` ouvre `iosApp/iosApp.xcodeproj` dans Xcode, sur un Mac. Sous Linux et Windows, les cibles iOS ne compilent pas : c'est normal, ne cherche pas à « réparer » une erreur iOS depuis ces machines.
+- Lancer l'app : `./notitia`, depuis la racine ou depuis `mobile/`, ouvre un menu. Sans menu : `./notitia phone` (téléphone branché), `./notitia emulator`, `./notitia apk`.
+- Compiler et tester avant une PR : `./notitia check`, qui lance `./gradlew build` dans `mobile/`.
+- Tests du code partagé seuls : `cd mobile && ./gradlew :shared:testAndroidHostTest`.
+- iOS : `./notitia ios` ouvre `mobile/iosApp/iosApp.xcodeproj` dans Xcode, sur un Mac. Sous Linux et Windows, les cibles iOS ne compilent pas : c'est normal, ne cherche pas à « réparer » une erreur iOS depuis ces machines.
 - Mac : ouvrir `macos/apple/Notitia.xcodeproj` dans Xcode, et tester `NotitiaKit` avec `cd macos/apple/NotitiaKit && swift test`, sur un Mac seulement. Le build Gradle ignore `macos/`.
 
 ## Conventions
@@ -60,7 +60,7 @@ Préférer une interface injectée à `expect`/`actual` dès que l'implémentati
 - Code, noms, commentaires et messages de commit en anglais. Textes de l'interface en français, toujours dans les ressources Compose (`composeResources`), jamais en dur : l'anglais viendra après le Greenlight.
 - Commits au format Conventional Commits (voir « Le message de commit et la description de PR »). Une PR traite un seul sujet et se fusionne en squash.
 - La logique métier vit dans `commonMain` et se teste dans `commonTest`.
-- Une nouvelle dépendance passe par `gradle/libs.versions.toml`, avec une licence vérifiée (Apache 2.0, MIT ou BSD de préférence).
+- Une nouvelle dépendance passe par `mobile/gradle/libs.versions.toml`, avec une licence vérifiée (Apache 2.0, MIT ou BSD de préférence).
 - Jamais de fichier de modèle IA dans le repo (`.gguf`, `.onnx`, `.tflite`, `.bin`...). Les modèles sont livrés par les stores (Play for On-device AI sur Android, Background Assets sur iOS).
 - Monter Gradle, AGP, Kotlin ou Compose se fait dans une PR à part.
 
@@ -116,7 +116,7 @@ Seulement quand le développeur dit que c'est terminé et qu'il a relu le code. 
 4. Propose les commandes dans un seul bloc, sans les lancer. Nomme les fichiers un par un dans `git add`. Adapte les guillemets au terminal du développeur (bash, zsh ou PowerShell).
 
    ```bash
-   git add shared/src/androidMain/kotlin/<package>/audio/AndroidAudioRecorder.kt
+   git add mobile/shared/src/androidMain/kotlin/<package>/audio/AndroidAudioRecorder.kt
    git commit -m "feat(audio): keep recording when the screen is locked" -m "Android stopped the recorder after ten minutes with the screen off. It now runs in a foreground service of type microphone." -m "Test plan: 45-minute recording on a Pixel 7 with the screen locked, the file plays to the end." -m "Closes NotitiaEIP/Notitia_Mobile#12"
    git push -u origin feat/12-record-lock-screen
    gh pr create --base main --title "feat(audio): keep recording when the screen is locked" --body "Android stopped the recorder after ten minutes with the screen off. It now runs in a foreground service of type microphone.
@@ -151,7 +151,7 @@ Le scope est facultatif. S'il y en a un, il vient de cette liste :
 | `ui` | Écrans et composants d'interface |
 | `storage` | Base de données, fichiers, chiffrement, suppression après 30 jours |
 | `ai` | Chargement et exécution des modèles |
-| `dependencies` | Versions dans `gradle/libs.versions.toml` |
+| `dependencies` | Versions dans `mobile/gradle/libs.versions.toml` |
 | `android` | Code propre à Android qui ne relève d'aucun autre scope |
 | `ios` | Code propre à iOS qui ne relève d'aucun autre scope |
 

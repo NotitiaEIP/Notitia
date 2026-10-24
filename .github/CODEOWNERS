@@ -1,16 +1,16 @@
-# Each area is reviewed by its pair (CADRE.md, part 9). The last matching line wins.
-*                         @clembdn @nathanderenty
+# Each area notifies its pair (CADRE.md, part 9); review is optional. The last matching line wins.
+*                                @clembdn @nathanderenty
 
-/androidApp/              @nathanderenty @clembdn
-/shared/src/androidMain/  @nathanderenty @clembdn
+/mobile/androidApp/              @nathanderenty @clembdn
+/mobile/shared/src/androidMain/  @nathanderenty @clembdn
 
-/iosApp/                  @Lucasljn @AdamLbrz
-/shared/src/iosMain/      @Lucasljn @AdamLbrz
-/macos/                   @Lucasljn @AdamLbrz
+/mobile/iosApp/                  @Lucasljn @AdamLbrz
+/mobile/shared/src/iosMain/      @Lucasljn @AdamLbrz
+/macos/                          @Lucasljn @AdamLbrz
 
-**/minutes/               @AdamLbrz @Lucasljn
-**/ai/                    @Alexou52 @sadikamine1
+**/minutes/                      @AdamLbrz @Lucasljn
+**/ai/                           @Alexou52 @sadikamine1
 
-/AGENTS.md                @clembdn @nathanderenty
-/CLAUDE.md                @clembdn @nathanderenty
-/.github/                 @clembdn @nathanderenty
+/AGENTS.md                       @clembdn @nathanderenty
+/CLAUDE.md                       @clembdn @nathanderenty
+/.github/                        @clembdn @nathanderenty
