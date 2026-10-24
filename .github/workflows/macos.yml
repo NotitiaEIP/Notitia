@@ -56,6 +56,8 @@ jobs:
         run: swift test
         working-directory: macos/apple/NotitiaKit
 
+      # Even when a test fails, still check that the app compiles.
       - name: Build the app
+        if: ${{ !cancelled() }}
         run: xcodebuild -project Notitia.xcodeproj -scheme Notitia -destination 'platform=macOS' -derivedDataPath build build CODE_SIGNING_ALLOWED=NO
         working-directory: macos/apple
