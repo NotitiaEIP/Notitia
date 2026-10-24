@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Bac à sable : l'application n'accède qu'à son propre conteneur. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- Microphone, pour l'enregistrement des réunions. -->
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<!-- Fichiers choisis explicitement par l'utilisateur (export, import d'images). -->
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<!--
+	  Volontairement ABSENT : com.apple.security.network.client.
+	  Sans cette autorisation, le système bloque toute connexion sortante :
+	  l'application ne peut pas envoyer de données sur Internet (exigence hors ligne / RGPD).
+	-->
+</dict>
+</plist>
