@@ -20,4 +20,4 @@ Les règles produit de l'AGENTS.md que la tâche touche, ou « aucune ».
 Responsable @... · Jalon M...
 
 ### Terminé quand
-Critères vérifiés, PR relue par le binôme, CI verte. Pour une tâche business : résultat partagé à l'équipe.
+Critères vérifiés, CI verte. Pour une tâche business : résultat partagé à l'équipe.

@@ -21,4 +21,4 @@ Branche `feat/<numéro>-<description-courte>` · Responsable @... · Jalon M...
 Issue sœur : US-... (si la story demande du code Android et iOS)
 
 ### Terminé quand
-Critères vérifiés sur un vrai téléphone, PR relue par le binôme, CI verte, logique testée dans commonTest.
+Critères vérifiés sur un vrai téléphone, CI verte, logique testée dans commonTest.
