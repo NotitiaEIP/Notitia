@@ -1,0 +1,61 @@
+name: macOS
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      macos: ${{ steps.diff.outputs.macos }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - id: diff
+        name: Does this change touch macos/?
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # Without a usable base (first push of a branch), test anyway.
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "macos=true" >> "$GITHUB_OUTPUT"
+          elif grep -qE '^(macos/|\.github/workflows/macos\.yml$)' <<< "$(git diff --name-only "$BASE" HEAD)"; then
+            echo "macos=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "macos=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Skipped when macos/ is untouched: a skipped job counts as passed for the required check.
+  # If the changes job fails, its output is empty and the Mac tests run anyway.
+  macos:
+    name: macos
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.macos != 'false' }}
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - run: xcodebuild -version && swift --version
+
+      # Integration tests need real voices and Apple Intelligence: they stay off (NOTITIA_INTEGRATION unset).
+      - name: Test NotitiaKit
+        run: swift test
+        working-directory: macos/apple/NotitiaKit
+
+      - name: Build the app
+        run: xcodebuild -project Notitia.xcodeproj -scheme Notitia -destination 'platform=macOS' -derivedDataPath build build CODE_SIGNING_ALLOWED=NO
+        working-directory: macos/apple

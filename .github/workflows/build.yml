@@ -19,6 +19,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: No AI model files in the repo
         run: |
@@ -29,15 +31,33 @@ jobs:
             exit 1
           fi
 
+      # The check above runs on every change; Gradle only when mobile/ changes.
+      - id: changes
+        name: Does this change touch mobile/?
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # Without a usable base (first push of a branch), build anyway.
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "mobile=true" >> "$GITHUB_OUTPUT"
+          elif grep -qE '^(mobile/|\.github/workflows/build\.yml$)' <<< "$(git diff --name-only "$BASE" HEAD)"; then
+            echo "mobile=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "mobile=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-java@v5
+        if: steps.changes.outputs.mobile == 'true'
         with:
           distribution: temurin
           java-version: 21
 
       - uses: gradle/actions/setup-gradle@v4
+        if: steps.changes.outputs.mobile == 'true'
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
       # Android and the shared tests. The iOS targets cannot build on Linux and are skipped.
       - run: ./gradlew build
+        if: steps.changes.outputs.mobile == 'true'
         working-directory: mobile
