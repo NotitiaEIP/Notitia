@@ -1,0 +1,42 @@
+name: Build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: No AI model files in the repo
+        run: |
+          # AGENTS.md: models are delivered by the stores, never committed.
+          files=$(git ls-files '*.gguf' '*.onnx' '*.tflite' '*.bin' '*.safetensors' '*.mlmodel' '*.mlpackage/*')
+          if [ -n "$files" ]; then
+            echo "::error::Fichier de modèle IA dans le repo : $files"
+            exit 1
+          fi
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      # Android and the shared tests. The iOS targets cannot build on Linux and are skipped.
+      - run: ./gradlew build

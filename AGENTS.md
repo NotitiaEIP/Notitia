@@ -127,7 +127,7 @@ Seulement quand le développeur dit que c'est terminé et qu'il a relu le code. 
 
 5. Quand le développeur confirme que la PR est ouverte, vérifie qu'elle est liée à l'issue (`gh pr view --json closingIssuesReferences`) et passe la tâche en « Need review ». Demande-lui combien de temps la tâche a pris, en jours-homme (une demi-journée vaut 0,5), et remplis le champ « Réel (j/h) » : à la revue de sprint, l'équipe le compare à l'estimation. Si la tâche change l'interface, rappelle-lui d'ajouter des captures d'écran dans un commentaire de la PR.
 
-Ensuite, un humain relit : GitHub demande lui-même le binôme du domaine, listé dans `.github/CODEOWNERS`. Quand il approuve et que la CI est verte, la PR se fusionne toute seule, l'issue se ferme et la tâche passe en « Acquise ».
+Ensuite, la relecture est facultative : GitHub demande le binôme du domaine, listé dans `.github/CODEOWNERS`, mais la PR n'attend pas son approbation. Dès que la CI est verte, elle se fusionne toute seule, l'issue se ferme et la tâche passe en « Acquise ». Si le développeur veut un avis avant la fusion, propose les mêmes commandes sans `gh pr merge --auto --squash` : il fusionnera lui-même après la relecture.
 
 ### Le message de commit et la description de PR
 
@@ -172,7 +172,7 @@ git merge --no-commit origin/main
 
 ### Si le relecteur demande des changements
 
-Repasse la tâche en « In progress », corrige sur la même branche, puis propose un nouveau `git commit` et un `git push`. Pas de nouvelle PR : la PR existante se met à jour.
+Si la PR est encore ouverte, repasse la tâche en « In progress », corrige sur la même branche, puis propose un nouveau `git commit` et un `git push`. Pas de nouvelle PR : la PR existante se met à jour. Si elle est déjà fusionnée, la correction devient une nouvelle issue, avec sa branche et sa PR.
 
 ## Publier une version
 
