@@ -53,7 +53,7 @@ Préférer une interface injectée à `expect`/`actual` dès que l'implémentati
 - Compiler et tester avant une PR : `./notitia check`, qui lance `./gradlew build` dans `mobile/`.
 - Tests du code partagé seuls : `cd mobile && ./gradlew :shared:testAndroidHostTest`.
 - iOS : `./notitia ios` ouvre `mobile/iosApp/iosApp.xcodeproj` dans Xcode, sur un Mac. Sous Linux et Windows, les cibles iOS ne compilent pas : c'est normal, ne cherche pas à « réparer » une erreur iOS depuis ces machines.
-- Mac : ouvrir `macos/apple/Notitia.xcodeproj` dans Xcode, et tester `NotitiaKit` avec `cd macos/apple/NotitiaKit && swift test`, sur un Mac seulement. Le build Gradle ignore `macos/`.
+- Mac : ouvrir `macos/apple/Notitia.xcodeproj` dans Xcode, et tester `NotitiaKit` avec `cd macos/apple/NotitiaKit && swift test`, sur un Mac seulement. Le build Gradle ignore `macos/`, et la CI lance ces tests sur un Mac de GitHub (job `macos`) dès qu'une PR touche `macos/`.
 
 ## Conventions
 
@@ -154,6 +154,7 @@ Le scope est facultatif. S'il y en a un, il vient de cette liste :
 | `dependencies` | Versions dans `mobile/gradle/libs.versions.toml` |
 | `android` | Code propre à Android qui ne relève d'aucun autre scope |
 | `ios` | Code propre à iOS qui ne relève d'aucun autre scope |
+| `macos` | Code propre à l'app Mac qui ne relève d'aucun autre scope |
 
 Un `!` après le type ou le scope signale une rupture, par exemple un format de données qui change : `feat(storage)!: store speakers per meeting`.
 

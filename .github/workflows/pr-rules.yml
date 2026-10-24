@@ -18,7 +18,7 @@ jobs:
         run: |
           # Same rules as AGENTS.md, section "Le message de commit et la description de PR".
           types='feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert'
-          scopes='audio|transcription|minutes|search|ui|storage|ai|dependencies|android|ios'
+          scopes='audio|transcription|minutes|search|ui|storage|ai|dependencies|android|ios|macos'
           pattern="^(${types})(\((${scopes})\))?!?: [^ ].*$"
           body="${BODY//$'\r'/}"
           errors=0
