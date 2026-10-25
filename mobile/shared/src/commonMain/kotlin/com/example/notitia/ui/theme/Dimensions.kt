@@ -30,7 +30,10 @@ object NotitiaSizes {
     val icon = 24.dp
     val iconInButton = 20.dp
     val recordButton = 72.dp
+    val recordIcon = 32.dp
     val tabBar = 64.dp
+    val tabPillWidth = 64.dp
+    val tabPillHeight = 32.dp
 }
 
 // What can be touched is round, what is read has corners.
@@ -50,6 +53,8 @@ object NotitiaMotion {
     const val STANDARD_MS = 250
     const val PRESSED_SCALE = 0.97f
     const val ENTER_SCALE = 0.95f
+    // The selected tab icon's own gesture. It never makes anyone wait: the screen has already switched.
+    const val TAB_ICON_MS = 800
     val easeOut: Easing = CubicBezierEasing(0.23f, 1f, 0.32f, 1f)
 
     fun <T> instant(): TweenSpec<T> = tween(INSTANT_MS, easing = easeOut)

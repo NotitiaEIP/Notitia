@@ -144,7 +144,7 @@ Ce qui se touche est rond, ce qui se lit a des coins :
 
 **Élévation.** En sombre, pas d'ombre : une surface plus haute est plus claire. En clair, une ombre douce, seulement pour ce qui flotte.
 
-**Icônes.** Material Symbols Rounded (licence Apache 2.0), arrondies comme nos boutons. 24 dp, 20 dp dans un bouton. Contour quand inactif, plein quand actif. Pas d'emoji dans l'interface. Les SF Symbols d'Apple sont réservés aux plateformes Apple : seulement dans les écrans écrits en Swift.
+**Icônes.** Material Symbols Rounded (licence Apache 2.0), arrondies comme nos boutons. 24 dp, 20 dp dans un bouton. Contour quand inactif, plein quand actif, ou plus épais quand l'icône n'a pas de version pleine. Pas d'emoji dans l'interface. Les SF Symbols d'Apple sont réservés aux plateformes Apple : seulement dans les écrans écrits en Swift.
 
 | Concept | Icône |
 | --- | --- |
@@ -187,16 +187,16 @@ Chaque composant n'existe qu'une fois dans le code (`NotitiaButton`, `RecordButt
 
 ### Barre d'onglets et mini-barre
 
-- **Barre d'onglets** : 64 dp, trois onglets, libellé toujours visible. L'onglet actif a une icône pleine sur une pilule `accentSoft`, en `accentContent`.
+- **Barre d'onglets** : 64 dp, trois onglets, libellé toujours visible. L'onglet actif a une icône plus épaisse (ces trois icônes n'ont pas de version pleine), sur une pilule `accentSoft`, en `accentContent`. Elles sont redessinées en code d'après les Material Symbols, pour que leurs traits bougent.
 - **Mini-barre d'enregistrement** : fond `surfaceRaised`, ronde, posée au-dessus de la barre d'onglets, sur tous les onglets. Elle montre le minuteur et un bouton Arrêter rouge.
 
-L'effet de sélection d'un onglet, en moins de 300 ms parce qu'on change d'onglet des dizaines de fois par jour :
+L'effet de sélection d'un onglet. Le contenu change tout de suite : seule l'icône s'anime, et rien n'attend la fin de l'animation.
 
-- Le contenu change tout de suite : seule l'icône s'anime.
 - La pilule grandit depuis le centre en 250 ms.
-- L'icône passe du contour au plein en 150 ms (fondu entre les deux icônes).
-- Un petit rebond de 85 % à 100 %, seulement à la sélection : c'est le geste des onglets d'iOS.
-- À la désélection, l'icône se vide en 100 ms, sans rebond. Pas de vibration.
+- Chaque icône joue son geste en 800 ms, à la sélection seulement : l'onde de Réunions s'agite comme un égaliseur, le cercle d'Actions se trace puis la coche en sort par l'ouverture, la loupe de Recherche balaie (un balayage, pas un tour complet, pour ne pas ressembler à un chargement).
+- Toucher l'onglet déjà actif rejoue le geste.
+- À la désélection, l'icône revient au repos en 100 ms, sans animation. Pas de vibration.
+- « Réduire les animations » : seule la couleur change.
 
 ### Messages, dialogues, feuilles
 
