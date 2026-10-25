@@ -1,0 +1,6 @@
+<resources>
+    <color name="notitia_window">#0B0A0F</color>
+    <style name="Theme.Notitia" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/notitia_window</item>
+    </style>
+</resources>

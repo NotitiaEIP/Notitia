@@ -1,0 +1,7 @@
+<resources>
+    <!-- Shown before Compose draws its first frame, so the app opens on the right background. -->
+    <color name="notitia_window">#FFFFFF</color>
+    <style name="Theme.Notitia" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/notitia_window</item>
+    </style>
+</resources>
