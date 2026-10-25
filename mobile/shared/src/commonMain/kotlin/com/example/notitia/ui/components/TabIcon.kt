@@ -27,13 +27,11 @@ import com.example.notitia.ui.navigation.Tab
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
 
-// The icons are drawn on a 24 × 24 grid, with the values of the charter's demo. Strokes go from 2 to 2.4 when selected.
+// The values of the charter's demo, on the 24 × 24 grid of Material Symbols.
 private const val GRID = 24f
 private val CENTER = Offset(GRID / 2, GRID / 2)
 private val IconStroke = 2f to 2.4f
 
-// Meetings: five bars, by their left edge and height, centred on y = 12. Each one stretches from its centre
-// through seven values spread evenly over the gesture.
 private val BarLeft = listOf(2f, 6.4f, 10.8f, 15.2f, 19.6f)
 private val BarHeight = listOf(7f, 14f, 18f, 11f, 7f)
 private val BarStretch = listOf(
@@ -45,38 +43,34 @@ private val BarStretch = listOf(
 ).map { values -> values.mapIndexed { i, value -> i.toFloat() / (values.size - 1) to value } }
 private const val BAR_WIDTH = 2.4f
 
-// Actions: task_alt keeps its shape when selected, a ring open at the top right where the check comes out.
-// The ring runs from its top end, at 64° (counted from the right, upwards), round by the left to 5°.
+// task_alt: the ring is open at the top right, from 64° round by the left to 5° (counted from the right, upwards).
 private const val RING_RADIUS = 9f
 private const val RING_TOP_END = 64f
 private const val RING_SWEEP = 360f - (64f - 5f)
 private val CheckStart = Offset(7.76f, 12.36f)
 private val CheckCorner = Offset(10.59f, 15.18f)
 private val CheckEnd = Offset(20.58f, 5.19f)
-// The steps of the gesture, as (start, length) shares of it: the ring is traced, then the check is drawn.
+// (start, length) shares of the gesture, not a range.
 private val RingTraceStep = 0f to 0.4f
 private val CheckTraceStep = 0.3f to 0.4f
 // The tip of the check crosses the ring around 60 % of the gesture: the icon swells just before and peaks
 // just after, which makes it readable at 24 dp.
 private val CheckSwell = listOf(0f to 1f, 0.55f to 1f, 0.72f to 1.18f, 0.88f to 0.96f, 1f to 1f)
 
-// Search: the magnifier sweeps around the centre of the icon, a sweep rather than a full turn, which would
-// look like loading. Its lens is filled at 20 % when selected.
 private val LensCenter = Offset(10.5f, 10.5f)
 private const val LENS_RADIUS = 6f
 private val HandleStart = Offset(15f, 15f)
 private val HandleEnd = Offset(20f, 20f)
 private const val LENS_FILL_ALPHA = 0.2f
+// A sweep rather than a full turn, which would look like loading.
 private val LensTilt = listOf(0f to 0f, 0.25f to -18f, 0.55f to 14f, 0.8f to -6f, 1f to 0f)
 private val LensShiftX = listOf(0f to 0f, 0.25f to -1f, 0.55f to 1f, 0.8f to 0f, 1f to 0f)
 private val LensShiftY = listOf(0f to 0f, 0.25f to 0f, 0.55f to -1f, 0.8f to 0f, 1f to 0f)
 
 private fun Pair<Float, Float>.at(fraction: Float) = first + (second - first) * fraction
 
-// How far a step of a gesture has gone, from 0 to 1.
 private fun Pair<Float, Float>.progress(gesture: Float) = ((gesture - first) / second).coerceIn(0f, 1f)
 
-// The value of (time, value) keyframes at a point of the gesture, easing in and out between them.
 private fun List<Pair<Float, Float>>.valueAt(gesture: Float): Float {
     val next = indexOfFirst { it.first >= gesture }.coerceAtLeast(1)
     val (fromTime, from) = this[next - 1]
@@ -84,8 +78,8 @@ private fun List<Pair<Float, Float>>.valueAt(gesture: Float): Float {
     return (from to to).at(EaseInOut.transform(((gesture - fromTime) / (toTime - fromTime)).coerceIn(0f, 1f)))
 }
 
-// A tab icon redrawn in code, so its strokes can move. weight goes from the outline (0) to selected (1),
-// gesture from the start of the selection gesture (0) to rest (1). Both are read at draw time.
+// Redrawn in code rather than taken from the font, so its strokes can move. weight and gesture are read at
+// draw time: animating them redraws the icon without recomposing.
 @Composable
 internal fun TabIcon(tab: Tab, weight: () -> Float, gesture: () -> Float, color: Color, modifier: Modifier = Modifier) {
     val easeOut = NotitiaTheme.motion.easeOut
@@ -108,7 +102,6 @@ internal fun TabIcon(tab: Tab, weight: () -> Float, gesture: () -> Float, color:
     }
 }
 
-// The bars stretch like an equalizer, then settle at rest.
 private fun DrawScope.drawSoundBars(color: Color, weight: Float, gesture: Float) {
     val width = IconStroke.at(weight)
     BarLeft.forEachIndexed { i, left ->
@@ -122,9 +115,7 @@ private fun DrawScope.drawSoundBars(color: Color, weight: Float, gesture: Float)
     }
 }
 
-// The ring is traced from its top end through the left, then the check is drawn: its short arm, then its long
-// arm, which comes out through the opening while the whole icon swells. Nothing is drawn before a stroke starts,
-// or its round cap would show as a dot.
+// Nothing is drawn before a stroke starts, or its round cap would show as a dot.
 private fun DrawScope.drawCheck(color: Color, weight: Float, ringTraced: Float, checkTraced: Float, swell: Float) {
     val stroke = IconStroke.at(weight)
     scale(swell, pivot = CENTER) {
@@ -143,7 +134,6 @@ private fun DrawScope.drawCheck(color: Color, weight: Float, ringTraced: Float, 
     }
 }
 
-// Traces the check from the end of its short arm, through the corner, to the end of its long arm.
 private fun DrawScope.drawTracedCheck(color: Color, stroke: Float, traced: Float) {
     if (traced <= 0f) return
     val shortArm = (CheckCorner - CheckStart).getDistance()
@@ -162,7 +152,6 @@ private fun DrawScope.drawTracedCheck(color: Color, stroke: Float, traced: Float
     drawPath(check, color, style = Stroke(stroke, cap = StrokeCap.Round, join = StrokeJoin.Round))
 }
 
-// The magnifier tilts and shifts around the centre of the icon, then settles.
 private fun DrawScope.drawMagnifier(color: Color, weight: Float, gesture: Float) {
     val stroke = IconStroke.at(weight)
     translate(left = LensShiftX.valueAt(gesture), top = LensShiftY.valueAt(gesture)) {

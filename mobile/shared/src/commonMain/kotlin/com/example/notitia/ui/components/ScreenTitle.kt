@@ -13,7 +13,6 @@ import notitia.shared.generated.resources.Res
 import notitia.shared.generated.resources.meetings_title
 import org.jetbrains.compose.resources.stringResource
 
-// The title that says where we are, marked as a heading for screen readers.
 @Composable
 fun ScreenTitle(text: String, modifier: Modifier = Modifier) {
     Text(

@@ -20,8 +20,8 @@ private val LocalNotitiaTypography = staticCompositionLocalOf<NotitiaTypography>
     error("Wrap the screen in NotitiaTheme")
 }
 
-// Follows the phone's light or dark setting. Material 3 components get the same values,
-// so the ones we use as they are (sheets, dialogs, snackbars) look like Notitia too.
+// Material 3 gets the same values, so the components we use as they are (sheets, dialogs, snackbars)
+// look like Notitia too.
 @Composable
 fun NotitiaTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
     val colors = if (darkTheme) DarkColors else LightColors

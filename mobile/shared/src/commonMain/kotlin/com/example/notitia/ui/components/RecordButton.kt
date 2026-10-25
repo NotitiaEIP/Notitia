@@ -27,7 +27,6 @@ import notitia.shared.generated.resources.record_meeting
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 
-// The app's signature: a round button in the button gradient, one press away from the Meetings tab.
 @Composable
 fun RecordButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = NotitiaTheme.colors

@@ -30,7 +30,7 @@ data class NotitiaColors(
     val logoGradient: List<Color>,
     val buttonGradient: List<Color>,
 ) {
-    // Speakers get a colour in the order they first talk; after six the list starts again.
+    // index is the order in which the speaker first talked.
     fun speaker(index: Int): Color = speakers[index.mod(speakers.size)]
 }
 

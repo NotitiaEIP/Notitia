@@ -17,7 +17,7 @@ import com.example.notitia.ui.navigation.Tab
 import com.example.notitia.ui.search.SearchScreen
 import com.example.notitia.ui.theme.NotitiaTheme
 
-// The content switches at once when a tab changes: only the tab bar animates.
+// No transition between screens: the content switches at once, only the tab bar animates.
 @Composable
 @Preview
 fun App() {

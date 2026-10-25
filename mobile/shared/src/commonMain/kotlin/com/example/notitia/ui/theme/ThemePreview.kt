@@ -16,7 +16,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 
-// Palette and type scale at a glance, in the IDE preview only: the labels are token names, not interface text.
+// IDE preview only: the labels are token names, not interface text, so they stay out of the resources.
 @Composable
 private fun ThemeSample() {
     val colors = NotitiaTheme.colors
