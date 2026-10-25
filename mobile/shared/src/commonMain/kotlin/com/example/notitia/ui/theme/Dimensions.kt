@@ -53,7 +53,7 @@ object NotitiaMotion {
     const val STANDARD_MS = 250
     const val PRESSED_SCALE = 0.97f
     const val ENTER_SCALE = 0.95f
-    // The selected tab icon's own gesture. It never makes anyone wait: the screen has already switched.
+    // Long for a tab, but nobody waits for it: the screen has already switched.
     const val TAB_ICON_MS = 800
     val easeOut: Easing = CubicBezierEasing(0.23f, 1f, 0.32f, 1f)
 

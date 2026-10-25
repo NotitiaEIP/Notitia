@@ -51,7 +51,6 @@ import com.example.notitia.ui.theme.NotitiaTheme
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
-// The three tabs at the bottom of the app. It draws behind the system navigation bar and keeps its tabs above it.
 @Composable
 fun NotitiaTabBar(selected: Tab, onSelect: (Tab) -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.background(NotitiaTheme.colors.background)) {
@@ -75,8 +74,6 @@ fun NotitiaTabBar(selected: Tab, onSelect: (Tab) -> Unit, modifier: Modifier = M
     }
 }
 
-// Only the icon moves: the pill grows from the centre, the stroke thickens and the icon plays its own gesture.
-// Deselecting is faster and brings the icon straight back to rest.
 @Composable
 private fun TabItem(tab: Tab, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = NotitiaTheme.colors
@@ -106,10 +103,9 @@ private fun TabItem(tab: Tab, selected: Boolean, onClick: () -> Unit, modifier: 
                 interactionSource = interactionSource,
                 indication = null,
                 role = Role.Tab,
-                // Touching the tab plays its icon's gesture, again if the tab is already selected.
+                // In onClick rather than on selection, so touching the selected tab replays the gesture.
                 onClick = {
                     scope.launch {
-                        // With animations turned off, only the colour changes.
                         if (coroutineContext[MotionDurationScale]?.scaleFactor == 0f) return@launch
                         gesture.snapTo(0f)
                         // Linear, since each icon shapes its own curves.
@@ -147,7 +143,7 @@ private fun TabItem(tab: Tab, selected: Boolean, onClick: () -> Unit, modifier: 
             )
             TabIcon(tab, weight = { bold }, gesture = { gesture.value }, color = contentColor)
         }
-        // At 200 % text a label may need two lines: it then breaks where a hyphen is allowed.
+        // At 200 % text a label can wrap: it breaks at a hyphen rather than mid-word.
         Text(
             text = stringResource(tab.title),
             style = NotitiaTheme.typography.tab.copy(hyphens = Hyphens.Auto),
