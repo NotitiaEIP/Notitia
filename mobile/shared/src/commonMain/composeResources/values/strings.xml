@@ -1,0 +1,5 @@
+<resources>
+    <string name="meetings_title">Réunions</string>
+    <string name="meetings_empty">Aucune réunion pour l’instant.</string>
+    <string name="meetings_on_device">Vos réunions restent sur ce téléphone.</string>
+</resources>
