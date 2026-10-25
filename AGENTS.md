@@ -59,11 +59,11 @@ Préférer une interface injectée à `expect`/`actual` dès que l'implémentati
 
 - Code, noms, commentaires et messages de commit en anglais. Textes de l'interface en français, toujours dans les ressources Compose (`composeResources`), jamais en dur : l'anglais viendra après le Greenlight.
 - L'interface de l'app Android et iPhone suit `DESIGN.md` : couleurs, police, tailles et espacements viennent du thème `NotitiaTheme`, jamais en dur. S'en écarter se dit en une phrase dans la description de la PR.
-- Des commentaires courts : une ou deux lignes au-dessus d'une fonction ou d'un passage technique qui en a besoin pour être compris, pour dire ce qu'il fait ou pourquoi. Rien d'autre : pas de commentaire qui répète la ligne du dessous, pas de documentation paramètre par paramètre, pas de code mis en commentaire, pas d'historique des changements (Git le garde).
+- Un commentaire seulement pour dire pourquoi, quand le code ne peut pas le dire : une raison, une contrainte, un piège. Une ou deux lignes au-dessus du passage. Jamais ce que fait le code : si un commentaire le raconte, renomme plutôt. Pas de documentation paramètre par paramètre, pas de code mis en commentaire, pas d'historique des changements (Git le garde).
 
   ```kotlin
-  // Cuts the audio into 30 s chunks that overlap by 1 s, so no word is lost at a cut.
-  fun splitIntoChunks(audio: RecordingFile): List<AudioChunk> {
+  // 1 s of overlap, so no word is lost at a cut.
+  val chunks = splitIntoChunks(audio, length = 30.seconds, overlap = 1.seconds)
   ```
 
 - Commits au format Conventional Commits (voir « Le message de commit et la description de PR »). Une PR traite un seul sujet et se fusionne en squash.
@@ -135,7 +135,7 @@ Seulement quand le développeur dit que c'est terminé et qu'il a relu le code. 
    gh pr merge --auto --squash
    ```
 
-5. Quand le développeur confirme que la PR est ouverte, vérifie qu'elle est liée à l'issue (`gh pr view --json closingIssuesReferences`) et passe la tâche en « Need review ». Remplis aussi le champ « Réel (j/h) », que l'équipe compare à l'estimation à la revue de sprint : estime-le depuis les commits, puis fais-le valider au développeur (voir « Estimer le temps passé »). Si la tâche change l'interface, rappelle-lui d'ajouter des captures d'écran dans un commentaire de la PR.
+5. Quand le développeur confirme que la PR est ouverte, vérifie qu'elle est liée à l'issue (`gh pr view --json closingIssuesReferences`) et passe la tâche en « Need review ». Remplis aussi le champ « Réel (j/h) », que l'équipe compare à l'estimation à la revue de sprint : estime-le depuis les commits, puis fais-le valider au développeur (voir « Estimer le temps passé »).
 
 Ensuite, la relecture est facultative : GitHub demande le binôme du domaine, listé dans `.github/CODEOWNERS`, mais la PR n'attend pas son approbation. Dès que la CI est verte, elle se fusionne toute seule, l'issue se ferme et la tâche passe en « Acquise ». Si le développeur veut un avis avant la fusion, propose les mêmes commandes sans `gh pr merge --auto --squash` : il fusionnera lui-même après la relecture.
 
@@ -166,7 +166,7 @@ Le scope est facultatif. S'il y en a un, il vient de cette liste :
 
 Un `!` après le type ou le scope signale une rupture, par exemple un format de données qui change : `feat(storage)!: store speakers per meeting`.
 
-Le titre de la PR reprend la première ligne, et sa description le reste du message, sans checklist ni autre section : au moment du squash, c'est ce titre et cette description qui deviennent le commit sur `main`. Les captures d'écran vont dans un commentaire de la PR. La CI vérifie le titre et la description de chaque PR et signale ce qui manque.
+Le titre de la PR reprend la première ligne, et sa description le reste du message, sans checklist ni autre section : au moment du squash, c'est ce titre et cette description qui deviennent le commit sur `main`. La CI vérifie le titre et la description de chaque PR et signale ce qui manque.
 
 ### Mettre la branche à jour avec main
 
