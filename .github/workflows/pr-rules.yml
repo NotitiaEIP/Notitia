@@ -35,8 +35,8 @@ jobs:
             echo "::error::Description : il manque le paragraphe « Test plan: » qui dit comment le changement a été vérifié."
             errors=1
           fi
-          if ! grep -qiE '^(closes|fixes) NotitiaEIP/Notitia_Mobile#[0-9]+' <<< "$body"; then
-            echo "::error::Description : il manque la ligne « Closes NotitiaEIP/Notitia_Mobile#<numéro de l'issue> »."
+          if ! grep -qiE '^(closes|fixes) NotitiaEIP/Notitia#[0-9]+' <<< "$body"; then
+            echo "::error::Description : il manque la ligne « Closes NotitiaEIP/Notitia#<numéro de l'issue> »."
             errors=1
           fi
           exit "$errors"

@@ -124,13 +124,13 @@ Seulement quand le développeur dit que c'est terminé et qu'il a relu le code. 
 
    ```bash
    git add mobile/shared/src/androidMain/kotlin/<package>/audio/AndroidAudioRecorder.kt
-   git commit -m "feat(audio): keep recording when the screen is locked" -m "Android stopped the recorder after ten minutes with the screen off. It now runs in a foreground service of type microphone." -m "Test plan: 45-minute recording on a Pixel 7 with the screen locked, the file plays to the end." -m "Closes NotitiaEIP/Notitia_Mobile#12"
+   git commit -m "feat(audio): keep recording when the screen is locked" -m "Android stopped the recorder after ten minutes with the screen off. It now runs in a foreground service of type microphone." -m "Test plan: 45-minute recording on a Pixel 7 with the screen locked, the file plays to the end." -m "Closes NotitiaEIP/Notitia#12"
    git push -u origin feat/12-record-lock-screen
    gh pr create --base main --title "feat(audio): keep recording when the screen is locked" --body "Android stopped the recorder after ten minutes with the screen off. It now runs in a foreground service of type microphone.
 
    Test plan: 45-minute recording on a Pixel 7 with the screen locked, the file plays to the end.
 
-   Closes NotitiaEIP/Notitia_Mobile#12"
+   Closes NotitiaEIP/Notitia#12"
    gh pr merge --auto --squash
    ```
 
@@ -143,7 +143,7 @@ Ensuite, la relecture est facultative : GitHub demande le binôme du domaine, li
 - Première ligne : `<type>(<scope>): <description>`, en anglais, à l'impératif, sans point final, 72 caractères au plus.
 - Un paragraphe qui dit pourquoi.
 - Un paragraphe `Test plan:` qui dit comment le changement a été vérifié, et sur quel appareil.
-- Dernière ligne : `Closes NotitiaEIP/Notitia_Mobile#<numéro de l'issue>`.
+- Dernière ligne : `Closes NotitiaEIP/Notitia#<numéro de l'issue>`.
 
 Types : `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
 
@@ -271,7 +271,7 @@ gh project item-edit --project-id PVT_kwDOD4mZuM4BofzF --id <id de l'item> --fie
 Ranger une nouvelle issue sous son epic (ici la 12 sous l'epic 5) :
 
 ```bash
-gh api -X POST repos/NotitiaEIP/notitia_mobile/issues/5/sub_issues -F sub_issue_id=$(gh api repos/NotitiaEIP/notitia_mobile/issues/12 --jq .id)
+gh api -X POST repos/NotitiaEIP/notitia/issues/5/sub_issues -F sub_issue_id=$(gh api repos/NotitiaEIP/notitia/issues/12 --jq .id)
 ```
 
 Il faut `gh` connecté avec le droit `project` (`gh auth refresh -s project`). Si une commande échoue, dis-le au développeur au lieu de contourner.

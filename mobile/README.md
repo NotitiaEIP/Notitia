@@ -31,8 +31,8 @@ Sous Windows, lance-la dans **Git Bash** (installé avec Git), pas dans PowerShe
 2. Clone le repo, puis ouvre le dossier `mobile/` une fois dans Android Studio pour qu'il télécharge le SDK :
 
    ```bash
-   git clone https://github.com/NotitiaEIP/Notitia_Mobile.git
-   cd Notitia_Mobile
+   git clone https://github.com/NotitiaEIP/Notitia.git
+   cd Notitia
    ```
 
 3. Lance `./notitia` et choisis « Diagnostiquer mon installation ».
