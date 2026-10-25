@@ -1,7 +1,7 @@
 # Notitia pour Mac
 
 L'app Mac de Notitia, en Swift/SwiftUI. Le projet et ses autres dossiers sont présentés dans le
-[README de la racine](../README.md), et ses règles (produit, code, Git) dans l'[AGENTS.md](../AGENTS.md).
+[README de la racine](../README.md).
 
 ![Transcription enrichie](docs/screenshots/6-transcript-light.png)
 
@@ -112,7 +112,6 @@ NOTITIA_INTEGRATION=1 swift test --filter SpeakerDiarizationIntegrationTests
 
 ```
 macos/
-├── CLAUDE.md               ← ce que l'IA doit savoir en plus de l'AGENTS.md de la racine (décisions, règles, pièges)
 ├── apple/
 │   ├── Notitia.xcodeproj   ← projet Xcode (dossiers synchronisés : tout fichier ajouté dans Notitia/ est compilé)
 │   ├── Config/             ← entitlements (sandbox, micro, PAS de réseau)
@@ -135,7 +134,7 @@ macos/
 
 ## Contribuer
 
-Les branches, les commits et les PR suivent l'[AGENTS.md](../AGENTS.md) de la racine. En plus, pour l'app Mac :
+Pour l'app Mac :
 
 1. `swift test` doit passer et l'application doit compiler sans avertissement.
 2. Toute logique non visuelle va dans `NotitiaKit`, avec ses tests.
