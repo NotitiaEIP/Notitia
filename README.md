@@ -9,4 +9,4 @@ Notitia enregistre une réunion, la transcrit et en tire un compte rendu, sans q
 
 Pour lancer l'app Android ou iPhone, une seule commande à la racine : `./notitia`.
 
-Les règles du projet (produit, code, Git) sont dans [AGENTS.md](AGENTS.md), et le cadre de l'année dans [CADRE.md](https://github.com/NotitiaEIP/notitia_documentation/blob/main/CADRE.md).
+Le cadre de l'année est dans [CADRE.md](https://github.com/NotitiaEIP/notitia_documentation/blob/main/CADRE.md).

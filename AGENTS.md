@@ -4,7 +4,7 @@ Instructions pour toute IA qui code dans ce repo : Claude Code, GitHub Copilot, 
 
 ## Le projet
 
-Notitia est une app mobile (Android et iOS) qui enregistre une réunion, la transcrit et en tire un compte rendu : décisions, actions et responsables. Tout se passe sur l'appareil. C'est l'EIP d'une équipe d'Epitech Nice (promo 2028). L'app Android et iOS vit dans `mobile/`, l'app Mac dans `macos/`, la documentation dans le repo `Notitia_Documentation` de l'organisation NotitiaEIP.
+Notitia est une app mobile (Android et iOS) qui enregistre une réunion, la transcrit et en tire un compte rendu : décisions, actions et responsables. Tout se passe sur l'appareil. C'est l'EIP d'une équipe d'Epitech Nice (promo 2028). L'app Android et iOS vit dans `mobile/`, l'app Mac dans `macos/`, la documentation dans le repo `Notitia_Documentation` de l'organisation NotitiaEIP. À chaque fusion, `main` et les tags sont copiés vers le repo de l'école, `EpitechPGE3-2025/G-EIP-601-ALL-6-1-eip-51`, sans les fichiers des assistants IA (`AGENTS.md`, `CLAUDE.md`, `.claude/`) : c'est une copie, personne n'y pousse à la main.
 
 Le cadre de l'année, ce qu'on fait et ce qu'on ne fait pas, est dans [CADRE.md](https://github.com/NotitiaEIP/notitia_documentation/blob/main/CADRE.md). Si une demande le contredit, signale-le avant de coder.
 

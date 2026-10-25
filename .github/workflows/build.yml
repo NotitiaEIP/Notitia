@@ -15,6 +15,8 @@ concurrency:
 jobs:
   build:
     name: build
+    # The Epitech copy carries this file too: there, the job is skipped.
+    if: github.repository_owner == 'NotitiaEIP'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

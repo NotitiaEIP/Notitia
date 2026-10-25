@@ -1,0 +1,61 @@
+name: Mirror to Epitech
+
+# Copies main and the tags to the school's repository, without the AI assistant files
+# and the AI co-author lines. That repository is only a copy: nobody pushes to it by hand.
+
+on:
+  push:
+    branches: [main]
+    tags: ['*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mirror-epitech
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    name: mirror
+    # The filter below keeps this file out of the copy; the check is a second lock.
+    if: github.repository_owner == 'NotitiaEIP'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Install git-filter-repo
+        run: pipx install git-filter-repo==2.47.0
+
+      - name: Clone main and its tags
+        env:
+          REPO: ${{ github.repository }}
+        run: git clone --single-branch --branch main "https://github.com/$REPO.git" copy
+
+      # The same input always gives the same commits, so each copy extends the previous one.
+      # Changing this filter rewrites every commit: the next push then needs --force, once.
+      - name: Remove the AI assistant files and co-author lines
+        working-directory: copy
+        run: |
+          git filter-repo --force --invert-paths \
+            --path-regex '^(.*/)?(AGENTS|CLAUDE|GEMINI)\.md$' \
+            --path-regex '^(.*/)?\.(claude|agents|cursor)/' \
+            --path .github/copilot-instructions.md \
+            --path .github/workflows/mirror-epitech.yml \
+            --message-callback '
+          import re
+          return re.sub(rb"(?im)^(co-authored-by: .*(claude|copilot|anthropic|openai|gemini|cursor|antigravity).*|claude-session: .*|.*generated with \[?claude code.*)\n?", b"", message).rstrip() + b"\n"
+          '
+
+      # No --force: if someone pushed to the copy by hand, the job fails instead of erasing it.
+      - name: Push main and the tags
+        working-directory: copy
+        env:
+          MIRROR_TOKEN: ${{ secrets.EPITECH_MIRROR_TOKEN }}
+        run: |
+          if [ -z "$MIRROR_TOKEN" ]; then
+            echo "::error::Secret EPITECH_MIRROR_TOKEN manquant"
+            exit 1
+          fi
+          git push "https://x-access-token:$MIRROR_TOKEN@github.com/EpitechPGE3-2025/G-EIP-601-ALL-6-1-eip-51.git" \
+            main 'refs/tags/*:refs/tags/*'

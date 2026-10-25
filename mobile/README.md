@@ -61,5 +61,3 @@ Ces dossiers sont dans `mobile/`.
 - `shared/` : le code partagé entre Android et iOS (écrans, logique, données). `src/commonMain` pour ce qui est commun, `src/androidMain` et `src/iosMain` pour ce qui dépend de la plateforme.
 - `androidApp/` : le point d'entrée Android.
 - `iosApp/` : le projet Xcode, point d'entrée iOS.
-
-Les règles du projet (produit, code, Git) sont dans [AGENTS.md](../AGENTS.md).
