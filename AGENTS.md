@@ -58,6 +58,7 @@ Préférer une interface injectée à `expect`/`actual` dès que l'implémentati
 ## Conventions
 
 - Code, noms, commentaires et messages de commit en anglais. Textes de l'interface en français, toujours dans les ressources Compose (`composeResources`), jamais en dur : l'anglais viendra après le Greenlight.
+- L'interface de l'app Android et iPhone suit `DESIGN.md` : couleurs, police, tailles et espacements viennent du thème `NotitiaTheme`, jamais en dur. S'en écarter se dit en une phrase dans la description de la PR.
 - Des commentaires courts : une ou deux lignes au-dessus d'une fonction ou d'un passage technique qui en a besoin pour être compris, pour dire ce qu'il fait ou pourquoi. Rien d'autre : pas de commentaire qui répète la ligne du dessous, pas de documentation paramètre par paramètre, pas de code mis en commentaire, pas d'historique des changements (Git le garde).
 
   ```kotlin
@@ -119,7 +120,7 @@ Seulement quand le développeur dit que c'est terminé et qu'il a relu le code. 
 
 1. Mets la branche à jour avec `main` (voir « Mettre la branche à jour avec main »).
 2. Lance `./notitia check`. S'il échoue, corrige ou explique pourquoi, et ne propose rien d'autre.
-3. Rappelle la checklist : aucune clé ni token, aucun fichier de modèle IA, aucun contenu de réunion envoyé sur le réseau, textes d'interface en français dans les ressources, testé sur un vrai téléphone si la tâche touche l'audio, l'arrière-plan ou l'IA.
+3. Rappelle la checklist : aucune clé ni token, aucun fichier de modèle IA, aucun contenu de réunion envoyé sur le réseau, textes d'interface en français dans les ressources, le test de 2 minutes de `DESIGN.md` si la tâche ajoute ou change un écran, testé sur un vrai téléphone si la tâche touche l'audio, l'arrière-plan ou l'IA.
 4. Propose les commandes dans un seul bloc, sans les lancer. Nomme les fichiers un par un dans `git add`. Adapte les guillemets au terminal du développeur (bash, zsh ou PowerShell).
 
    ```bash
