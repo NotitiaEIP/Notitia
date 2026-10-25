@@ -67,7 +67,7 @@ dans `~/Library/Containers/com.notitia.Notitia/Data/tmp/`, utilisées pour `maco
 ## Pièges déjà rencontrés
 
 - **« PCH was compiled with module cache path… »** : le cache `macos/apple/NotitiaKit/.build` pointe vers un
-  ancien chemin (le code a déménagé de `EIP/Notitia` vers `EIP/Notitia-macOS`, puis dans `Notitia_Mobile/macos`).
+  ancien chemin (le code a déménagé de `EIP/Notitia` vers `EIP/Notitia-macOS`, puis dans `Notitia/macos`).
   Supprime `macos/apple/NotitiaKit/.build` ou fais Clean Build Folder (⇧⌘K).
 - **Le tutoriel ne s'affiche que si la base est vide.** Pour revoir le premier lancement : Réglages ›
   Confidentialité › « Effacer toutes mes données », ou le menu Aide › « Revoir le tutoriel ». Ne lance pas de
@@ -124,6 +124,6 @@ dans `~/Library/Containers/com.notitia.Notitia/Data/tmp/`, utilisées pour `maco
 ## Sur le Mac de Lucas
 
 - `gh` n'est pas installé : propose `brew install gh`. Sans `gh`, remplace `gh pr create` par le lien
-  `https://github.com/NotitiaEIP/Notitia_Mobile/compare/main...<branche>?expand=1`, avec le même titre et la même
+  `https://github.com/NotitiaEIP/Notitia/compare/main...<branche>?expand=1`, avec le même titre et la même
   description.
 - Dans ce terminal, `grep` est une fonction du shell qui peut échouer : utiliser `/usr/bin/grep`.
