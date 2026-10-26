@@ -26,8 +26,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import com.example.notitia.ui.meetings.MeetingDay
 import com.example.notitia.ui.meetings.MeetingListItem
@@ -56,11 +54,6 @@ import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringArrayResource
 import org.jetbrains.compose.resources.stringResource
-
-private const val SEPARATOR = " · "
-
-// Screen readers would read the middle dot aloud, so they get commas instead.
-private const val SPOKEN_SEPARATOR = ", "
 
 @Composable
 fun MeetingCard(
@@ -122,16 +115,6 @@ fun MeetingCard(
             is MeetingStatus.Transcribing -> TranscriptionProgress(status, Modifier.padding(top = spacing.m))
         }
     }
-}
-
-@Composable
-private fun DetailsLine(parts: List<String>, modifier: Modifier = Modifier) {
-    Text(
-        text = parts.joinToString(SEPARATOR),
-        style = NotitiaTheme.typography.timestamp,
-        color = NotitiaTheme.colors.textSecondary,
-        modifier = modifier.semantics { contentDescription = parts.joinToString(SPOKEN_SEPARATOR) },
-    )
 }
 
 @Composable

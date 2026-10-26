@@ -15,6 +15,7 @@ import com.example.notitia.ui.actions.ActionsScreen
 import com.example.notitia.ui.components.NotitiaTabBar
 import com.example.notitia.ui.meetings.MeetingsScreen
 import com.example.notitia.ui.meetings.sampleMeetings
+import com.example.notitia.ui.minutes.MinutesRoute
 import com.example.notitia.ui.navigation.Tab
 import com.example.notitia.ui.recording.FakeRecording
 import com.example.notitia.ui.recording.PlayerPosition
@@ -32,6 +33,8 @@ fun App() {
         var tab by rememberSaveable { mutableStateOf(Tab.Meetings) }
         // Made-up meetings until US-16 stores real ones.
         val meetings = remember { sampleMeetings(Clock.System.now()) }
+        var openedMeetingId by rememberSaveable { mutableStateOf<String?>(null) }
+        val openedMeeting = meetings.firstOrNull { it.id == openedMeetingId }
         var recording by rememberSaveable(stateSaver = FakeRecording.Saver) { mutableStateOf(null) }
         recording?.let { current -> LaunchedEffect(current) { current.run() } }
         // A new recording gets a new sheet, which rises from the mini bar to the full screen.
@@ -43,20 +46,32 @@ fun App() {
             recording = recording,
             state = player,
             onStop = { recording = null },
-            tabBar = { NotitiaTabBar(selected = tab, onSelect = { tab = it }) },
+            tabBar = {
+                NotitiaTabBar(
+                    selected = tab,
+                    onSelect = {
+                        tab = it
+                        openedMeetingId = null
+                    },
+                )
+            },
         ) { padding ->
             val screenModifier = Modifier.padding(padding).consumeWindowInsets(padding)
-            when (tab) {
-                Tab.Meetings -> MeetingsScreen(
-                    meetings = meetings,
-                    recording = recording != null,
-                    onOpen = {},
-                    onRecord = { recording = FakeRecording(startedAt = Clock.System.now()) },
-                    onSettings = {},
-                    modifier = screenModifier,
-                )
-                Tab.Actions -> ActionsScreen(screenModifier)
-                Tab.Search -> SearchScreen(screenModifier)
+            if (openedMeeting != null) {
+                MinutesRoute(meeting = openedMeeting, onBack = { openedMeetingId = null }, modifier = screenModifier)
+            } else {
+                when (tab) {
+                    Tab.Meetings -> MeetingsScreen(
+                        meetings = meetings,
+                        recording = recording != null,
+                        onOpen = { openedMeetingId = it.id },
+                        onRecord = { recording = FakeRecording(startedAt = Clock.System.now()) },
+                        onSettings = {},
+                        modifier = screenModifier,
+                    )
+                    Tab.Actions -> ActionsScreen(screenModifier)
+                    Tab.Search -> SearchScreen(screenModifier)
+                }
             }
         }
     }

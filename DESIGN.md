@@ -223,6 +223,7 @@ Niveau 3   Un détail : une action, un locuteur à renommer, un passage à réé
 
 - **Le retour du système marche partout** : retour prédictif sur Android, glisser depuis le bord gauche sur iPhone. On ne le bloque jamais, sauf pour confirmer l'arrêt d'un enregistrement.
 - **Un titre par écran**, qui dit où l'on est (« Réunions », le nom de la réunion). Sur iPhone, le bouton retour reprend le nom de l'écran précédent.
+- **L'en-tête d'un onglet** : le grand titre à 8 dp sous la zone sûre du système (barre d'état, encoche, Dynamic Island), à la même hauteur sur les trois onglets. Ses boutons (réglages) sont sur sa ligne, à droite, centrés sur elle, comme la barre du haut de WhatsApp ; leur cible de 48 dp déborde de la ligne sans pousser le contenu.
 - **Enregistrer sans ouvrir l'app** : widget et tuile des Réglages rapides sur Android, widget, Live Activity et écran verrouillé sur iPhone.
 
 ## Mouvement
