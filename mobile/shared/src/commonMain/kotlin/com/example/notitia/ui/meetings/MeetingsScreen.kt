@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -22,7 +21,8 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import com.example.notitia.ui.components.MeetingCard
 import com.example.notitia.ui.components.RecordButton
-import com.example.notitia.ui.components.ScreenTitle
+import com.example.notitia.ui.components.HeaderAction
+import com.example.notitia.ui.components.ScreenHeader
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
 import kotlin.time.Clock
@@ -73,19 +73,12 @@ fun MeetingsScreen(
 
 @Composable
 private fun Header(onSettings: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        ScreenTitle(
-            text = stringResource(Res.string.meetings_title),
-            modifier = Modifier.weight(1f),
+    ScreenHeader(title = stringResource(Res.string.meetings_title)) {
+        HeaderAction(
+            icon = painterResource(Res.drawable.settings),
+            description = stringResource(Res.string.settings),
+            onClick = onSettings,
         )
-        IconButton(onClick = onSettings, modifier = Modifier.size(NotitiaTheme.sizes.touchTarget)) {
-            Icon(
-                painter = painterResource(Res.drawable.settings),
-                contentDescription = stringResource(Res.string.settings),
-                tint = NotitiaTheme.colors.text,
-                modifier = Modifier.size(NotitiaTheme.sizes.icon),
-            )
-        }
     }
 }
 

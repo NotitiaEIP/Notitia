@@ -38,6 +38,16 @@
     <string name="recording_pause">Pause</string>
     <string name="recording_resume">Reprendre</string>
     <string name="on_device">Sur l’appareil</string>
+    <string name="minutes_back_description">Retour aux réunions</string>
+    <string name="minutes_more">Plus d’options</string>
+    <string name="minutes_when">%1$s, %2$s</string>
+    <string name="minutes_tab_minutes">Compte rendu</string>
+    <string name="minutes_tab_transcript">Transcription</string>
+    <string name="minutes_decisions">Décisions</string>
+    <string name="minutes_actions">Actions</string>
+    <string name="minutes_summary">Résumé</string>
+    <string name="minutes_share">Partager le compte rendu</string>
+    <string name="action_due">avant le %1$s</string>
     <string name="duration_minutes">%1$s&#160;min</string>
     <string name="duration_hours">%1$s&#160;h</string>
     <string name="duration_hours_minutes">%1$s&#160;h&#160;%2$s</string>

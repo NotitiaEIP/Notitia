@@ -44,6 +44,9 @@ object NotitiaSizes {
     val handleWidth = 32.dp
     val handleHeight = 4.dp
     val raisedShadow = 6.dp
+    val speakerAvatar = 22.dp
+    val speakerDot = 8.dp
+    val bullet = 6.dp
     val progressBar = 4.dp
     val tabBar = 64.dp
     val tabPillWidth = 64.dp
