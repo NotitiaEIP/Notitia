@@ -28,9 +28,11 @@ object NotitiaSizes {
     val field = 52.dp
     val badge = 24.dp
     val icon = 24.dp
+    val iconSmall = 16.dp
     val iconInButton = 20.dp
     val recordButton = 72.dp
     val recordIcon = 32.dp
+    val progressBar = 4.dp
     val tabBar = 64.dp
     val tabPillWidth = 64.dp
     val tabPillHeight = 32.dp
