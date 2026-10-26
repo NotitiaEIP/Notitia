@@ -109,6 +109,7 @@ Les tailles sont en sp sur Android et en pt sur iPhone : elles suivent le régla
 | `label` | 16 / 20 | 600 | Boutons |
 | `labelSmall` | 14 / 18 | 600 | Boutons compacts, puces |
 | `caption` | 13 / 18 | 400 | Date, durée, participants |
+| `badge` | 13 / 16 | 600 | Texte des badges |
 | `tab` | 13 / 16 | 600 | Libellés de la barre d'onglets |
 | `timer` | 56 / 60 | 600 | Minuteur, chiffres fixes |
 | `timestamp` | 13 / 18 | 400 | Horodatages, chiffres fixes |

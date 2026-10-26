@@ -5,4 +5,65 @@
     <string name="actions_title">Actions</string>
     <string name="search_title">Recherche</string>
     <string name="record_meeting">Enregistrer une réunion</string>
+    <string name="settings">Réglages</string>
+    <plurals name="meetings_on_this_phone">
+        <item quantity="one">%1$d réunion, sur ce téléphone</item>
+        <item quantity="other">%1$d réunions, toutes sur ce téléphone</item>
+    </plurals>
+    <string name="group_today">Aujourd’hui</string>
+    <string name="group_yesterday">Hier</string>
+    <string name="group_this_week">Cette semaine</string>
+    <string name="group_month_year">%1$s %2$s</string>
+    <string name="meeting_day_month">%1$s&#160;%2$s</string>
+    <plurals name="participants">
+        <item quantity="one">%1$d&#160;participant</item>
+        <item quantity="other">%1$d&#160;participants</item>
+    </plurals>
+    <plurals name="actions">
+        <item quantity="one">%1$d&#160;action</item>
+        <item quantity="other">%1$d&#160;actions</item>
+    </plurals>
+    <string name="minutes_ready">Compte rendu prêt</string>
+    <string name="transcription_progress">Transcription %1$d&#160;%</string>
+    <string name="transcription_remaining">environ %1$s</string>
+    <string name="duration_minutes">%1$s&#160;min</string>
+    <string name="duration_hours">%1$s&#160;h</string>
+    <string name="duration_hours_minutes">%1$s&#160;h&#160;%2$s</string>
+    <string-array name="weekdays">
+        <item>Lundi</item>
+        <item>Mardi</item>
+        <item>Mercredi</item>
+        <item>Jeudi</item>
+        <item>Vendredi</item>
+        <item>Samedi</item>
+        <item>Dimanche</item>
+    </string-array>
+    <string-array name="months">
+        <item>Janvier</item>
+        <item>Février</item>
+        <item>Mars</item>
+        <item>Avril</item>
+        <item>Mai</item>
+        <item>Juin</item>
+        <item>Juillet</item>
+        <item>Août</item>
+        <item>Septembre</item>
+        <item>Octobre</item>
+        <item>Novembre</item>
+        <item>Décembre</item>
+    </string-array>
+    <string-array name="months_short">
+        <item>janv.</item>
+        <item>févr.</item>
+        <item>mars</item>
+        <item>avr.</item>
+        <item>mai</item>
+        <item>juin</item>
+        <item>juil.</item>
+        <item>août</item>
+        <item>sept.</item>
+        <item>oct.</item>
+        <item>nov.</item>
+        <item>déc.</item>
+    </string-array>
 </resources>
