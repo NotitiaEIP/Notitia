@@ -189,7 +189,7 @@ Chaque composant n'existe qu'une fois dans le code (`NotitiaButton`, `RecordButt
 ### Barre d'onglets et mini-barre
 
 - **Barre d'onglets** : 64 dp, trois onglets, libellé toujours visible. L'onglet actif a une icône plus épaisse (ces trois icônes n'ont pas de version pleine), sur une pilule `accentSoft`, en `accentContent`. Elles sont redessinées en code d'après les Material Symbols, pour que leurs traits bougent.
-- **Mini-barre d'enregistrement** : fond `surfaceRaised`, ronde, posée au-dessus de la barre d'onglets, sur tous les onglets. Elle montre le minuteur et un bouton Arrêter rouge.
+- **Feuille d'enregistrement**, comme le lecteur de Spotify : deux positions, plein écran ou mini-barre de 64 dp, ronde, fond `surfaceRaised`, posée au-dessus de la barre d'onglets sur tous les onglets. La mini-barre montre la pastille, le minuteur et un bouton Arrêter rouge ; la toucher rouvre la feuille. On passe de l'une à l'autre en glissant n'importe où sur la feuille : elle suit le doigt, part avec la vitesse du lancer et se cale sur la position la plus proche, sans rebond, pendant que la barre d'onglets descend. Le chevron et le retour du système la réduisent. Glisser ne ferme ni n'arrête jamais l'enregistrement : seul Arrêter le fait. La poignée en haut porte les actions « Agrandir » et « Réduire » pour les lecteurs d'écran. « Réduire les animations » : on passe d'une position à l'autre sans mouvement.
 
 L'effet de sélection d'un onglet. Le contenu change tout de suite : seule l'icône s'anime, et rien n'attend la fin de l'animation.
 
@@ -217,7 +217,7 @@ Niveau 1   Réunions             Actions               Recherche
            réglages en haut à     date                  réunions
            droite
 Niveau 2   Une réunion : Compte rendu (par défaut) et Transcription
-           Enregistrement : plein écran, puis mini-barre sur tous les onglets
+           Enregistrement : une feuille, plein écran ou mini-barre sur tous les onglets
 Niveau 3   Un détail : une action, un locuteur à renommer, un passage à réécouter
 ```
 

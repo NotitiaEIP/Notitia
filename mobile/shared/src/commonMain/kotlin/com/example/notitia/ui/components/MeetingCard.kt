@@ -33,27 +33,21 @@ import com.example.notitia.ui.meetings.MeetingDay
 import com.example.notitia.ui.meetings.MeetingListItem
 import com.example.notitia.ui.meetings.MeetingStatus
 import com.example.notitia.ui.meetings.clockTime
+import com.example.notitia.ui.meetings.lengthLabel
 import com.example.notitia.ui.meetings.meetingDay
-import com.example.notitia.ui.meetings.meetingLength
 import com.example.notitia.ui.meetings.sampleMeetings
-import com.example.notitia.ui.meetings.twoDigits
+import com.example.notitia.ui.meetings.shortDateLabel
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
 import kotlin.math.roundToInt
 import kotlin.time.Clock
-import kotlin.time.Duration
 import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import notitia.shared.generated.resources.Res
 import notitia.shared.generated.resources.actions
 import notitia.shared.generated.resources.check
 import notitia.shared.generated.resources.chevron_right
-import notitia.shared.generated.resources.duration_hours
-import notitia.shared.generated.resources.duration_hours_minutes
-import notitia.shared.generated.resources.duration_minutes
-import notitia.shared.generated.resources.meeting_day_month
 import notitia.shared.generated.resources.minutes_ready
-import notitia.shared.generated.resources.months_short
 import notitia.shared.generated.resources.participants
 import notitia.shared.generated.resources.transcription_progress
 import notitia.shared.generated.resources.transcription_remaining
@@ -196,21 +190,7 @@ private fun dayLabel(day: MeetingDay): String = when (day) {
     is MeetingDay.Today -> clockTime(day.time)
     is MeetingDay.Yesterday -> clockTime(day.time)
     is MeetingDay.ThisWeek -> stringArrayResource(Res.array.weekdays)[day.dayOfWeek.ordinal]
-    is MeetingDay.Earlier -> stringResource(
-        Res.string.meeting_day_month,
-        day.date.day,
-        stringArrayResource(Res.array.months_short)[day.date.month.ordinal],
-    )
-}
-
-@Composable
-private fun lengthLabel(duration: Duration): String {
-    val length = meetingLength(duration)
-    return when {
-        length.hours == 0 -> stringResource(Res.string.duration_minutes, length.minutes)
-        length.minutes == 0 -> stringResource(Res.string.duration_hours, length.hours)
-        else -> stringResource(Res.string.duration_hours_minutes, length.hours, length.minutes.twoDigits())
-    }
+    is MeetingDay.Earlier -> shortDateLabel(day.date)
 }
 
 @NotitiaPreviews

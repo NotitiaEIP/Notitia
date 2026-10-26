@@ -2,8 +2,8 @@ package com.example.notitia
 
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -16,6 +16,10 @@ import com.example.notitia.ui.components.NotitiaTabBar
 import com.example.notitia.ui.meetings.MeetingsScreen
 import com.example.notitia.ui.meetings.sampleMeetings
 import com.example.notitia.ui.navigation.Tab
+import com.example.notitia.ui.recording.FakeRecording
+import com.example.notitia.ui.recording.PlayerPosition
+import com.example.notitia.ui.recording.RecordingPlayerHost
+import com.example.notitia.ui.recording.RecordingPlayerState
 import com.example.notitia.ui.search.SearchScreen
 import com.example.notitia.ui.theme.NotitiaTheme
 import kotlin.time.Clock
@@ -28,15 +32,26 @@ fun App() {
         var tab by rememberSaveable { mutableStateOf(Tab.Meetings) }
         // Made-up meetings until US-16 stores real ones.
         val meetings = remember { sampleMeetings(Clock.System.now()) }
-        Scaffold(
-            bottomBar = { NotitiaTabBar(selected = tab, onSelect = { tab = it }) },
+        var recording by rememberSaveable(stateSaver = FakeRecording.Saver) { mutableStateOf(null) }
+        recording?.let { current -> LaunchedEffect(current) { current.run() } }
+        // A new recording gets a new sheet, which rises from the mini bar to the full screen.
+        val player = rememberSaveable(recording?.startedAt, saver = RecordingPlayerState.Saver) {
+            RecordingPlayerState(PlayerPosition.Collapsed, openOnStart = true)
+        }
+
+        RecordingPlayerHost(
+            recording = recording,
+            state = player,
+            onStop = { recording = null },
+            tabBar = { NotitiaTabBar(selected = tab, onSelect = { tab = it }) },
         ) { padding ->
             val screenModifier = Modifier.padding(padding).consumeWindowInsets(padding)
             when (tab) {
                 Tab.Meetings -> MeetingsScreen(
                     meetings = meetings,
+                    recording = recording != null,
                     onOpen = {},
-                    onRecord = {},
+                    onRecord = { recording = FakeRecording(startedAt = Clock.System.now()) },
                     onSettings = {},
                     modifier = screenModifier,
                 )

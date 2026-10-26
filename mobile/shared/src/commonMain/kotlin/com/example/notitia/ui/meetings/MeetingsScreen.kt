@@ -47,6 +47,7 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun MeetingsScreen(
     meetings: List<MeetingListItem>,
+    recording: Boolean,
     onOpen: (MeetingListItem) -> Unit,
     onRecord: () -> Unit,
     onSettings: () -> Unit,
@@ -58,12 +59,15 @@ fun MeetingsScreen(
         } else {
             MeetingList(meetings, onOpen, onSettings)
         }
-        RecordButton(
-            onClick = onRecord,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = NotitiaTheme.spacing.xl),
-        )
+        // While a recording runs, the mini bar stands in for the button: a second one could not start anything.
+        if (!recording) {
+            RecordButton(
+                onClick = onRecord,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = NotitiaTheme.spacing.xl),
+            )
+        }
     }
 }
 
@@ -188,6 +192,7 @@ private fun GroupTitle(group: MeetingGroup, modifier: Modifier = Modifier) {
 private fun MeetingsScreenPreview() = NotitiaTheme {
     MeetingsScreen(
         meetings = sampleMeetings(Clock.System.now()),
+        recording = false,
         onOpen = {},
         onRecord = {},
         onSettings = {},
@@ -200,6 +205,7 @@ private fun MeetingsScreenPreview() = NotitiaTheme {
 private fun EmptyMeetingsScreenPreview() = NotitiaTheme {
     MeetingsScreen(
         meetings = emptyList(),
+        recording = false,
         onOpen = {},
         onRecord = {},
         onSettings = {},
