@@ -53,7 +53,7 @@ import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun NotitiaTabBar(selected: Tab, onSelect: (Tab) -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier.background(NotitiaTheme.colors.background)) {
+    Column(modifier.background(NotitiaTheme.colors.bar)) {
         HorizontalDivider(color = NotitiaTheme.colors.divider)
         Row(
             Modifier

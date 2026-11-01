@@ -50,23 +50,25 @@ L'app suit le réglage clair ou sombre du téléphone. Les deux thèmes sont des
 
 | Jeton | Rôle | Sombre | Clair | Contraste sombre / clair |
 | --- | --- | --- | --- | --- |
-| `background` | Fond des écrans | `#0B0A0F` | `#FFFFFF` | |
-| `surface` | Cartes, champs, groupes | `#16151C` | `#F5F4F8` | |
+| `background` | Fond des écrans | `#0B0A0F` | `#F3F2F7` | |
+| `surface` | Cartes, champs, groupes | `#1E1D25` | `#FFFFFF` | |
 | `surfaceRaised` | Feuilles, menus, mini-barre | `#201F28` | `#FFFFFF` + ombre | |
+| `track` | Creux sous ce qu'on choisit ou qu'on presse : rail du sélecteur, ronds Marquer et Pause | `#16151C` | `#E5E3EA` | |
+| `bar` | Fond de la barre d'onglets | `#0B0A0F` | `#FFFFFF` | |
 | `divider` | Séparateurs | `#2C2B36` | `#E5E3EA` | |
-| `outline` | Contour des champs | `#6F6D7A` | `#8D8B98` | 3,9 / 3,3 |
-| `text` | Texte principal | `#F4F3F7` | `#121117` | 17,9 / 18,8 |
-| `textSecondary` | Métadonnées, aide | `#A3A1AD` | `#5E5C69` | 7,8 / 6,5 |
-| `textTertiary` | Groupes, horodatages | `#8C8A97` | `#6F6D7A` | 5,8 / 5,1 |
+| `outline` | Contour des champs | `#6F6D7A` | `#8A8895` | 3,9 / 3,1 |
+| `text` | Texte principal | `#F4F3F7` | `#121117` | 17,9 / 16,9 |
+| `textSecondary` | Métadonnées, aide | `#A3A1AD` | `#5E5C69` | 7,8 / 5,9 |
+| `textTertiary` | Groupes, horodatages | `#8C8A97` | `#6F6D7A` | 5,8 / 4,55 |
 | `accent` | Fond des boutons principaux | `#882DCD` | `#882DCD` | texte blanc 6,4 |
-| `accentContent` | Liens, icônes actives, onglet actif | `#CB95F3` | `#882DCD` | 8,6 / 6,4 |
-| `accentSoft` | Sélection, puces, badges | violet à 22 % | violet à 10 % | texte 7,4 / 5,4 |
+| `accentContent` | Liens, icônes actives, onglet actif | `#CB95F3` | `#882DCD` | 8,6 / 5,7 |
+| `accentSoft` | Sélection, puces, badges | violet à 22 % | violet à 10 % | texte 7,4 / 4,9 |
 | `focus` | Contour d'un champ actif | `#B66EED` | `#882DCD` | |
-| `red` | Enregistrement, suppression | `#FF5A52` | `#BF2D2A` | 6,4 / 5,9 |
-| `green` | Succès, action faite | `#3DD68C` | `#15724A` | 10,5 / 5,9 |
-| `amber` | Attention (batterie, espace disque) | `#FFB224` | `#A35200` | 10,9 / 5,6 |
+| `red` | Enregistrement, suppression | `#FF5A52` | `#BF2D2A` | 6,4 / 5,2 |
+| `green` | Succès, action faite | `#3DD68C` | `#15724A` | 10,5 / 5,3 |
+| `amber` | Attention (batterie, espace disque) | `#FFB224` | `#A35200` | 10,9 / 5,0 |
 
-Les contrastes sont mesurés contre le fond du thème. `redSoft` et `greenSoft` (rouge à 16 % et 10 %, vert à 14 % et 8 %) servent de fond aux badges de ces couleurs.
+Les contrastes sont mesurés contre le fond du thème, et les textes gardent 4,5:1 au moins sur les cartes. `redSoft` et `greenSoft` (rouge à 16 % et 10 %, vert à 14 % et 8 %) servent de fond aux badges de ces couleurs.
 
 Le violet vient du logo (`#7929B6` au milieu du N), éclairci pour rester lisible. Sa teinte, plus rose que le violet habituel des apps d'IA (`#7C3AED`), le rend reconnaissable.
 
@@ -83,7 +85,7 @@ Six couleurs, données dans l'ordre où les personnes prennent la parole, toujou
 | | 1 | 2 | 3 | 4 | 5 | 6 | Texte posé dessus |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Sombre | `#5AA9FF` | `#2CC7B5` | `#F5B83D` | `#FF7AB6` | `#9BD84A` | `#FF8A4C` | `#0B0A0F` |
-| Clair | `#1F6FD1` | `#0E7C70` | `#9A6400` | `#C2266F` | `#4D7A12` | `#B4501A` | `#FFFFFF` |
+| Clair | `#1E6CCC` | `#0E7C70` | `#966100` | `#C2266F` | `#4D7A12` | `#B4501A` | `#FFFFFF` |
 
 Elles restent lisibles en texte : 7:1 au moins en sombre, 4,5:1 au moins en clair.
 
@@ -143,7 +145,7 @@ Ce qui se touche est rond, ce qui se lit a des coins :
 | `sheet` | 28 en haut | Feuilles du bas, dialogues |
 | `full` | rond | Boutons, puces, avatars, mini-barre |
 
-**Élévation.** En sombre, pas d'ombre : une surface plus haute est plus claire. En clair, une ombre douce, seulement pour ce qui flotte.
+**Élévation.** En sombre, pas d'ombre : une surface plus haute est plus claire. En clair, une ombre douce pour ce qui flotte, et une ombre de 1 dp sous les cartes pour les détacher du fond gris.
 
 **Icônes.** Material Symbols Rounded (licence Apache 2.0), arrondies comme nos boutons. 24 dp, 20 dp dans un bouton. Contour quand inactif, plein quand actif, ou plus épais quand l'icône n'a pas de version pleine. Pas d'emoji dans l'interface. Les SF Symbols d'Apple sont réservés aux plateformes Apple : seulement dans les écrans écrits en Swift.
 
@@ -182,7 +184,7 @@ Chaque composant n'existe qu'une fois dans le code (`NotitiaButton`, `RecordButt
 
 ### Cartes, badges, champs
 
-- **Carte** : fond `surface`, coins de 16, marge intérieure de 16. Toute la carte se touche.
+- **Carte** : fond `surface`, coins de 16, marge intérieure de 16, ombre de 1 dp en clair. Toute la carte se touche.
 - **Badge** : 24 de haut, coins de 8, texte 13 en 600, icône de 16. Il dit l'état en mots, pas seulement en couleur (« Compte rendu prêt », « Transcription 64 % »).
 - **Champ** : 52 de haut, coins de 12. Le libellé est au-dessus, jamais remplacé par le texte d'exemple. Actif : contour `focus` de 2 dp. Une erreur dit ce qui ne va pas et comment corriger, avec une icône.
 

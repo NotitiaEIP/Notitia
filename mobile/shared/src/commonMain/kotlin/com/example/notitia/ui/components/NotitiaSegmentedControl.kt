@@ -39,7 +39,7 @@ fun NotitiaSegmentedControl(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(colors.surface, shape)
+            .background(colors.track, shape)
             .padding(NotitiaTheme.spacing.xs)
             .selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.xs),

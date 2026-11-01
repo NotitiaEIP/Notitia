@@ -209,7 +209,7 @@ private fun Controls(
             onClick = onMark,
             modifier = Modifier.weight(1f),
             size = sizes.recordingControl,
-            circle = Modifier.background(colors.surface),
+            circle = Modifier.background(colors.track),
         ) {
             ControlIcon(painterResource(Res.drawable.bookmark))
         }
@@ -227,7 +227,7 @@ private fun Controls(
             onClick = onTogglePause,
             modifier = Modifier.weight(1f),
             size = sizes.recordingControl,
-            circle = Modifier.background(colors.surface),
+            circle = Modifier.background(colors.track),
         ) {
             ControlIcon(painterResource(if (paused) Res.drawable.play_filled else Res.drawable.pause_filled))
         }

@@ -1,10 +1,6 @@
 package com.example.notitia.ui.components
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,14 +13,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextOverflow
 import com.example.notitia.ui.meetings.MeetingDay
@@ -62,38 +53,14 @@ fun MeetingCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val colors = NotitiaTheme.colors
     val spacing = NotitiaTheme.spacing
-    val interactionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) NotitiaTheme.motion.PRESSED_SCALE else 1f,
-        animationSpec = NotitiaTheme.motion.instant(),
-        label = "pressed",
-    )
     val details = listOf(
         dayLabel(meetingDay(meeting.startedAt, now, TimeZone.currentSystemDefault())),
         lengthLabel(meeting.duration),
         pluralStringResource(Res.plurals.participants, meeting.participants, meeting.participants),
     )
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .clip(NotitiaTheme.shapes.card)
-            .background(colors.surface)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = ripple(),
-                role = Role.Button,
-                onClick = onClick,
-            )
-            .padding(spacing.l),
-    ) {
+    NotitiaCard(onClick = onClick, modifier = modifier) {
         Row {
             Text(
                 text = meeting.title,
@@ -105,7 +72,7 @@ fun MeetingCard(
             Icon(
                 painter = painterResource(Res.drawable.chevron_right),
                 contentDescription = null,
-                tint = colors.textTertiary,
+                tint = NotitiaTheme.colors.textTertiary,
                 modifier = Modifier.size(NotitiaTheme.sizes.icon),
             )
         }
