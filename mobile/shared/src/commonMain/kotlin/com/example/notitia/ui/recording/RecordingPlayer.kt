@@ -211,11 +211,14 @@ private fun RecordingPlayer(
             state.clearRequest()
         }
     }
-    NavigationBackHandler(
-        state = rememberNavigationEventState(NavigationEventInfo.None),
-        isBackEnabled = expanded,
-        onBackCompleted = state::collapse,
-    )
+    // Back goes to the latest handler. Added each time the sheet opens, this one wins over the screen under it
+    // (an opened meeting, a search) even when that screen appeared after the recording started.
+    if (expanded) {
+        NavigationBackHandler(
+            state = rememberNavigationEventState(NavigationEventInfo.None),
+            onBackCompleted = state::collapse,
+        )
+    }
 
     Box(
         Modifier

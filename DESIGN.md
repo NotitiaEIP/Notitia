@@ -187,6 +187,7 @@ Chaque composant n'existe qu'une fois dans le code (`NotitiaButton`, `RecordButt
 - **Carte** : fond `surface`, coins de 16, marge intérieure de 16, ombre de 1 dp en clair. Toute la carte se touche.
 - **Badge** : 24 de haut, coins de 8, texte 13 en 600, icône de 16. Il dit l'état en mots, pas seulement en couleur (« Compte rendu prêt », « Transcription 64 % »).
 - **Champ** : 52 de haut, coins de 12. Le libellé est au-dessus, jamais remplacé par le texte d'exemple. Actif : contour `focus` de 2 dp. Une erreur dit ce qui ne va pas et comment corriger, avec une icône.
+- **Barre de recherche** : l'exception au champ, une seule, en bas de l'écran Recherche. 52 de haut au moins, coins de 26, qui restent les mêmes quand elle grandit jusqu'à 4 lignes. Pas de libellé au-dessus : son texte d'exemple (« Demander à Notitia ») dit ce qu'elle fait et sert de libellé aux lecteurs d'écran. Active : contour `focus` de 2 dp. Le clavier la fait monter ; la barre d'onglets reste dessous.
 
 ### Barre d'onglets et mini-barre
 
@@ -207,7 +208,7 @@ L'effet de sélection d'un onglet. Le contenu change tout de suite : seule l'ic�
 - **Dialogue** : seulement pour ce qui ne se rattrape pas. Ses boutons disent l'action : « Supprimer la réunion ».
 - **Feuille du bas** : coins de 28 en haut, poignée visible, on la ferme en glissant. Pour le consentement avant d'enregistrer, le partage et les filtres.
 - **État vide** : une icône, une phrase, un bouton (« Aucune réunion pour l'instant. Enregistrez la première. »).
-- **Chargement** : des squelettes pour les listes, un pourcentage et un temps restant pour la transcription.
+- **Chargement** : des squelettes pour les listes, un pourcentage et un temps restant pour la transcription. Une réponse rédigée : douze barres qu'une lumière parcourt (« Notitia cherche dans vos 5 réunions »), puis seules les barres des passages trouvés restent allumées et respirent (« Notitia rédige la réponse »). Le chargement et les messages « Aucun passage » se centrent dans l'espace libre. Jamais de roue qui tourne ni d'icône d'IA.
 
 ## Navigation
 
@@ -238,6 +239,7 @@ Une animation aide à comprendre ce qui se passe, sinon on s'en passe. Les princ
 | `quick` | 150 ms | sortie douce | Puces, interrupteurs, fondus, onglets |
 | `standard` | 250 ms | sortie douce | Apparition d'un élément, ouverture d'une feuille |
 | écran | système | système | Passage d'un écran à l'autre |
+| en place | système | système | Un contenu qui change sans changer d'écran : « fade through » de Material sur Android (300 ms), fondu enchaîné d'UIKit sur iPhone |
 | ressort | | amortissement 1, sans rebond | Tout ce qui suit le doigt |
 
 La sortie douce s'écrit `CubicBezierEasing(0.23f, 1f, 0.32f, 1f)`. Dans le code, `NotitiaTheme.motion.quick()` et ses voisines la donnent déjà.
@@ -245,6 +247,7 @@ La sortie douce s'écrit `CubicBezierEasing(0.23f, 1f, 0.32f, 1f)`. Dans le code
 - Ce qu'on fait cent fois par jour ne s'anime presque pas : changer d'onglet, c'est 150 ms au plus pour le contenu.
 - Rien n'apparaît depuis une taille zéro : on part de 95 % avec un fondu. Les sorties sont 30 % plus courtes que les entrées.
 - Un bouton pressé passe à 97 % en moins de 100 ms. Pas d'effet d'onde sur iPhone : un léger assombrissement à la place.
+- Une réponse arrive morceau par morceau, 60 ms d'écart, 8 dp de montée : elle décélère comme Material sur Android et suit le ressort d'iOS sur iPhone. Dans le code, `motion.swap()` et `motion.arrive()` choisissent selon le système.
 - Ce qui suit le doigt utilise un ressort, interruptible, sans rebond. Un léger rebond seulement après un geste lancé (une feuille jetée vers le bas).
 - « Réduire les animations » : les mouvements deviennent des fondus. Compose le respecte tout seul sur Android ; sur iPhone, il faut lire le réglage d'iOS (à faire avec la première animation qui bouge).
 - Vibration légère au début et à la fin d'un enregistrement, « succès » quand le compte rendu est prêt. Jamais à chaque appui.

@@ -10,10 +10,13 @@ import notitia.shared.generated.resources.Res
 import notitia.shared.generated.resources.duration_hours
 import notitia.shared.generated.resources.duration_hours_minutes
 import notitia.shared.generated.resources.duration_minutes
+import notitia.shared.generated.resources.group_month_year
+import notitia.shared.generated.resources.group_this_week
 import notitia.shared.generated.resources.group_today
 import notitia.shared.generated.resources.group_yesterday
 import notitia.shared.generated.resources.meeting_day_month
 import notitia.shared.generated.resources.minutes_when
+import notitia.shared.generated.resources.months
 import notitia.shared.generated.resources.months_short
 import notitia.shared.generated.resources.weekdays
 import org.jetbrains.compose.resources.stringArrayResource
@@ -33,6 +36,17 @@ fun meetingWhenLabel(startedAt: Instant, now: Instant, timeZone: TimeZone = Time
         is MeetingDay.Earlier -> shortDateLabel(meetingDay.date)
     }
     return stringResource(Res.string.minutes_when, day, clockTime(startedAt.toLocalDateTime(timeZone).time))
+}
+
+@Composable
+fun MeetingGroup.label(): String = when (this) {
+    MeetingGroup.Today -> stringResource(Res.string.group_today)
+    MeetingGroup.Yesterday -> stringResource(Res.string.group_yesterday)
+    MeetingGroup.ThisWeek -> stringResource(Res.string.group_this_week)
+    is MeetingGroup.InMonth -> {
+        val name = stringArrayResource(Res.array.months)[month.ordinal]
+        if (year == null) name else stringResource(Res.string.group_month_year, name, year)
+    }
 }
 
 @Composable

@@ -5,19 +5,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.text.style.TextOverflow
 import com.example.notitia.ui.meetings.MeetingDay
 import com.example.notitia.ui.meetings.MeetingListItem
 import com.example.notitia.ui.meetings.MeetingStatus
@@ -35,7 +30,6 @@ import kotlinx.datetime.TimeZone
 import notitia.shared.generated.resources.Res
 import notitia.shared.generated.resources.actions
 import notitia.shared.generated.resources.check
-import notitia.shared.generated.resources.chevron_right
 import notitia.shared.generated.resources.minutes_ready
 import notitia.shared.generated.resources.participants
 import notitia.shared.generated.resources.transcription_progress
@@ -61,21 +55,7 @@ fun MeetingCard(
     )
 
     NotitiaCard(onClick = onClick, modifier = modifier) {
-        Row {
-            Text(
-                text = meeting.title,
-                style = NotitiaTheme.typography.title3,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).padding(end = spacing.s),
-            )
-            Icon(
-                painter = painterResource(Res.drawable.chevron_right),
-                contentDescription = null,
-                tint = NotitiaTheme.colors.textTertiary,
-                modifier = Modifier.size(NotitiaTheme.sizes.icon),
-            )
-        }
+        CardTitle(meeting.title)
         DetailsLine(details, Modifier.padding(top = spacing.xs))
         when (val status = meeting.status) {
             is MeetingStatus.Ready -> ReadyBadges(status, Modifier.padding(top = spacing.m))

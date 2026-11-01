@@ -17,10 +17,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
 import com.example.notitia.ui.components.MeetingCard
 import com.example.notitia.ui.components.RecordButton
+import com.example.notitia.ui.components.GroupTitle
 import com.example.notitia.ui.components.HeaderAction
 import com.example.notitia.ui.components.ScreenHeader
 import com.example.notitia.ui.theme.NotitiaPreviews
@@ -28,20 +27,14 @@ import com.example.notitia.ui.theme.NotitiaTheme
 import kotlin.time.Clock
 import kotlinx.datetime.TimeZone
 import notitia.shared.generated.resources.Res
-import notitia.shared.generated.resources.group_month_year
-import notitia.shared.generated.resources.group_this_week
-import notitia.shared.generated.resources.group_today
-import notitia.shared.generated.resources.group_yesterday
 import notitia.shared.generated.resources.lock
 import notitia.shared.generated.resources.meetings_empty
 import notitia.shared.generated.resources.meetings_on_device
 import notitia.shared.generated.resources.meetings_on_this_phone
 import notitia.shared.generated.resources.meetings_title
-import notitia.shared.generated.resources.months
 import notitia.shared.generated.resources.settings
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.pluralStringResource
-import org.jetbrains.compose.resources.stringArrayResource
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -147,7 +140,7 @@ private fun MeetingList(
         }
         groups.forEach { (group, inGroup) ->
             item(key = group.toString()) {
-                GroupTitle(group, Modifier.padding(top = spacing.xl, bottom = spacing.s))
+                GroupTitle(group.label(), Modifier.padding(top = spacing.xl, bottom = spacing.s))
             }
             items(inGroup, key = { it.id }) { meeting ->
                 MeetingCard(
@@ -159,25 +152,6 @@ private fun MeetingList(
             }
         }
     }
-}
-
-@Composable
-private fun GroupTitle(group: MeetingGroup, modifier: Modifier = Modifier) {
-    val text = when (group) {
-        MeetingGroup.Today -> stringResource(Res.string.group_today)
-        MeetingGroup.Yesterday -> stringResource(Res.string.group_yesterday)
-        MeetingGroup.ThisWeek -> stringResource(Res.string.group_this_week)
-        is MeetingGroup.InMonth -> {
-            val month = stringArrayResource(Res.array.months)[group.month.ordinal]
-            if (group.year == null) month else stringResource(Res.string.group_month_year, month, group.year)
-        }
-    }
-    Text(
-        text = text,
-        style = NotitiaTheme.typography.labelSmall,
-        color = NotitiaTheme.colors.textTertiary,
-        modifier = modifier.semantics { heading() },
-    )
 }
 
 @NotitiaPreviews

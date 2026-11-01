@@ -13,6 +13,9 @@ private const val SEPARATOR = " · "
 // Screen readers would read the middle dot aloud, so they get commas instead.
 private const val SPOKEN_SEPARATOR = ", "
 
+// What a screen reader says for parts shown side by side: a short pause between each.
+fun spokenList(parts: List<String>): String = parts.joinToString(SPOKEN_SEPARATOR)
+
 // "14:02 · 42 min · 4 participants": secondary details, with fixed-width digits so they line up.
 @Composable
 fun DetailsLine(
@@ -24,6 +27,6 @@ fun DetailsLine(
         text = parts.joinToString(SEPARATOR),
         style = style,
         color = NotitiaTheme.colors.textSecondary,
-        modifier = modifier.semantics { contentDescription = parts.joinToString(SPOKEN_SEPARATOR) },
+        modifier = modifier.semantics { contentDescription = spokenList(parts) },
     )
 }

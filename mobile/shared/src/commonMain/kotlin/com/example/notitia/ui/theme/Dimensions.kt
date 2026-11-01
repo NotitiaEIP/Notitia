@@ -1,12 +1,20 @@
 package com.example.notitia.ui.theme
 
+import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.TweenSpec
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 
@@ -26,7 +34,9 @@ object NotitiaSizes {
     val button = 52.dp
     val buttonCompact = 40.dp
     val field = 52.dp
+    val focusRing = 2.dp
     val badge = 24.dp
+    val citation = 20.dp
     val icon = 24.dp
     val iconSmall = 16.dp
     val iconInButton = 20.dp
@@ -58,6 +68,8 @@ object NotitiaSizes {
 object NotitiaShapes {
     val badge = RoundedCornerShape(8.dp)
     val field = RoundedCornerShape(12.dp)
+    // Fixed corners rather than full: the bar grows to four lines and must not turn into an oval.
+    val searchBar = RoundedCornerShape(NotitiaSizes.field / 2)
     val card = RoundedCornerShape(16.dp)
     val sheet = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     val dialog = RoundedCornerShape(28.dp)
@@ -77,12 +89,45 @@ object NotitiaMotion {
     const val TAB_ICON_MS = 800
     // The recording dot breathes slowly: it says "still on", not "look at me".
     const val PULSE_MS = 1200
+    // A quick answer never flashes a loader.
+    const val LOADER_DELAY_MS = 300
+    const val SCAN_STEP_MS = 90
+    // Material's fade through: the old content leaves in the first third, then the new one grows in.
+    const val FADE_THROUGH_MS = 300
+    const val FADE_THROUGH_OUT_MS = 105
+    const val ARRIVE_MS = 400
+    const val REVEAL_STAGGER_MS = 60
     val easeOut: Easing = CubicBezierEasing(0.23f, 1f, 0.32f, 1f)
+    private val emphasizedDecelerate: Easing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
+    // The curve of UIKit's cross-dissolve.
+    private val uiKitEaseInOut: Easing = CubicBezierEasing(0.42f, 0f, 0.58f, 1f)
 
     fun <T> instant(): TweenSpec<T> = tween(INSTANT_MS, easing = easeOut)
     fun <T> quick(): TweenSpec<T> = tween(QUICK_MS, easing = easeOut)
     fun <T> standard(): TweenSpec<T> = tween(STANDARD_MS, easing = easeOut)
     fun <T> follow(): SpringSpec<T> = spring(dampingRatio = Spring.DampingRatioNoBouncy)
+
+    // Content that changes in place.
+    fun swap(): ContentTransform = when (motionStyle) {
+        MotionStyle.Material -> {
+            val enter = tween<Float>(
+                durationMillis = FADE_THROUGH_MS - FADE_THROUGH_OUT_MS,
+                delayMillis = FADE_THROUGH_OUT_MS,
+                easing = LinearOutSlowInEasing,
+            )
+            (fadeIn(enter) + scaleIn(enter, initialScale = ENTER_SCALE)) togetherWith
+                fadeOut(tween(FADE_THROUGH_OUT_MS, easing = FastOutLinearInEasing))
+        }
+        MotionStyle.Cupertino ->
+            fadeIn(tween(STANDARD_MS, easing = uiKitEaseInOut)) togetherWith
+                fadeOut(tween(QUICK_MS, easing = uiKitEaseInOut))
+    }
+
+    // Something that arrives on screen.
+    fun <T> arrive(): FiniteAnimationSpec<T> = when (motionStyle) {
+        MotionStyle.Material -> tween(ARRIVE_MS, easing = emphasizedDecelerate)
+        MotionStyle.Cupertino -> spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessLow)
+    }
     // Softer than follow(): a whole screen travels, and it keeps the speed of the throw.
     fun <T> sheet(): SpringSpec<T> =
         spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
