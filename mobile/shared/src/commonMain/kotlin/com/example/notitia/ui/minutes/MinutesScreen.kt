@@ -77,7 +77,13 @@ import org.jetbrains.compose.resources.stringResource
 
 // Holds what the user changes on the made-up minutes, until they are stored (US-16).
 @Composable
-fun MinutesRoute(meeting: MeetingListItem, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun MinutesRoute(
+    meeting: MeetingListItem,
+    backLabel: String,
+    backDescription: String,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val now = remember { Clock.System.now() }
     var minutes by remember(meeting.id) { mutableStateOf(sampleMinutes(meeting, now)) }
     NavigationBackHandler(
@@ -87,6 +93,8 @@ fun MinutesRoute(meeting: MeetingListItem, onBack: () -> Unit, modifier: Modifie
     MinutesScreen(
         minutes = minutes,
         now = now,
+        backLabel = backLabel,
+        backDescription = backDescription,
         onBack = onBack,
         onToggleAction = { index ->
             minutes = minutes.copy(
@@ -103,6 +111,8 @@ fun MinutesRoute(meeting: MeetingListItem, onBack: () -> Unit, modifier: Modifie
 fun MinutesScreen(
     minutes: Minutes,
     now: Instant,
+    backLabel: String,
+    backDescription: String,
     onBack: () -> Unit,
     onToggleAction: (Int) -> Unit,
     modifier: Modifier = Modifier,
@@ -112,7 +122,7 @@ fun MinutesScreen(
     val meeting = minutes.meeting
 
     Column(modifier.fillMaxSize()) {
-        TopBar(onBack)
+        TopBar(backLabel, backDescription, onBack)
         Column(
             Modifier
                 .weight(1f)
@@ -165,9 +175,8 @@ fun MinutesScreen(
 }
 
 @Composable
-private fun TopBar(onBack: () -> Unit) {
+private fun TopBar(backLabel: String, backDescription: String, onBack: () -> Unit) {
     val colors = NotitiaTheme.colors
-    val backDescription = stringResource(Res.string.minutes_back_description)
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = NotitiaTheme.spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
@@ -186,7 +195,7 @@ private fun TopBar(onBack: () -> Unit) {
                 tint = colors.accentContent,
             )
             Text(
-                text = stringResource(Res.string.meetings_title),
+                text = backLabel,
                 style = NotitiaTheme.typography.label,
                 color = colors.accentContent,
             )
@@ -304,6 +313,8 @@ private fun MinutesScreenPreview() = NotitiaTheme {
     MinutesScreen(
         minutes = sampleMinutes(sampleMeetings(now).first(), now),
         now = now,
+        backLabel = stringResource(Res.string.meetings_title),
+        backDescription = stringResource(Res.string.minutes_back_description),
         onBack = {},
         onToggleAction = {},
         modifier = Modifier.background(NotitiaTheme.colors.background),
