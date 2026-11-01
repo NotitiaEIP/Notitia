@@ -25,7 +25,8 @@ private fun ThemeSample() {
         modifier = Modifier.background(colors.background).padding(NotitiaTheme.spacing.l),
         verticalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.s),
     ) {
-        Swatches(listOf(colors.surface, colors.surfaceRaised, colors.divider, colors.outline, colors.textTertiary))
+        Swatches(listOf(colors.surface, colors.surfaceRaised, colors.track, colors.bar))
+        Swatches(listOf(colors.divider, colors.outline, colors.textTertiary))
         Swatches(listOf(colors.accent, colors.accentContent, colors.accentSoft, colors.red, colors.green, colors.amber))
         Swatches(colors.speakers)
         Box(

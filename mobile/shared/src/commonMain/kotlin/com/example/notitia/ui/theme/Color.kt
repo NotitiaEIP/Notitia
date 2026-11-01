@@ -9,6 +9,10 @@ data class NotitiaColors(
     val background: Color,
     val surface: Color,
     val surfaceRaised: Color,
+    // The hollow under what is picked or pressed: in light, surface is as white as the sheet around it.
+    val track: Color,
+    // In light the screens are grey, but the tab bar stays white.
+    val bar: Color,
     val divider: Color,
     val outline: Color,
     val text: Color,
@@ -44,8 +48,10 @@ private val ButtonGradient = listOf(Color(0xFF4B3BC6), Color(0xFF8E2BB0), Color(
 internal val DarkColors = NotitiaColors(
     isDark = true,
     background = Color(0xFF0B0A0F),
-    surface = Color(0xFF16151C),
+    surface = Color(0xFF1E1D25),
     surfaceRaised = Color(0xFF201F28),
+    track = Color(0xFF16151C),
+    bar = Color(0xFF0B0A0F),
     divider = Color(0xFF2C2B36),
     outline = Color(0xFF6F6D7A),
     text = Color(0xFFF4F3F7),
@@ -73,11 +79,13 @@ internal val DarkColors = NotitiaColors(
 
 internal val LightColors = NotitiaColors(
     isDark = false,
-    background = Color.White,
-    surface = Color(0xFFF5F4F8),
+    background = Color(0xFFF3F2F7),
+    surface = Color.White,
     surfaceRaised = Color.White,
+    track = Color(0xFFE5E3EA),
+    bar = Color.White,
     divider = Color(0xFFE5E3EA),
-    outline = Color(0xFF8D8B98),
+    outline = Color(0xFF8A8895),
     text = Color(0xFF121117),
     textSecondary = Color(0xFF5E5C69),
     textTertiary = Color(0xFF6F6D7A),
@@ -93,7 +101,7 @@ internal val LightColors = NotitiaColors(
     greenSoft = Color(0xFF15724A).copy(alpha = 0.08f),
     amber = Color(0xFFA35200),
     speakers = listOf(
-        Color(0xFF1F6FD1), Color(0xFF0E7C70), Color(0xFF9A6400),
+        Color(0xFF1E6CCC), Color(0xFF0E7C70), Color(0xFF966100),
         Color(0xFFC2266F), Color(0xFF4D7A12), Color(0xFFB4501A),
     ),
     onSpeaker = Color.White,
