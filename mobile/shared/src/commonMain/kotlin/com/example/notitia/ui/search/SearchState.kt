@@ -8,7 +8,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.delay
+import kotlin.coroutines.cancellation.CancellationException
 
 sealed interface SearchStep {
     data object Home : SearchStep
@@ -30,7 +30,7 @@ val SearchStep.searched: String?
 
 // Kept by App, so the search shown survives a change of tab and an opened meeting.
 @Stable
-class SearchState {
+class SearchState(private val engine: AnswerEngine = SampleAnswerEngine) {
     val input = TextFieldState()
 
     var step: SearchStep by mutableStateOf(SearchStep.Home)
@@ -49,18 +49,24 @@ class SearchState {
         step = SearchStep.Home
     }
 
-    // Stands in for the engine (E6) while the screen shows the question.
     internal suspend fun answer(question: String) {
-        delay(SAMPLE_SEARCH_TIME)
-        val answer = sampleAnswer(question)
-        if (answer == null) {
+        val answer = try {
+            val sources = engine.findSources(question)
             // Nothing found means nothing to write: the second phase is skipped.
-            step = SearchStep.NothingFound(question, QueryKind.Question)
-            return
+            if (sources.isEmpty()) {
+                null
+            } else {
+                step = SearchStep.Asking(question, found = sources.size)
+                engine.writeAnswer(question, sources)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // No screen says that the engine failed yet: it shows as nothing found.
+            null
         }
-        step = SearchStep.Asking(question, found = answer.sources.size)
-        delay(SAMPLE_WRITING_TIME)
-        step = SearchStep.Answered(question, answer)
+        step = answer?.let { SearchStep.Answered(question, it) }
+            ?: SearchStep.NothingFound(question, QueryKind.Question)
     }
 
     private fun showResult(query: String) {
@@ -72,17 +78,15 @@ class SearchState {
                     ?.let { SearchStep.Words(query, it) }
                     ?: SearchStep.NothingFound(query, QueryKind.Words)
             }
-            QueryKind.Question ->
-                sampleAnswer(query)?.let { SearchStep.Answered(query, it) }
-                    ?: SearchStep.NothingFound(query, QueryKind.Question)
+            QueryKind.Question -> engine.restoredStep(query)
         }
     }
 
     companion object {
-        // Only the query is kept: its result is found again in the samples, without the loader.
-        val Saver: Saver<SearchState, String> = Saver(
+        // Only the query is kept: its result is found again from it.
+        fun saver(engine: AnswerEngine): Saver<SearchState, String> = Saver(
             save = { it.step.searched },
-            restore = { query -> SearchState().apply { showResult(query) } },
+            restore = { query -> SearchState(engine).apply { showResult(query) } },
         )
     }
 }

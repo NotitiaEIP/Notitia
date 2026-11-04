@@ -4,6 +4,7 @@ import com.example.notitia.ui.minutes.sampleSpeakers
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.delay
 
 // What the engine (E6) might take, so the loader shows until the real one exists.
 val SAMPLE_SEARCH_TIME = 1400.milliseconds
@@ -68,3 +69,20 @@ private val sampleAnswers = mapOf(
 
 fun sampleAnswer(question: String): Answer? =
     sampleAnswers.entries.firstOrNull { sameQuestion(it.key, question) }?.value
+
+object SampleAnswerEngine : AnswerEngine {
+    override suspend fun findSources(question: String): List<Passage> {
+        delay(SAMPLE_SEARCH_TIME)
+        return sampleAnswer(question)?.sources.orEmpty()
+    }
+
+    override suspend fun writeAnswer(question: String, sources: List<Passage>): Answer? {
+        delay(SAMPLE_WRITING_TIME)
+        return sampleAnswer(question)
+    }
+
+    // Found again in the samples, without the loader.
+    override fun restoredStep(question: String): SearchStep =
+        sampleAnswer(question)?.let { SearchStep.Answered(question, it) }
+            ?: SearchStep.NothingFound(question, QueryKind.Question)
+}

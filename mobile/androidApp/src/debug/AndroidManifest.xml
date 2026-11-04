@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Debug builds only, for the team's test gateway (T-30). Release builds stay off the network (product rule 1). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+</manifest>

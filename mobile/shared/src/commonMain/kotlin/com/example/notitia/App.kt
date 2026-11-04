@@ -21,6 +21,8 @@ import com.example.notitia.ui.recording.FakeRecording
 import com.example.notitia.ui.recording.PlayerPosition
 import com.example.notitia.ui.recording.RecordingPlayerHost
 import com.example.notitia.ui.recording.RecordingPlayerState
+import com.example.notitia.ui.search.AnswerEngine
+import com.example.notitia.ui.search.SampleAnswerEngine
 import com.example.notitia.ui.search.SearchScreen
 import com.example.notitia.ui.search.SearchState
 import com.example.notitia.ui.theme.NotitiaTheme
@@ -35,14 +37,14 @@ import org.jetbrains.compose.resources.stringResource
 // No transition between screens: the content switches at once, only the tab bar animates.
 @Composable
 @Preview
-fun App() {
+fun App(answerEngine: AnswerEngine = SampleAnswerEngine) {
     NotitiaTheme {
         var tab by rememberSaveable { mutableStateOf(Tab.Meetings) }
         // Made-up meetings until US-16 stores real ones.
         val meetings = remember { sampleMeetings(Clock.System.now()) }
         var openedMeetingId by rememberSaveable { mutableStateOf<String?>(null) }
         val openedMeeting = meetings.firstOrNull { it.id == openedMeetingId }
-        val search = rememberSaveable(saver = SearchState.Saver) { SearchState() }
+        val search = rememberSaveable(saver = SearchState.saver(answerEngine)) { SearchState(answerEngine) }
         var recording by rememberSaveable(stateSaver = FakeRecording.Saver) { mutableStateOf(null) }
         recording?.let { current -> LaunchedEffect(current) { current.run() } }
         // A new recording gets a new sheet, which rises from the mini bar to the full screen.
