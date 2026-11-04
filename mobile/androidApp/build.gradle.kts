@@ -1,3 +1,4 @@
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -19,6 +20,12 @@ dependencies {
     debugImplementation(libs.compose.uiTooling)
 }
 
+// The repo is public: the address and the key of the test gateway (T-30) stay in this ignored file.
+val localProperties = Properties().apply {
+    providers.fileContents(rootProject.layout.projectDirectory.file("local.properties"))
+        .asText.orNull?.let { load(it.reader()) }
+}
+
 android {
     namespace = "com.example.notitia"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
@@ -36,6 +43,10 @@ android {
         }
     }
     buildTypes {
+        debug {
+            buildConfigField("String", "GATEWAY_URL", "\"${localProperties.getProperty("notitia.gateway.url", "")}\"")
+            buildConfigField("String", "GATEWAY_KEY", "\"${localProperties.getProperty("notitia.gateway.key", "")}\"")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
@@ -49,6 +60,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
     buildFeatures {
+        buildConfig = true
         compose = true
     }
 }

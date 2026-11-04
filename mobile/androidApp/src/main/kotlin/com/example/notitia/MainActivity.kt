@@ -12,8 +12,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
+        val answerEngine = answerEngineForBuild()
         setContent {
-            App()
+            App(answerEngine)
         }
     }
 }
