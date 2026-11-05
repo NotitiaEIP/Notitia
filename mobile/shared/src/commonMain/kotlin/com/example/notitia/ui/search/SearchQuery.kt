@@ -107,4 +107,4 @@ private fun occurrences(text: String, word: String): List<IntRange> = buildList 
 // "Qu’a-t-on décidé pour la démo ?" and "qu'a-t-on decide pour la demo" ask the same thing.
 fun sameQuestion(a: String, b: String): Boolean = questionKey(a) == questionKey(b)
 
-private fun questionKey(text: String): String = fold(text).trim().removeSuffix("?").trim()
+internal fun questionKey(text: String): String = fold(text).trim().removeSuffix("?").trim()

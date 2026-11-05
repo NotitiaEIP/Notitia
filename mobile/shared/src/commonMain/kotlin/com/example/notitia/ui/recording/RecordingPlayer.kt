@@ -105,6 +105,10 @@ class RecordingPlayerState(initialValue: PlayerPosition, openOnStart: Boolean) {
     internal val visibleOffset: Float
         get() = lerp(collapsedOffset.takeUnless { it.isNaN() } ?: 0f, 0f, progress)
 
+    // Where the sheet is going: open as soon as a drag passes half way.
+    internal val isExpanded: Boolean
+        get() = draggable.targetValue == PlayerPosition.Expanded
+
     fun expand() {
         request = PlayerPosition.Expanded
     }

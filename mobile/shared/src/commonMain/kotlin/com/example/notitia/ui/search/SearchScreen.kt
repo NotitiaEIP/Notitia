@@ -56,6 +56,7 @@ import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import com.example.notitia.ui.components.GroupTitle
+import com.example.notitia.ui.components.HeaderAction
 import com.example.notitia.ui.components.ScreenHeader
 import com.example.notitia.ui.components.cardShadow
 import com.example.notitia.ui.meetings.MeetingListItem
@@ -68,8 +69,10 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 import kotlinx.coroutines.delay
 import notitia.shared.generated.resources.Res
+import notitia.shared.generated.resources.history
 import notitia.shared.generated.resources.search_answer_note
 import notitia.shared.generated.resources.search_count
+import notitia.shared.generated.resources.search_history
 import notitia.shared.generated.resources.search_meetings
 import notitia.shared.generated.resources.search_no_answer
 import notitia.shared.generated.resources.search_no_answer_hint
@@ -92,6 +95,8 @@ private const val CITATION_GLUE = ' '
 fun SearchScreen(
     meetings: List<MeetingListItem>,
     state: SearchState,
+    historyOpen: Boolean,
+    onOpenHistory: () -> Unit,
     onOpenMeeting: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -109,9 +114,17 @@ fun SearchScreen(
     // Keyed on the question, not on the step, which changes between the two phases.
     val asking = (state.step as? SearchStep.Asking)?.question
     LaunchedEffect(asking) { if (asking != null) state.answer(asking) }
+    LaunchedEffect(state.fieldRequested) {
+        if (state.fieldRequested) {
+            fieldFocus.requestFocus()
+            keyboard?.show()
+            state.fieldFocused()
+        }
+    }
+    // With the history open, back closes it and nothing else, whichever handler was added last.
     NavigationBackHandler(
         state = rememberNavigationEventState(NavigationEventInfo.None),
-        isBackEnabled = state.step != SearchStep.Home,
+        isBackEnabled = state.step != SearchStep.Home && !historyOpen,
         onBackCompleted = state::reset,
     )
 
@@ -121,14 +134,16 @@ fun SearchScreen(
         meetings = meetings,
         now = now,
         fieldFocus = fieldFocus,
+        revealing = state.revealing,
+        onRevealed = state::revealed,
         onLaunch = { text ->
             focusManager.clearFocus()
             state.submit(text)
         },
-        onClear = {
-            state.reset()
-            fieldFocus.requestFocus()
-            keyboard?.show()
+        onClear = state::startNewSearch,
+        onOpenHistory = {
+            focusManager.clearFocus()
+            onOpenHistory()
         },
         onDismissKeyboard = { focusManager.clearFocus() },
         onOpenMeeting = onOpenMeeting,
@@ -144,15 +159,24 @@ private fun SearchLayout(
     meetings: List<MeetingListItem>,
     now: Instant,
     fieldFocus: FocusRequester,
+    revealing: Boolean,
+    onRevealed: () -> Unit,
     onLaunch: (String) -> Unit,
     onClear: () -> Unit,
+    onOpenHistory: () -> Unit,
     onDismissKeyboard: () -> Unit,
     onOpenMeeting: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val spacing = NotitiaTheme.spacing
     Column(modifier.fillMaxSize()) {
-        ScreenHeader(stringResource(Res.string.search_title), Modifier.padding(horizontal = spacing.l))
+        ScreenHeader(stringResource(Res.string.search_title), Modifier.padding(horizontal = spacing.l)) {
+            HeaderAction(
+                icon = painterResource(Res.drawable.history),
+                description = stringResource(Res.string.search_history),
+                onClick = onOpenHistory,
+            )
+        }
         AnimatedContent(
             targetState = step,
             contentKey = { it.searched },
@@ -170,7 +194,7 @@ private fun SearchLayout(
                     hint = stringResource(Res.string.search_no_word_hint),
                     modifier = Modifier.fillMaxSize().padding(spacing.l),
                 )
-                else -> QuestionFound(shown, meetings, now, onLaunch, onOpenMeeting)
+                else -> QuestionFound(shown, meetings, now, revealing, onRevealed, onLaunch, onOpenMeeting)
             }
         }
         SearchField(
@@ -250,6 +274,8 @@ private fun QuestionFound(
     step: SearchStep,
     meetings: List<MeetingListItem>,
     now: Instant,
+    revealing: Boolean,
+    onRevealed: () -> Unit,
     onLaunch: (String) -> Unit,
     onOpenMeeting: (String) -> Unit,
 ) {
@@ -272,22 +298,30 @@ private fun QuestionFound(
             transitionSpec = { EnterTransition.None togetherWith NotitiaTheme.motion.swap().initialContentExit },
             label = "answer",
         ) { shown ->
-            when (shown) {
-                is SearchStep.Asking -> Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            if (shown is SearchStep.Asking) {
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     SearchLoader(meetings.size, shown.found, Modifier.padding(spacing.l))
                 }
-                is SearchStep.Answered -> AnswerFound(
+                return@AnimatedContent
+            }
+            // Read once: an answer plays as it arrives, and is already there when the screen comes back.
+            val animate = remember { revealing }
+            LaunchedEffect(Unit) { if (animate) onRevealed() }
+            if (shown is SearchStep.Answered) {
+                AnswerFound(
                     answer = shown.answer,
                     meetings = meetings,
                     now = now,
+                    animate = animate,
                     onLaunch = onLaunch,
                     onOpenMeeting = onOpenMeeting,
                     modifier = Modifier.padding(start = spacing.l, top = spacing.m, end = spacing.l, bottom = spacing.l),
                 )
-                else -> NothingFound(
+            } else {
+                NothingFound(
                     sentence = stringResource(Res.string.search_no_answer),
                     hint = stringResource(Res.string.search_no_answer_hint),
-                    modifier = Modifier.fillMaxWidth().padding(spacing.l).reveal(0),
+                    modifier = Modifier.fillMaxWidth().padding(spacing.l).reveal(0, animate),
                 )
             }
         }
@@ -316,17 +350,19 @@ private fun QuestionColumn(question: @Composable () -> Unit, rest: @Composable (
     }
 }
 
-// Shows the answer piece by piece, as it would arrive. With reduced motion, the pieces only fade in.
+// Shows the answer piece by piece, as it arrives. With reduced motion, the pieces only fade in.
 @Composable
-private fun Modifier.reveal(order: Int): Modifier {
+private fun Modifier.reveal(order: Int, animate: Boolean): Modifier {
     val motion = NotitiaTheme.motion
     val rise = if (reducedMotion()) 0f else with(LocalDensity.current) { NotitiaTheme.spacing.s.toPx() }
     // Previews run no effect: they show the answer at once.
-    val inspecting = LocalInspectionMode.current
-    val progress = remember { Animatable(if (inspecting) 1f else 0f) }
-    LaunchedEffect(Unit) {
-        delay((order * motion.REVEAL_STAGGER_MS).milliseconds)
-        progress.animateTo(1f, motion.arrive())
+    val play = animate && !LocalInspectionMode.current
+    val progress = remember { Animatable(if (play) 0f else 1f) }
+    if (play) {
+        LaunchedEffect(Unit) {
+            delay((order * motion.REVEAL_STAGGER_MS).milliseconds)
+            progress.animateTo(1f, motion.arrive())
+        }
     }
     return graphicsLayer {
         alpha = progress.value
@@ -339,6 +375,7 @@ private fun AnswerFound(
     answer: Answer,
     meetings: List<MeetingListItem>,
     now: Instant,
+    animate: Boolean,
     onLaunch: (String) -> Unit,
     onOpenMeeting: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -346,17 +383,17 @@ private fun AnswerFound(
     val spacing = NotitiaTheme.spacing
     val sources = answer.sources.size
     Column(modifier) {
-        AnswerText(answer, Modifier.reveal(0))
+        AnswerText(answer, Modifier.reveal(0, animate))
         Text(
             text = pluralStringResource(Res.plurals.search_answer_note, sources, sources),
             style = NotitiaTheme.typography.caption,
             color = NotitiaTheme.colors.textSecondary,
             modifier = Modifier
                 .padding(top = spacing.s)
-                .reveal(1)
+                .reveal(1, animate)
                 .semantics { liveRegion = LiveRegionMode.Polite },
         )
-        GroupTitle(stringResource(Res.string.search_sources), Modifier.padding(top = spacing.xl).reveal(2))
+        GroupTitle(stringResource(Res.string.search_sources), Modifier.padding(top = spacing.xl).reveal(2, animate))
         Column(
             modifier = Modifier.padding(top = spacing.s),
             verticalArrangement = Arrangement.spacedBy(spacing.s),
@@ -369,12 +406,12 @@ private fun AnswerFound(
                         meeting = meeting,
                         now = now,
                         onClick = { onOpenMeeting(meeting.id) },
-                        modifier = Modifier.reveal(3 + index),
+                        modifier = Modifier.reveal(3 + index, animate),
                     )
                 }
             }
         }
-        Chips(answer.followUps, onLaunch, Modifier.padding(top = spacing.l).reveal(3 + sources))
+        Chips(answer.followUps, onLaunch, Modifier.padding(top = spacing.l).reveal(3 + sources, animate))
     }
 }
 
@@ -473,8 +510,11 @@ private fun SearchLayoutPreview(step: SearchStep, input: String = "") = NotitiaT
         meetings = sampleMeetings(now),
         now = now,
         fieldFocus = remember { FocusRequester() },
+        revealing = false,
+        onRevealed = {},
         onLaunch = {},
         onClear = {},
+        onOpenHistory = {},
         onDismissKeyboard = {},
         onOpenMeeting = {},
         modifier = Modifier.background(NotitiaTheme.colors.background),

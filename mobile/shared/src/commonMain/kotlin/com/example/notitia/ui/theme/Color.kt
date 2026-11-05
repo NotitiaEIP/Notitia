@@ -9,6 +9,8 @@ data class NotitiaColors(
     val background: Color,
     val surface: Color,
     val surfaceRaised: Color,
+    // A menu over a surface: lighter in dark, where no shadow lifts it; white with a shadow in light.
+    val popup: Color,
     // The hollow under what is picked or pressed: in light, surface is as white as the sheet around it.
     val track: Color,
     // In light the screens are grey, but the tab bar stays white.
@@ -23,6 +25,8 @@ data class NotitiaColors(
     val accentContent: Color,
     val accentSoft: Color,
     val focus: Color,
+    // Over what a panel or a sheet pushes aside: stronger in dark, where no shadow separates the two.
+    val dim: Color,
     val red: Color,
     val onRed: Color,
     val redSoft: Color,
@@ -50,6 +54,7 @@ internal val DarkColors = NotitiaColors(
     background = Color(0xFF0B0A0F),
     surface = Color(0xFF1E1D25),
     surfaceRaised = Color(0xFF201F28),
+    popup = Color(0xFF2B2A35),
     track = Color(0xFF16151C),
     bar = Color(0xFF0B0A0F),
     divider = Color(0xFF2C2B36),
@@ -62,6 +67,7 @@ internal val DarkColors = NotitiaColors(
     accentContent = Color(0xFFCB95F3),
     accentSoft = Violet.copy(alpha = 0.22f),
     focus = Color(0xFFB66EED),
+    dim = Color.Black.copy(alpha = 0.5f),
     red = Color(0xFFFF5A52),
     onRed = Color(0xFF0B0A0F),
     redSoft = Color(0xFFFF5A52).copy(alpha = 0.16f),
@@ -82,6 +88,7 @@ internal val LightColors = NotitiaColors(
     background = Color(0xFFF3F2F7),
     surface = Color.White,
     surfaceRaised = Color.White,
+    popup = Color.White,
     track = Color(0xFFE5E3EA),
     bar = Color.White,
     divider = Color(0xFFE5E3EA),
@@ -94,6 +101,7 @@ internal val LightColors = NotitiaColors(
     accentContent = Violet,
     accentSoft = Violet.copy(alpha = 0.10f),
     focus = Violet,
+    dim = Color.Black.copy(alpha = 0.25f),
     red = Color(0xFFBF2D2A),
     onRed = Color.White,
     redSoft = Color(0xFFBF2D2A).copy(alpha = 0.10f),

@@ -62,6 +62,8 @@ object NotitiaSizes {
     val tabBar = 64.dp
     val tabPillWidth = 64.dp
     val tabPillHeight = 32.dp
+    val sidePanel = 320.dp
+    val sheetRadius = 28.dp
 }
 
 // What can be touched is round, what is read has corners.
@@ -71,8 +73,8 @@ object NotitiaShapes {
     // Fixed corners rather than full: the bar grows to four lines and must not turn into an oval.
     val searchBar = RoundedCornerShape(NotitiaSizes.field / 2)
     val card = RoundedCornerShape(16.dp)
-    val sheet = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-    val dialog = RoundedCornerShape(28.dp)
+    val sheet = RoundedCornerShape(topStart = NotitiaSizes.sheetRadius, topEnd = NotitiaSizes.sheetRadius)
+    val dialog = RoundedCornerShape(NotitiaSizes.sheetRadius)
     val full = RoundedCornerShape(percent = 50)
     val stopSquare = RoundedCornerShape(7.dp)
     val stopSquareSmall = RoundedCornerShape(4.dp)
