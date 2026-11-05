@@ -84,6 +84,13 @@
     <string name="search_no_answer">Aucun passage ne répond à cette question.</string>
     <string name="search_no_answer_hint">Essayez d’autres mots, ou le nom d’une réunion.</string>
     <string name="search_back_description">Retour à la recherche</string>
+    <string name="search_history">Historique des recherches</string>
+    <string name="search_history_title">Historique</string>
+    <string name="search_new">Nouvelle recherche</string>
+    <string name="search_history_clear">Effacer l’historique</string>
+    <string name="search_history_cleared">Historique effacé</string>
+    <string name="search_history_empty">Aucune recherche pour l’instant.</string>
+    <string name="undo">Annuler</string>
     <string-array name="weekdays">
         <item>Lundi</item>
         <item>Mardi</item>

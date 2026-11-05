@@ -64,6 +64,7 @@ L'app suit le réglage clair ou sombre du téléphone. Les deux thèmes sont des
 | `accentContent` | Liens, icônes actives, onglet actif | `#CB95F3` | `#882DCD` | 8,6 / 5,7 |
 | `accentSoft` | Sélection, puces, badges | violet à 22 % | violet à 10 % | texte 7,4 / 4,9 |
 | `focus` | Contour d'un champ actif | `#B66EED` | `#882DCD` | |
+| `dim` | Voile sous un panneau ou une feuille | noir à 50 % | noir à 25 % | |
 | `red` | Enregistrement, suppression | `#FF5A52` | `#BF2D2A` | 6,4 / 5,2 |
 | `green` | Succès, action faite | `#3DD68C` | `#15724A` | 10,5 / 5,3 |
 | `amber` | Attention (batterie, espace disque) | `#FFB224` | `#A35200` | 10,9 / 5,0 |
@@ -217,8 +218,8 @@ L'utilisateur doit savoir où aller sans réfléchir.
 ```
 Niveau 1   Réunions             Actions               Recherche
            réunions, Enregistrer  tâches, responsable,  dans toutes les
-           réglages en haut à     date                  réunions
-           droite
+           réglages en haut à     date                  réunions,
+           droite                                       historique à gauche
 Niveau 2   Une réunion : Compte rendu (par défaut) et Transcription
            Enregistrement : une feuille, plein écran ou mini-barre sur tous les onglets
 Niveau 3   Un détail : une action, un locuteur à renommer, un passage à réécouter
@@ -227,6 +228,7 @@ Niveau 3   Un détail : une action, un locuteur à renommer, un passage à réé
 - **Le retour du système marche partout** : retour prédictif sur Android, glisser depuis le bord gauche sur iPhone. On ne le bloque jamais, sauf pour confirmer l'arrêt d'un enregistrement.
 - **Un titre par écran**, qui dit où l'on est (« Réunions », le nom de la réunion). Sur iPhone, le bouton retour reprend le nom de l'écran précédent.
 - **L'en-tête d'un onglet** : le grand titre à 8 dp sous la zone sûre du système (barre d'état, encoche, Dynamic Island), à la même hauteur sur les trois onglets. Ses boutons (réglages) sont sur sa ligne, à droite, centrés sur elle, comme la barre du haut de WhatsApp ; leur cible de 48 dp déborde de la ligne sans pousser le contenu.
+- **Historique de la recherche** : un panneau qui glisse depuis la gauche par-dessus l'écran (glisser vers la droite, ou l'horloge du titre), comme dans Claude. L'écran et la barre d'onglets restent en place sous un voile. Le retour du système le referme, avec l'animation du retour prédictif sur Android 14+. La dernière recherche reste affichée, même après un changement d'onglet ; après 10 minutes hors de l'app, ou au relancement, la recherche repart vierge et la précédente se retrouve dans l'historique.
 - **Enregistrer sans ouvrir l'app** : widget et tuile des Réglages rapides sur Android, widget, Live Activity et écran verrouillé sur iPhone.
 
 ## Mouvement
@@ -247,7 +249,7 @@ La sortie douce s'écrit `CubicBezierEasing(0.23f, 1f, 0.32f, 1f)`. Dans le code
 - Ce qu'on fait cent fois par jour ne s'anime presque pas : changer d'onglet, c'est 150 ms au plus pour le contenu.
 - Rien n'apparaît depuis une taille zéro : on part de 95 % avec un fondu. Les sorties sont 30 % plus courtes que les entrées.
 - Un bouton pressé passe à 97 % en moins de 100 ms. Pas d'effet d'onde sur iPhone : un léger assombrissement à la place.
-- Une réponse arrive morceau par morceau, 60 ms d'écart, 8 dp de montée : elle décélère comme Material sur Android et suit le ressort d'iOS sur iPhone. Dans le code, `motion.swap()` et `motion.arrive()` choisissent selon le système.
+- Une réponse arrive morceau par morceau, 60 ms d'écart, 8 dp de montée : elle décélère comme Material sur Android et suit le ressort d'iOS sur iPhone. Dans le code, `motion.swap()` et `motion.arrive()` choisissent selon le système. Elle ne se déroule qu'à son arrivée, une fois : quand on revient sur l'écran, elle est déjà là.
 - Ce qui suit le doigt utilise un ressort, interruptible, sans rebond. Un léger rebond seulement après un geste lancé (une feuille jetée vers le bas).
 - « Réduire les animations » : les mouvements deviennent des fondus. Compose le respecte tout seul sur Android ; sur iPhone, il faut lire le réglage d'iOS (à faire avec la première animation qui bouge).
 - Vibration légère au début et à la fin d'un enregistrement, « succès » quand le compte rendu est prêt. Jamais à chaque appui.
