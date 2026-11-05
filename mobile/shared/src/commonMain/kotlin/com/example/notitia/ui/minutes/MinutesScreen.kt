@@ -50,6 +50,8 @@ import com.example.notitia.ui.meetings.lengthLabel
 import com.example.notitia.ui.meetings.meetingWhenLabel
 import com.example.notitia.ui.meetings.sampleMeetings
 import com.example.notitia.ui.meetings.shortDateLabel
+import com.example.notitia.ui.recording.TranscriptLine
+import com.example.notitia.ui.recording.timerText
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
 import com.example.notitia.ui.theme.shareIcon
@@ -71,6 +73,8 @@ import notitia.shared.generated.resources.minutes_tab_transcript
 import notitia.shared.generated.resources.more_horiz
 import notitia.shared.generated.resources.participants
 import notitia.shared.generated.resources.radio_button_unchecked
+import notitia.shared.generated.resources.transcript_empty
+import notitia.shared.generated.resources.transcript_failed
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -82,6 +86,7 @@ fun MinutesRoute(
     backLabel: String,
     backDescription: String,
     onBack: () -> Unit,
+    transcript: List<TranscriptLine>? = null,
     modifier: Modifier = Modifier,
 ) {
     val now = remember { Clock.System.now() }
@@ -103,6 +108,7 @@ fun MinutesRoute(
                 },
             )
         },
+        transcript = transcript,
         modifier = modifier,
     )
 }
@@ -115,6 +121,7 @@ fun MinutesScreen(
     backDescription: String,
     onBack: () -> Unit,
     onToggleAction: (Int) -> Unit,
+    transcript: List<TranscriptLine>? = null,
     modifier: Modifier = Modifier,
 ) {
     val spacing = NotitiaTheme.spacing
@@ -161,8 +168,8 @@ fun MinutesScreen(
                 onSelect = { tab = it },
                 modifier = Modifier.padding(top = spacing.xl),
             )
-            // The transcript tab stays empty until the transcription exists (E2).
-            if (tab == 0) MinutesContent(minutes, onToggleAction)
+            // The made-up meetings have no transcript: their tab stays empty.
+            if (tab == 0) MinutesContent(minutes, onToggleAction) else transcript?.let { TranscriptContent(it) }
         }
         HorizontalDivider(color = NotitiaTheme.colors.divider)
         NotitiaButton(
@@ -242,6 +249,38 @@ private fun MinutesContent(minutes: Minutes, onToggleAction: (Int) -> Unit) {
         modifier = Modifier.padding(top = spacing.xxl, bottom = spacing.s),
     )
     Text(text = minutes.summary, style = NotitiaTheme.typography.body)
+}
+
+@Composable
+private fun TranscriptContent(lines: List<TranscriptLine>) {
+    val colors = NotitiaTheme.colors
+    val spacing = NotitiaTheme.spacing
+    val typography = NotitiaTheme.typography
+    Column(
+        modifier = Modifier.padding(top = spacing.xl),
+        verticalArrangement = Arrangement.spacedBy(spacing.m),
+    ) {
+        if (lines.isEmpty()) {
+            Text(
+                text = stringResource(Res.string.transcript_empty),
+                style = typography.body,
+                color = colors.textSecondary,
+            )
+        }
+        lines.forEach { line ->
+            Column(
+                modifier = Modifier.semantics(mergeDescendants = true) {},
+                verticalArrangement = Arrangement.spacedBy(spacing.xxs),
+            ) {
+                Text(text = timerText(line.at), style = typography.caption, color = colors.textSecondary)
+                Text(
+                    text = line.text ?: stringResource(Res.string.transcript_failed),
+                    style = typography.body,
+                    color = if (line.text == null) colors.textSecondary else colors.text,
+                )
+            }
+        }
+    }
 }
 
 @Composable

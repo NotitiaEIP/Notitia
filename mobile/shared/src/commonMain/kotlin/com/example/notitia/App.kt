@@ -11,6 +11,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.notitia.ai.SpeechEngine
 import com.example.notitia.ui.actions.ActionsScreen
 import com.example.notitia.ui.components.NotitiaTabBar
 import com.example.notitia.ui.meetings.MeetingsScreen
@@ -19,8 +21,10 @@ import com.example.notitia.ui.minutes.MinutesRoute
 import com.example.notitia.ui.navigation.Tab
 import com.example.notitia.ui.recording.FakeRecording
 import com.example.notitia.ui.recording.PlayerPosition
+import com.example.notitia.ui.recording.RecordedMeetings
 import com.example.notitia.ui.recording.RecordingPlayerHost
 import com.example.notitia.ui.recording.RecordingPlayerState
+import com.example.notitia.ui.recording.listItem
 import com.example.notitia.ui.search.AnswerEngine
 import com.example.notitia.ui.search.SampleAnswerEngine
 import com.example.notitia.ui.search.SearchScreen
@@ -37,16 +41,19 @@ import org.jetbrains.compose.resources.stringResource
 // No transition between screens: the content switches at once, only the tab bar animates.
 @Composable
 @Preview
-fun App(answerEngine: AnswerEngine = SampleAnswerEngine) {
+fun App(answerEngine: AnswerEngine = SampleAnswerEngine, speechEngine: SpeechEngine? = null) {
     NotitiaTheme {
         var tab by rememberSaveable { mutableStateOf(Tab.Meetings) }
+        val recordings = speechEngine?.let { viewModel { RecordedMeetings(it) } }
         // Made-up meetings until US-16 stores real ones.
-        val meetings = remember { sampleMeetings(Clock.System.now()) }
+        val samples = remember { sampleMeetings(Clock.System.now()) }
+        val meetings = recordings?.meetings.orEmpty().map { it.listItem() } + samples
         var openedMeetingId by rememberSaveable { mutableStateOf<String?>(null) }
         val openedMeeting = meetings.firstOrNull { it.id == openedMeetingId }
         val search = rememberSaveable(saver = SearchState.saver(answerEngine)) { SearchState(answerEngine) }
         var recording by rememberSaveable(stateSaver = FakeRecording.Saver) { mutableStateOf(null) }
         recording?.let { current -> LaunchedEffect(current) { current.run() } }
+        LaunchedEffect(recording?.paused) { recordings?.setPaused(recording?.paused == true) }
         // A new recording gets a new sheet, which rises from the mini bar to the full screen.
         val player = rememberSaveable(recording?.startedAt, saver = RecordingPlayerState.Saver) {
             RecordingPlayerState(PlayerPosition.Collapsed, openOnStart = true)
@@ -55,7 +62,10 @@ fun App(answerEngine: AnswerEngine = SampleAnswerEngine) {
         RecordingPlayerHost(
             recording = recording,
             state = player,
-            onStop = { recording = null },
+            onStop = {
+                recording?.let { recordings?.stop(it.elapsed) }
+                recording = null
+            },
             tabBar = {
                 NotitiaTabBar(
                     selected = tab,
@@ -79,6 +89,7 @@ fun App(answerEngine: AnswerEngine = SampleAnswerEngine) {
                         if (fromSearch) Res.string.search_back_description else Res.string.minutes_back_description,
                     ),
                     onBack = { openedMeetingId = null },
+                    transcript = recordings?.meetings?.firstOrNull { it.id == openedMeetingId }?.lines,
                     modifier = screenModifier,
                 )
             } else {
@@ -87,7 +98,11 @@ fun App(answerEngine: AnswerEngine = SampleAnswerEngine) {
                         meetings = meetings,
                         recording = recording != null,
                         onOpen = { openedMeetingId = it.id },
-                        onRecord = { recording = FakeRecording(startedAt = Clock.System.now()) },
+                        onRecord = {
+                            val started = FakeRecording(startedAt = Clock.System.now())
+                            recording = started
+                            recordings?.start(started.startedAt)
+                        },
                         onSettings = {},
                         modifier = screenModifier,
                     )

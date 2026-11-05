@@ -43,6 +43,8 @@
     <string name="minutes_when">%1$s, %2$s</string>
     <string name="minutes_tab_minutes">Compte rendu</string>
     <string name="minutes_tab_transcript">Transcription</string>
+    <string name="transcript_empty">Aucune parole transcrite pour l’instant.</string>
+    <string name="transcript_failed">Passage non transcrit.</string>
     <string name="minutes_decisions">Décisions</string>
     <string name="minutes_actions">Actions</string>
     <string name="minutes_summary">Résumé</string>
