@@ -65,6 +65,7 @@ L'app suit le réglage clair ou sombre du téléphone. Les deux thèmes sont des
 | `accentSoft` | Sélection, puces, badges | violet à 22 % | violet à 10 % | texte 7,4 / 4,9 |
 | `focus` | Contour d'un champ actif | `#B66EED` | `#882DCD` | |
 | `dim` | Voile sous un panneau ou une feuille | noir à 50 % | noir à 25 % | |
+| `popup` | Menus au-dessus d'une surface | `#2B2A35` | blanc, avec ombre | |
 | `red` | Enregistrement, suppression | `#FF5A52` | `#BF2D2A` | 6,4 / 5,2 |
 | `green` | Succès, action faite | `#3DD68C` | `#15724A` | 10,5 / 5,3 |
 | `amber` | Attention (batterie, espace disque) | `#FFB224` | `#A35200` | 10,9 / 5,0 |
@@ -228,7 +229,7 @@ Niveau 3   Un détail : une action, un locuteur à renommer, un passage à réé
 - **Le retour du système marche partout** : retour prédictif sur Android, glisser depuis le bord gauche sur iPhone. On ne le bloque jamais, sauf pour confirmer l'arrêt d'un enregistrement.
 - **Un titre par écran**, qui dit où l'on est (« Réunions », le nom de la réunion). Sur iPhone, le bouton retour reprend le nom de l'écran précédent.
 - **L'en-tête d'un onglet** : le grand titre à 8 dp sous la zone sûre du système (barre d'état, encoche, Dynamic Island), à la même hauteur sur les trois onglets. Ses boutons (réglages) sont sur sa ligne, à droite, centrés sur elle, comme la barre du haut de WhatsApp ; leur cible de 48 dp déborde de la ligne sans pousser le contenu.
-- **Historique de la recherche** : un panneau qui glisse depuis la gauche par-dessus l'écran (glisser vers la droite, ou l'horloge du titre), comme dans Claude. L'écran et la barre d'onglets restent en place sous un voile. Le retour du système le referme, avec l'animation du retour prédictif sur Android 14+. La dernière recherche reste affichée, même après un changement d'onglet ; après 10 minutes hors de l'app, ou au relancement, la recherche repart vierge et la précédente se retrouve dans l'historique.
+- **Historique de la recherche** : un panneau qui glisse depuis la gauche par-dessus l'écran (glisser vers la droite, ou l'horloge du titre), comme dans Claude. L'écran et la barre d'onglets restent en place sous un voile. Le retour du système le referme, avec l'animation du retour prédictif sur Android 14+. Un appui long sur une recherche ouvre un menu à côté d'elle (Épingler, Renommer, Supprimer) ; les épinglées restent en tête, même après « Effacer l'historique ». La dernière recherche reste affichée, même après un changement d'onglet ; après 10 minutes hors de l'app, ou au relancement, la recherche repart vierge et la précédente se retrouve dans l'historique.
 - **Enregistrer sans ouvrir l'app** : widget et tuile des Réglages rapides sur Android, widget, Live Activity et écran verrouillé sur iPhone.
 
 ## Mouvement

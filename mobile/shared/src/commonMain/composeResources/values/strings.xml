@@ -91,6 +91,15 @@
     <string name="search_history_cleared">Historique effacé</string>
     <string name="search_history_empty">Aucune recherche pour l’instant.</string>
     <string name="undo">Annuler</string>
+    <string name="cancel">Annuler</string>
+    <string name="search_pinned">Épinglées</string>
+    <string name="search_pin">Épingler</string>
+    <string name="search_unpin">Désépingler</string>
+    <string name="search_rename">Renommer</string>
+    <string name="search_rename_title">Renommer la recherche</string>
+    <string name="search_delete">Supprimer</string>
+    <string name="search_deleted">Recherche supprimée</string>
+    <string name="search_options">Options</string>
     <string-array name="weekdays">
         <item>Lundi</item>
         <item>Mardi</item>

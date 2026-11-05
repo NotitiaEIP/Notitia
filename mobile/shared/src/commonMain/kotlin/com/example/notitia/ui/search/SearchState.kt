@@ -62,6 +62,7 @@ class SearchState(
     // The answers of this session, so a question opened from the history shows again without the engine.
     private val answers = mutableMapOf<String, Answer>()
     private var cleared: List<HistoryEntry> = emptyList()
+    private var deleted: IndexedValue<HistoryEntry>? = null
     private var leftAt: Instant? = null
 
     fun submit(text: String) {
@@ -103,15 +104,40 @@ class SearchState(
         revealing = false
     }
 
+    // Pinned searches stay: pinning one says "keep it".
     fun clearHistory() {
-        cleared = history
-        history = emptyList()
+        val (pinned, others) = history.partition { it.pinned }
+        cleared = others
+        history = pinned
     }
 
     // Behind the searches launched since, which are more recent.
     fun undoClear() {
         history = history + cleared.filterNot { old -> history.any { sameQuestion(it.text, old.text) } }
         cleared = emptyList()
+    }
+
+    fun pin(entry: HistoryEntry, pinned: Boolean) {
+        history = history.pin(entry, pinned)
+    }
+
+    fun rename(entry: HistoryEntry, title: String) {
+        history = history.rename(entry, title)
+    }
+
+    fun delete(entry: HistoryEntry) {
+        val index = history.indexOfFirst { sameQuestion(it.text, entry.text) }
+        if (index < 0) return
+        deleted = IndexedValue(index, history[index])
+        history = history.remove(entry)
+    }
+
+    // Back at its place, unless it was launched again since.
+    fun undoDelete() {
+        val (index, entry) = deleted ?: return
+        deleted = null
+        if (history.any { sameQuestion(it.text, entry.text) }) return
+        history = history.toMutableList().apply { add(index.coerceAtMost(size), entry) }
     }
 
     fun leave() {
@@ -163,20 +189,28 @@ class SearchState(
     }
 
     companion object {
-        private const val FIELDS_PER_ENTRY = 3
+        private const val FIELDS_PER_ENTRY = 5
 
-        // The query shown, when it was saved, then the history: text, kind and date of each search. A result is
-        // found again from its query, and only if the app was not left for too long.
+        // The query shown, when it was saved, then the history: text, kind, date, title and pin of each search. A
+        // result is found again from its query, and only if the app was not left for too long.
         fun saver(engine: AnswerEngine, clock: Clock = Clock.System): Saver<SearchState, Any> = listSaver(
             save = { state ->
                 listOf(state.step.searched.orEmpty(), clock.now().toEpochMilliseconds()) +
-                    state.history.flatMap { listOf(it.text, it.kind.name, it.at.toEpochMilliseconds()) }
+                    state.history.flatMap {
+                        listOf(it.text, it.kind.name, it.at.toEpochMilliseconds(), it.title.orEmpty(), it.pinned)
+                    }
             },
             restore = { saved ->
                 val searched = saved[0] as String
                 val savedAt = Instant.fromEpochMilliseconds(saved[1] as Long)
-                val history = saved.drop(2).chunked(FIELDS_PER_ENTRY).map { (text, kind, at) ->
-                    HistoryEntry(text as String, QueryKind.valueOf(kind as String), Instant.fromEpochMilliseconds(at as Long))
+                val history = saved.drop(2).chunked(FIELDS_PER_ENTRY).map { (text, kind, at, title, pinned) ->
+                    HistoryEntry(
+                        text = text as String,
+                        kind = QueryKind.valueOf(kind as String),
+                        at = Instant.fromEpochMilliseconds(at as Long),
+                        title = (title as String).ifEmpty { null },
+                        pinned = pinned as Boolean,
+                    )
                 }
                 SearchState(engine, clock, history).apply {
                     if (searched.isNotEmpty() && clock.now() - savedAt < NEW_SEARCH_AFTER) showResult(searched)

@@ -2,6 +2,7 @@ package com.example.notitia.ui.search
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,35 +18,56 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.min
+import com.example.notitia.ui.components.ContextMenu
+import com.example.notitia.ui.components.ContextMenuItem
 import com.example.notitia.ui.components.GroupTitle
 import com.example.notitia.ui.meetings.label
 import com.example.notitia.ui.theme.NotitiaPreviews
@@ -56,14 +78,27 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.datetime.TimeZone
 import notitia.shared.generated.resources.Res
+import notitia.shared.generated.resources.cancel
 import notitia.shared.generated.resources.chat_bubble
+import notitia.shared.generated.resources.delete
+import notitia.shared.generated.resources.edit
 import notitia.shared.generated.resources.edit_square
+import notitia.shared.generated.resources.keep
+import notitia.shared.generated.resources.keep_off
 import notitia.shared.generated.resources.search
+import notitia.shared.generated.resources.search_delete
+import notitia.shared.generated.resources.search_deleted
 import notitia.shared.generated.resources.search_history_clear
 import notitia.shared.generated.resources.search_history_cleared
 import notitia.shared.generated.resources.search_history_empty
 import notitia.shared.generated.resources.search_history_title
 import notitia.shared.generated.resources.search_new
+import notitia.shared.generated.resources.search_options
+import notitia.shared.generated.resources.search_pin
+import notitia.shared.generated.resources.search_pinned
+import notitia.shared.generated.resources.search_rename
+import notitia.shared.generated.resources.search_rename_title
+import notitia.shared.generated.resources.search_unpin
 import notitia.shared.generated.resources.undo
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
@@ -92,10 +127,12 @@ fun SearchHistoryDrawer(drawerState: DrawerState, state: SearchState) {
     val scope = rememberCoroutineScope()
     val snackbars = remember { SnackbarHostState() }
     val cleared = stringResource(Res.string.search_history_cleared)
+    val deleted = stringResource(Res.string.search_deleted)
     val undo = stringResource(Res.string.undo)
     val window = with(density) { LocalWindowInfo.current.containerSize.width.toDp() }
     val width = min(window * DRAWER_SHARE, NotitiaTheme.sizes.sidePanel)
     val closedOffset = with(density) { -width.toPx() }
+    var renaming by remember { mutableStateOf<HistoryEntry?>(null) }
 
     // The keyboard leaves as soon as the drawer starts to come in, not once it is open.
     LaunchedEffect(drawerState, closedOffset) {
@@ -135,14 +172,31 @@ fun SearchHistoryDrawer(drawerState: DrawerState, state: SearchState) {
                     state.open(entry)
                     close()
                 },
+                onPin = state::pin,
+                onRename = { renaming = it },
+                onDelete = { entry ->
+                    state.delete(entry)
+                    offerUndo(deleted, state::undoDelete)
+                },
                 onClear = {
                     state.clearHistory()
                     offerUndo(cleared, state::undoClear)
                 },
             )
-            // Where the history was just cleared.
+            // Where the history was just changed.
             SnackbarHost(snackbars, Modifier.align(Alignment.BottomCenter))
         }
+    }
+
+    renaming?.let { entry ->
+        RenameDialog(
+            entry = entry,
+            onRename = { title ->
+                state.rename(entry, title)
+                renaming = null
+            },
+            onDismiss = { renaming = null },
+        )
     }
 }
 
@@ -162,6 +216,9 @@ internal fun HistoryList(
     searched: String?,
     onNewSearch: () -> Unit,
     onOpen: (HistoryEntry) -> Unit,
+    onPin: (HistoryEntry, Boolean) -> Unit,
+    onRename: (HistoryEntry) -> Unit,
+    onDelete: (HistoryEntry) -> Unit,
     onClear: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -169,7 +226,7 @@ internal fun HistoryList(
     val spacing = NotitiaTheme.spacing
     val typography = NotitiaTheme.typography
     val grid = drawerGrid()
-    val groups = remember(history) { historyByDay(history, Clock.System.now(), TimeZone.currentSystemDefault()) }
+    val groups = remember(history) { historyGroups(history, Clock.System.now(), TimeZone.currentSystemDefault()) }
     val titleLine = with(LocalDensity.current) { typography.display.lineHeight.toDp() }
 
     Column(modifier.fillMaxSize().padding(horizontal = grid.margin)) {
@@ -212,15 +269,13 @@ internal fun HistoryList(
                     GroupTitle(group.label(), Modifier.padding(start = grid.groupStart, top = spacing.m, bottom = spacing.xs))
                 }
                 items(entries, key = { "entry-${questionKey(it.text)}" }) { entry ->
-                    val shown = searched != null && sameQuestion(entry.text, searched)
-                    PanelRow(
-                        icon = if (entry.kind == QueryKind.Question) Res.drawable.chat_bubble else Res.drawable.search,
-                        text = entry.text,
-                        style = typography.body,
-                        tint = if (shown) colors.accentContent else colors.textSecondary,
-                        textColor = if (shown) colors.accentContent else colors.text,
-                        onClick = { onOpen(entry) },
-                        highlighted = shown,
+                    HistoryRow(
+                        entry = entry,
+                        shown = searched != null && sameQuestion(entry.text, searched),
+                        onOpen = { onOpen(entry) },
+                        onPin = { onPin(entry, !entry.pinned) },
+                        onRename = { onRename(entry) },
+                        onDelete = { onDelete(entry) },
                     )
                 }
             }
@@ -246,6 +301,110 @@ internal fun HistoryList(
 }
 
 @Composable
+private fun HistoryGroup.label(): String = when (this) {
+    HistoryGroup.Pinned -> stringResource(Res.string.search_pinned)
+    is HistoryGroup.Day -> group.label()
+}
+
+// A long press opens the actions next to the search, as a context menu; screen readers get them as actions.
+@Composable
+private fun HistoryRow(
+    entry: HistoryEntry,
+    shown: Boolean,
+    onOpen: () -> Unit,
+    onPin: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val colors = NotitiaTheme.colors
+    val haptics = LocalHapticFeedback.current
+    var menu by remember { mutableStateOf(false) }
+    // Run once the menu has faded out.
+    var afterMenu by remember { mutableStateOf<(() -> Unit)?>(null) }
+    fun choose(action: () -> Unit) {
+        afterMenu = action
+        menu = false
+    }
+    val pinLabel = stringResource(if (entry.pinned) Res.string.search_unpin else Res.string.search_pin)
+    val renameLabel = stringResource(Res.string.search_rename)
+    val deleteLabel = stringResource(Res.string.search_delete)
+
+    Box {
+        PanelRow(
+            icon = if (entry.kind == QueryKind.Question) Res.drawable.chat_bubble else Res.drawable.search,
+            text = entry.label,
+            style = NotitiaTheme.typography.body,
+            tint = if (shown) colors.accentContent else colors.textSecondary,
+            textColor = if (shown) colors.accentContent else colors.text,
+            onClick = onOpen,
+            onLongClick = {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                menu = true
+            },
+            longClickLabel = stringResource(Res.string.search_options),
+            actions = listOf(
+                CustomAccessibilityAction(pinLabel) { onPin(); true },
+                CustomAccessibilityAction(renameLabel) { onRename(); true },
+                CustomAccessibilityAction(deleteLabel) { onDelete(); true },
+            ),
+            highlighted = shown,
+        )
+        ContextMenu(
+            expanded = menu,
+            onDismissRequest = { menu = false },
+            onClosed = {
+                afterMenu?.invoke()
+                afterMenu = null
+            },
+        ) {
+            val pinIcon = if (entry.pinned) Res.drawable.keep_off else Res.drawable.keep
+            ContextMenuItem(pinIcon, pinLabel, colors.text) { choose(onPin) }
+            ContextMenuItem(Res.drawable.edit, renameLabel, colors.text) { choose(onRename) }
+            ContextMenuItem(Res.drawable.delete, deleteLabel, colors.red) { choose(onDelete) }
+        }
+    }
+}
+
+// Renames what the list shows; opening the search still launches its text.
+@Composable
+private fun RenameDialog(entry: HistoryEntry, onRename: (String) -> Unit, onDismiss: () -> Unit) {
+    val colors = NotitiaTheme.colors
+    val field = rememberTextFieldState(entry.label, initialSelection = TextRange(0, entry.label.length))
+    val focus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val buttons = ButtonDefaults.textButtonColors(contentColor = colors.accentContent)
+    val canRename = field.text.isNotBlank()
+    LaunchedEffect(Unit) {
+        focus.requestFocus()
+        keyboard?.show()
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(Res.string.search_rename_title), style = NotitiaTheme.typography.title3) },
+        text = {
+            OutlinedTextField(
+                state = field,
+                lineLimits = TextFieldLineLimits.SingleLine,
+                textStyle = NotitiaTheme.typography.body,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                onKeyboardAction = { if (canRename) onRename(field.text.toString()) },
+                modifier = Modifier.fillMaxWidth().focusRequester(focus),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onRename(field.text.toString()) }, enabled = canRename, colors = buttons) {
+                Text(stringResource(Res.string.search_rename), style = NotitiaTheme.typography.label)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, colors = buttons) {
+                Text(stringResource(Res.string.cancel), style = NotitiaTheme.typography.label)
+            }
+        },
+    )
+}
+
+@Composable
 private fun PanelRow(
     icon: DrawableResource,
     text: String,
@@ -254,6 +413,9 @@ private fun PanelRow(
     textColor: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
+    longClickLabel: String? = null,
+    actions: List<CustomAccessibilityAction> = emptyList(),
     highlighted: Boolean = false,
 ) {
     val grid = drawerGrid()
@@ -263,8 +425,16 @@ private fun PanelRow(
             .heightIn(min = NotitiaTheme.sizes.touchTarget)
             .clip(NotitiaTheme.shapes.full)
             .then(if (highlighted) Modifier.background(NotitiaTheme.colors.accentSoft) else Modifier)
-            .clickable(role = Role.Button, onClick = onClick)
-            .semantics { if (highlighted) selected = true }
+            .combinedClickable(
+                role = Role.Button,
+                onLongClickLabel = longClickLabel,
+                onLongClick = onLongClick,
+                onClick = onClick,
+            )
+            .semantics {
+                if (highlighted) selected = true
+                if (actions.isNotEmpty()) customActions = actions
+            }
             .padding(horizontal = grid.inset),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(grid.iconGap),
@@ -286,6 +456,9 @@ private fun HistoryListPreview(history: List<HistoryEntry>, searched: String?) =
         searched = searched,
         onNewSearch = {},
         onOpen = {},
+        onPin = { _, _ -> },
+        onRename = {},
+        onDelete = {},
         onClear = {},
         modifier = Modifier.background(NotitiaTheme.colors.surface),
     )
@@ -294,7 +467,7 @@ private fun HistoryListPreview(history: List<HistoryEntry>, searched: String?) =
 @NotitiaPreviews
 @Composable
 private fun HistoryListSamplesPreview() {
-    val history = remember { sampleHistory(Clock.System.now()) }
+    val history = remember { sampleHistory(Clock.System.now()).let { it.pin(it[2], pinned = true) } }
     HistoryListPreview(history, searched = history[1].text)
 }
 

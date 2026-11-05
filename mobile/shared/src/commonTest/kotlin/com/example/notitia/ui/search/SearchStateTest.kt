@@ -250,4 +250,44 @@ class SearchStateTest {
         state.fieldFocused()
         assertFalse(state.fieldRequested)
     }
+
+    @Test
+    fun clearingKeepsThePinnedSearches() {
+        val state = SearchState()
+        val register = state.history.single { it.text == "registre RGPD" }
+        state.pin(register, pinned = true)
+        state.clearHistory()
+        assertEquals(listOf("registre RGPD"), state.history.map { it.text })
+        state.undoClear()
+        assertEquals(sampleHistory(Clock.System.now()).size, state.history.size)
+    }
+
+    @Test
+    fun aDeletedSearchComesBackAtItsPlace() {
+        val state = SearchState()
+        val before = state.history
+        state.delete(before[2])
+        assertEquals(before.size - 1, state.history.size)
+        state.undoDelete()
+        assertEquals(before, state.history)
+    }
+
+    @Test
+    fun aRenamedSearchStillLaunchesItsText() {
+        val state = SearchState()
+        val budget = state.history.single { it.text == "budget" }
+        state.rename(budget, "Tous les budgets")
+        state.open(state.history.single { it.text == "budget" })
+        assertEquals("budget", (state.step as SearchStep.Words).query)
+        assertEquals("Tous les budgets", state.history.single { it.text == "budget" }.label)
+    }
+
+    @Test
+    fun titlesAndPinsAreSaved() {
+        val state = SearchState()
+        val budget = state.history.single { it.text == "budget" }
+        state.rename(budget, "Tous les budgets")
+        state.pin(budget, pinned = true)
+        assertEquals(state.history, roundTrip(state, SampleAnswerEngine).history)
+    }
 }

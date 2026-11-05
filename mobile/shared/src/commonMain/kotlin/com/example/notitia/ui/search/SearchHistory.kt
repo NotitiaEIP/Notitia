@@ -10,20 +10,55 @@ import kotlinx.datetime.atTime
 import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
 
-// Kept in memory only, like the searches themselves (product rule 1).
-data class HistoryEntry(val text: String, val kind: QueryKind, val at: Instant)
+// Kept in memory only, like the searches themselves (product rule 1). A title renames what the list shows; the
+// search itself stays its text.
+data class HistoryEntry(
+    val text: String,
+    val kind: QueryKind,
+    val at: Instant,
+    val title: String? = null,
+    val pinned: Boolean = false,
+) {
+    val label: String get() = title ?: text
+}
 
-// A search launched again moves to the top: "budget" and "Budget" are one search, with or without the "?".
-fun List<HistoryEntry>.add(entry: HistoryEntry): List<HistoryEntry> =
-    listOf(entry) + filterNot { sameQuestion(it.text, entry.text) }
+sealed interface HistoryGroup {
+    data object Pinned : HistoryGroup
+    data class Day(val group: MeetingGroup) : HistoryGroup
+}
 
-// The same groups as the meetings list, in the order of the history: the most recent first.
-fun historyByDay(
+private fun HistoryEntry.isSame(other: HistoryEntry) = sameQuestion(text, other.text)
+
+// A search launched again moves to the top, with its title and its pin: "budget" and "Budget" are one search,
+// with or without the "?".
+fun List<HistoryEntry>.add(entry: HistoryEntry): List<HistoryEntry> {
+    val old = firstOrNull { it.isSame(entry) }
+    val new = if (old == null) entry else entry.copy(title = old.title, pinned = old.pinned)
+    return listOf(new) + filterNot { it.isSame(entry) }
+}
+
+fun List<HistoryEntry>.pin(entry: HistoryEntry, pinned: Boolean): List<HistoryEntry> =
+    map { if (it.isSame(entry)) it.copy(pinned = pinned) else it }
+
+// An empty title, or the text itself, gives the search its text back.
+fun List<HistoryEntry>.rename(entry: HistoryEntry, title: String): List<HistoryEntry> {
+    val name = title.trim().takeIf { it.isNotEmpty() && it != entry.text }
+    return map { if (it.isSame(entry)) it.copy(title = name) else it }
+}
+
+fun List<HistoryEntry>.remove(entry: HistoryEntry): List<HistoryEntry> = filterNot { it.isSame(entry) }
+
+// The pinned searches first, then the others by day, as in the meetings list. Each group keeps the order of the
+// history: the most recent first.
+fun historyGroups(
     entries: List<HistoryEntry>,
     now: Instant,
     timeZone: TimeZone,
-): List<Pair<MeetingGroup, List<HistoryEntry>>> =
-    entries.groupBy { meetingDay(it.at, now, timeZone).group() }.toList()
+): List<Pair<HistoryGroup, List<HistoryEntry>>> {
+    val (pinned, others) = entries.partition { it.pinned }
+    val days = others.groupBy { HistoryGroup.Day(meetingDay(it.at, now, timeZone).group()) }.toList()
+    return if (pinned.isEmpty()) days else listOf(HistoryGroup.Pinned to pinned) + days
+}
 
 // Made-up searches until the history is stored (E6). Dated on the calendar, so each one lands in its
 // group at any time of day.
