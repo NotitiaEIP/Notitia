@@ -13,8 +13,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val answerEngine = answerEngineForBuild()
+        val speechEngine = speechEngineForBuild(this, savedInstanceState)
         setContent {
-            App(answerEngine)
+            App(answerEngine, speechEngine)
         }
     }
 }
