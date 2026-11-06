@@ -15,7 +15,8 @@ data class Minutes(
 
 data class MinutesAction(
     val text: String,
-    val owner: Int,
+    // A first name, as said in the meeting: null when nobody was named.
+    val owner: String?,
     val due: LocalDate?,
     val done: Boolean,
 )

@@ -14,8 +14,9 @@ class MainActivity : ComponentActivity() {
 
         val answerEngine = answerEngineForBuild()
         val speechEngine = speechEngineForBuild(this, savedInstanceState)
+        val minutesWriter = minutesWriterForBuild()
         setContent {
-            App(answerEngine, speechEngine)
+            App(answerEngine, speechEngine, minutesWriter)
         }
     }
 }

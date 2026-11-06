@@ -9,7 +9,7 @@ import kotlinx.datetime.toLocalDateTime
 
 val sampleSpeakers = listOf("Lucas", "Clément", "Nathan", "Adam")
 
-// The same made-up minutes for every meeting, until the minutes are written on the phone (E3).
+// The same made-up minutes for every made-up meeting, until the minutes are written on the phone (E3).
 fun sampleMinutes(meeting: MeetingListItem, now: Instant, timeZone: TimeZone = TimeZone.currentSystemDefault()): Minutes {
     val today = now.toLocalDateTime(timeZone).date
     return Minutes(
@@ -20,9 +20,19 @@ fun sampleMinutes(meeting: MeetingListItem, now: Instant, timeZone: TimeZone = T
             "On garde le violet du logo comme accent.",
         ),
         actions = listOf(
-            MinutesAction("Préparer la démo de la transcription", owner = 1, due = today.plus(DatePeriod(days = 13)), done = false),
-            MinutesAction("Rédiger le registre RGPD", owner = 2, due = today.plus(DatePeriod(days = 17)), done = false),
-            MinutesAction("Choisir la police de l’app", owner = 1, due = null, done = true),
+            MinutesAction(
+                "Préparer la démo de la transcription",
+                owner = sampleSpeakers[1],
+                due = today.plus(DatePeriod(days = 13)),
+                done = false,
+            ),
+            MinutesAction(
+                "Rédiger le registre RGPD",
+                owner = sampleSpeakers[2],
+                due = today.plus(DatePeriod(days = 17)),
+                done = false,
+            ),
+            MinutesAction("Choisir la police de l’app", owner = sampleSpeakers[1], due = null, done = true),
         ),
         summary = "L’équipe a validé la nouvelle identité : une interface sobre, un seul accent violet repris du logo.",
     )

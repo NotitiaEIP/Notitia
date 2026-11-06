@@ -9,10 +9,15 @@ import com.example.notitia.ai.SpeechSegment
 import com.example.notitia.ai.SpeechSegmenter
 import com.example.notitia.ai.pcmToWav
 import com.example.notitia.ui.meetings.MeetingStatus
+import com.example.notitia.ui.minutes.MinutesState
+import com.example.notitia.ui.minutes.MinutesWriter
+import com.example.notitia.ui.minutes.WrittenMinutes
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
 import kotlin.time.Instant
 import kotlinx.coroutines.channels.Channel
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 
 // What the gateway reached in the study of 23/10, network included.
 private const val TRANSCRIPTION_SPEED = 10
@@ -37,11 +42,18 @@ internal fun cleanTranscript(text: String): String {
 
 // Kept in memory until US-16 stores the meetings: closing the app forgets it.
 @Stable
-class MeetingTranscription(val startedAt: Instant, private val speech: SpeechEngine) {
+class MeetingTranscription(
+    val startedAt: Instant,
+    private val speech: SpeechEngine,
+    private val writer: MinutesWriter? = null,
+    private val timeZone: TimeZone = TimeZone.currentSystemDefault(),
+) {
     val id = "recorded-${startedAt.toEpochMilliseconds()}"
 
     var duration by mutableStateOf(Duration.ZERO)
     var lines by mutableStateOf(emptyList<TranscriptLine>())
+        private set
+    var minutes by mutableStateOf<MinutesState>(MinutesState.Writing)
         private set
 
     private val segmenter = SpeechSegmenter()
@@ -51,13 +63,13 @@ class MeetingTranscription(val startedAt: Instant, private val speech: SpeechEng
     private var finished by mutableStateOf(false)
 
     val status: MeetingStatus
-        get() = if (finished) {
-            MeetingStatus.Ready(actions = 0)
-        } else {
-            MeetingStatus.Transcribing(
+        get() = when {
+            !finished -> MeetingStatus.Transcribing(
                 progress = if (heard == Duration.ZERO) 0f else (transcribed / heard).toFloat().coerceIn(0f, 1f),
                 remaining = (heard - transcribed) / TRANSCRIPTION_SPEED,
             )
+            minutes == MinutesState.Writing -> MeetingStatus.WritingMinutes
+            else -> MeetingStatus.Ready(actions = (minutes as? MinutesState.Written)?.minutes?.actions?.size ?: 0)
         }
 
     fun addAudio(pcm: ByteArray) = segmenter.add(pcm).forEach(::enqueue)
@@ -83,6 +95,19 @@ class MeetingTranscription(val startedAt: Instant, private val speech: SpeechEng
             transcribed += segment.length
         }
         finished = true
+        minutes = writeMinutes()
+    }
+
+    private suspend fun writeMinutes(): MinutesState {
+        val writer = writer ?: return MinutesState.Unavailable
+        if (lines.none { it.text != null }) return MinutesState.Written(WrittenMinutes("", emptyList(), emptyList()))
+        return try {
+            MinutesState.Written(writer.write(lines, startedAt.toLocalDateTime(timeZone).date))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            MinutesState.Failed
+        }
     }
 
     private fun enqueue(segment: SpeechSegment) {

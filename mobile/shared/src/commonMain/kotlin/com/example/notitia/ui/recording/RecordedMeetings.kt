@@ -10,6 +10,7 @@ import com.example.notitia.ai.SpeechEngine
 import com.example.notitia.ui.meetings.MeetingListItem
 import com.example.notitia.ui.meetings.clockTime
 import com.example.notitia.ui.meetings.shortDateLabel
+import com.example.notitia.ui.minutes.MinutesWriter
 import kotlin.concurrent.Volatile
 import kotlin.time.Duration
 import kotlin.time.Instant
@@ -23,7 +24,7 @@ import notitia.shared.generated.resources.recording_title
 import org.jetbrains.compose.resources.stringResource
 
 // A view model, so a rotation neither stops the microphone nor loses a transcription.
-class RecordedMeetings(private val speech: SpeechEngine) : ViewModel() {
+class RecordedMeetings(private val speech: SpeechEngine, private val writer: MinutesWriter?) : ViewModel() {
     var meetings by mutableStateOf(emptyList<MeetingTranscription>())
         private set
 
@@ -35,7 +36,7 @@ class RecordedMeetings(private val speech: SpeechEngine) : ViewModel() {
 
     fun start(startedAt: Instant) {
         if (!speech.canListen()) return
-        val transcription = MeetingTranscription(startedAt, speech)
+        val transcription = MeetingTranscription(startedAt, speech, writer)
         current = transcription
         paused = false
         microphone = viewModelScope.launch { speech.listen({ paused }, transcription::addAudio) }

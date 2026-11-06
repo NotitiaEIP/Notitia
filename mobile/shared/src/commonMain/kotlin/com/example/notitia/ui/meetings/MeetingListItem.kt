@@ -16,4 +16,5 @@ data class MeetingListItem(
 sealed interface MeetingStatus {
     data class Ready(val actions: Int) : MeetingStatus
     data class Transcribing(val progress: Float, val remaining: Duration) : MeetingStatus
+    data object WritingMinutes : MeetingStatus
 }
