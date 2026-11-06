@@ -40,7 +40,11 @@ import com.example.notitia.ui.search.SearchHistoryDrawer
 import com.example.notitia.ui.search.SearchScreen
 import com.example.notitia.ui.search.SearchState
 import com.example.notitia.ui.search.move
+import com.example.notitia.ui.settings.SettingsRoute
 import com.example.notitia.ui.theme.NotitiaTheme
+import com.example.notitia.ui.theme.SystemBarsFollow
+import com.example.notitia.ui.theme.ThemeChoice
+import com.example.notitia.ui.theme.isDark
 import com.example.notitia.ui.theme.reducedMotion
 import kotlin.time.Clock
 import kotlinx.coroutines.launch
@@ -60,7 +64,11 @@ fun App(
     minutesWriter: MinutesWriter? = null,
     recordRequests: Int = 0,
 ) {
-    NotitiaTheme {
+    // Not saved when the app closes yet: it follows the phone again on the next launch.
+    var theme by rememberSaveable { mutableStateOf(ThemeChoice.System) }
+    val darkTheme = theme.isDark()
+    SystemBarsFollow(darkTheme)
+    NotitiaTheme(darkTheme = darkTheme) {
         var tab by rememberSaveable { mutableStateOf(Tab.Meetings) }
         val recordings = speechEngine?.let { viewModel { RecordedMeetings(it, minutesWriter) } }
         // Made-up meetings until US-16 stores real ones.
@@ -68,6 +76,7 @@ fun App(
         val meetings = recordings?.meetings.orEmpty().map { it.listItem() } + samples
         var openedMeetingId by rememberSaveable { mutableStateOf<String?>(null) }
         val openedMeeting = meetings.firstOrNull { it.id == openedMeetingId }
+        var settingsOpen by rememberSaveable { mutableStateOf(false) }
         val search = rememberSaveable(saver = SearchState.saver(answerEngine)) { SearchState(answerEngine) }
         val historyDrawer = rememberDrawerState(DrawerValue.Closed)
         val scope = rememberCoroutineScope()
@@ -116,6 +125,7 @@ fun App(
                             onSelect = {
                                 tab = it
                                 openedMeetingId = null
+                                settingsOpen = false
                             },
                         )
                     },
@@ -134,6 +144,13 @@ fun App(
                             onBack = { openedMeetingId = null },
                             modifier = screenModifier,
                         )
+                    } else if (settingsOpen) {
+                        SettingsRoute(
+                            theme = theme,
+                            onThemeChange = { theme = it },
+                            onBack = { settingsOpen = false },
+                            modifier = screenModifier,
+                        )
                     } else {
                         when (tab) {
                             Tab.Meetings -> MeetingsScreen(
@@ -141,7 +158,7 @@ fun App(
                                 recording = recording != null,
                                 onOpen = { openedMeetingId = it.id },
                                 onRecord = ::startRecording,
-                                onSettings = {},
+                                onSettings = { settingsOpen = true },
                                 modifier = screenModifier,
                             )
                             Tab.Actions -> ActionsScreen(screenModifier)
