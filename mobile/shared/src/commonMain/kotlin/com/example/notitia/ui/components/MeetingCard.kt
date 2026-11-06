@@ -31,6 +31,7 @@ import notitia.shared.generated.resources.Res
 import notitia.shared.generated.resources.actions
 import notitia.shared.generated.resources.check
 import notitia.shared.generated.resources.minutes_ready
+import notitia.shared.generated.resources.minutes_writing
 import notitia.shared.generated.resources.participants
 import notitia.shared.generated.resources.transcription_progress
 import notitia.shared.generated.resources.transcription_remaining
@@ -60,6 +61,10 @@ fun MeetingCard(
         when (val status = meeting.status) {
             is MeetingStatus.Ready -> ReadyBadges(status, Modifier.padding(top = spacing.m))
             is MeetingStatus.Transcribing -> TranscriptionProgress(status, Modifier.padding(top = spacing.m))
+            MeetingStatus.WritingMinutes -> NotitiaBadge(
+                text = stringResource(Res.string.minutes_writing),
+                modifier = Modifier.padding(top = spacing.m),
+            )
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.example.notitia.ui.search
 
 import com.example.notitia.ai.LanguageModel
+import com.example.notitia.ai.withoutReasoning
 import kotlin.math.sqrt
 
 private const val MAX_SOURCES = 4
@@ -14,8 +15,6 @@ private val ANSWER_INSTRUCTIONS = """
     After the answer, add up to $MAX_FOLLOW_UPS short questions in French that the passages could also answer, one per line, each starting with $FOLLOW_UP
 """.trimIndent()
 
-// Some open models write their reasoning in the reply.
-private val reasoning = Regex("""<think>[\s\S]*?</think>""", RegexOption.IGNORE_CASE)
 private val citation = Regex("""\[\s*\d+(?:\s*,\s*\d+)*\s*]""")
 private val number = Regex("""\d+""")
 
@@ -53,7 +52,7 @@ internal fun answerPrompt(question: String, sources: List<Passage>): String = bu
 // An answer that cites nothing is not trusted, which also covers the NOTHING reply. A number the model made up
 // loses its citation; the sources are renumbered in the order they are cited.
 internal fun parseAnswer(reply: String, sources: List<Passage>): Answer? {
-    val lines = reply.replace(reasoning, "").lines().map { it.trim() }.filter { it.isNotEmpty() }
+    val lines = withoutReasoning(reply).lines().map { it.trim() }.filter { it.isNotEmpty() }
     val (followUps, body) = lines.partition { it.startsWith(FOLLOW_UP, ignoreCase = true) }
     val text = body.joinToString(" ")
 

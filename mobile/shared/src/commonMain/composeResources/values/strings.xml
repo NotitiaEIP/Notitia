@@ -48,6 +48,13 @@
     <string name="minutes_decisions">Décisions</string>
     <string name="minutes_actions">Actions</string>
     <string name="minutes_summary">Résumé</string>
+    <string name="minutes_writing">Rédaction du compte rendu…</string>
+    <string name="minutes_failed">Le compte rendu n’a pas pu être rédigé.</string>
+    <string name="minutes_unavailable">Le compte rendu n’est pas encore rédigé sur le téléphone.</string>
+    <string name="minutes_no_decisions">Aucune décision.</string>
+    <string name="minutes_no_actions">Aucune action.</string>
+    <string name="minutes_no_summary">Rien à résumer.</string>
+    <string name="action_no_owner">Sans responsable</string>
     <string name="minutes_share">Partager le compte rendu</string>
     <string name="action_due">avant le %1$s</string>
     <string name="duration_minutes">%1$s&#160;min</string>

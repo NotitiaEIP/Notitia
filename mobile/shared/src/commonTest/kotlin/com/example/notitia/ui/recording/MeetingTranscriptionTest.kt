@@ -3,6 +3,10 @@ package com.example.notitia.ui.recording
 import com.example.notitia.ai.SpeechEngine
 import com.example.notitia.ai.audio
 import com.example.notitia.ui.meetings.MeetingStatus
+import com.example.notitia.ui.minutes.MinutesAction
+import com.example.notitia.ui.minutes.MinutesState
+import com.example.notitia.ui.minutes.MinutesWriter
+import com.example.notitia.ui.minutes.WrittenMinutes
 import com.example.notitia.ui.search.runNow
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.test.Test
@@ -13,6 +17,8 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 
 class MeetingTranscriptionTest {
 
@@ -108,6 +114,80 @@ class MeetingTranscriptionTest {
         assertTrue(before.remaining > Duration.ZERO)
 
         runNow { transcription.transcribeAll() }
+        assertEquals(MeetingStatus.Ready(actions = 0), transcription.status)
+    }
+
+    // Writes one action per transcribed line, or throws failure.
+    private class FakeWriter(private val failure: Exception? = null) : MinutesWriter {
+        val received = mutableListOf<Pair<List<TranscriptLine>, LocalDate>>()
+
+        override suspend fun write(lines: List<TranscriptLine>, day: LocalDate): WrittenMinutes {
+            received += lines to day
+            failure?.let { throw it }
+            val actions = lines.mapNotNull { it.text }.map { MinutesAction(it, owner = null, due = null, done = false) }
+            return WrittenMinutes("Résumé.", emptyList(), actions)
+        }
+    }
+
+    private fun transcribedWith(writer: MinutesWriter, speech: FakeSpeech, pieces: Int): MeetingTranscription {
+        val transcription = MeetingTranscription(startedAt, speech, writer, TimeZone.UTC)
+        repeat(pieces) { transcription.addAudio(audio(3_000) + audio(800, level = 0)) }
+        transcription.finishListening()
+        runNow { transcription.transcribeAll() }
+        return transcription
+    }
+
+    @Test
+    fun theMinutesAreWrittenFromTheTranscriptOnceItIsDone() {
+        val writer = FakeWriter()
+        val transcription = transcribedWith(writer, FakeSpeech("Lucas prépare la démo.", "Adam relit."), pieces = 2)
+        val (lines, day) = writer.received.single()
+        assertEquals(transcription.lines, lines)
+        assertEquals(LocalDate(1970, 1, 1), day)
+        val written = assertIs<MinutesState.Written>(transcription.minutes)
+        assertEquals("Résumé.", written.minutes.summary)
+        assertEquals(MeetingStatus.Ready(actions = 2), transcription.status)
+    }
+
+    @Test
+    fun theStatusSaysTheMinutesAreBeingWrittenOnceTheTextIsDone() {
+        val transcription = MeetingTranscription(startedAt, FakeSpeech("Bonjour."), FakeWriter())
+        transcription.addAudio(audio(3_000) + audio(800, level = 0))
+        assertIs<MeetingStatus.Transcribing>(transcription.status)
+        assertEquals(MinutesState.Writing, transcription.minutes)
+    }
+
+    @Test
+    fun aFailedWriterKeepsTheTranscript() {
+        val writer = FakeWriter(IllegalStateException("HTTP 502"))
+        val transcription = transcribedWith(writer, FakeSpeech("Bonjour."), pieces = 1)
+        assertEquals(MinutesState.Failed, transcription.minutes)
+        assertEquals(listOf("Bonjour."), transcription.lines.map { it.text })
+        assertEquals(MeetingStatus.Ready(actions = 0), transcription.status)
+    }
+
+    @Test
+    fun aCancelledWriterIsNotAFailure() {
+        val writer = FakeWriter(CancellationException("closed"))
+        val transcription = MeetingTranscription(startedAt, FakeSpeech("Bonjour."), writer)
+        transcription.addAudio(audio(3_000) + audio(800, level = 0))
+        transcription.finishListening()
+        assertFailsWith<CancellationException> { runNow { transcription.transcribeAll() } }
+        assertEquals(MinutesState.Writing, transcription.minutes)
+    }
+
+    @Test
+    fun aMeetingWithoutTextGetsEmptyMinutesWithoutCallingTheWriter() {
+        val writer = FakeWriter()
+        val transcription = transcribedWith(writer, FakeSpeech(IllegalStateException("HTTP 502")), pieces = 1)
+        assertTrue(writer.received.isEmpty())
+        assertEquals(MinutesState.Written(WrittenMinutes("", emptyList(), emptyList())), transcription.minutes)
+    }
+
+    @Test
+    fun withoutAWriterTheMinutesAreUnavailable() {
+        val transcription = transcribed(FakeSpeech("Bonjour."), pieces = 1)
+        assertEquals(MinutesState.Unavailable, transcription.minutes)
         assertEquals(MeetingStatus.Ready(actions = 0), transcription.status)
     }
 

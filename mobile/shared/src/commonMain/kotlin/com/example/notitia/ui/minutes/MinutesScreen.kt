@@ -50,6 +50,7 @@ import com.example.notitia.ui.meetings.lengthLabel
 import com.example.notitia.ui.meetings.meetingWhenLabel
 import com.example.notitia.ui.meetings.sampleMeetings
 import com.example.notitia.ui.meetings.shortDateLabel
+import com.example.notitia.ui.recording.MeetingTranscription
 import com.example.notitia.ui.recording.TranscriptLine
 import com.example.notitia.ui.recording.timerText
 import com.example.notitia.ui.theme.NotitiaPreviews
@@ -59,44 +60,75 @@ import kotlin.time.Clock
 import kotlin.time.Instant
 import notitia.shared.generated.resources.Res
 import notitia.shared.generated.resources.action_due
+import notitia.shared.generated.resources.action_no_owner
 import notitia.shared.generated.resources.check_circle_filled
 import notitia.shared.generated.resources.chevron_left
 import notitia.shared.generated.resources.meetings_title
 import notitia.shared.generated.resources.minutes_actions
 import notitia.shared.generated.resources.minutes_back_description
 import notitia.shared.generated.resources.minutes_decisions
+import notitia.shared.generated.resources.minutes_failed
 import notitia.shared.generated.resources.minutes_more
+import notitia.shared.generated.resources.minutes_no_actions
+import notitia.shared.generated.resources.minutes_no_decisions
+import notitia.shared.generated.resources.minutes_no_summary
 import notitia.shared.generated.resources.minutes_share
 import notitia.shared.generated.resources.minutes_summary
 import notitia.shared.generated.resources.minutes_tab_minutes
 import notitia.shared.generated.resources.minutes_tab_transcript
+import notitia.shared.generated.resources.minutes_unavailable
+import notitia.shared.generated.resources.minutes_writing
 import notitia.shared.generated.resources.more_horiz
 import notitia.shared.generated.resources.participants
 import notitia.shared.generated.resources.radio_button_unchecked
 import notitia.shared.generated.resources.transcript_empty
 import notitia.shared.generated.resources.transcript_failed
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
-// Holds what the user changes on the made-up minutes, until they are stored (US-16).
+// Holds what the user ticks on the minutes, until they are stored (US-16).
+// recorded is null for a made-up meeting, which keeps its made-up minutes.
 @Composable
 fun MinutesRoute(
     meeting: MeetingListItem,
+    recorded: MeetingTranscription?,
     backLabel: String,
     backDescription: String,
     onBack: () -> Unit,
-    transcript: List<TranscriptLine>? = null,
     modifier: Modifier = Modifier,
 ) {
     val now = remember { Clock.System.now() }
-    var minutes by remember(meeting.id) { mutableStateOf(sampleMinutes(meeting, now)) }
+    val state = recorded?.minutes
+    var minutes by remember(meeting.id, state) {
+        mutableStateOf(
+            when (state) {
+                null -> sampleMinutes(meeting, now)
+                is MinutesState.Written -> Minutes(
+                    meeting = meeting,
+                    // The gateway does not tell the voices apart (E2).
+                    speakers = emptyList(),
+                    decisions = state.minutes.decisions,
+                    actions = state.minutes.actions,
+                    summary = state.minutes.summary,
+                )
+                else -> Minutes(meeting, emptyList(), emptyList(), emptyList(), summary = "")
+            },
+        )
+    }
     NavigationBackHandler(
         state = rememberNavigationEventState(NavigationEventInfo.None),
         onBackCompleted = onBack,
     )
     MinutesScreen(
         minutes = minutes,
+        notice = when (state) {
+            MinutesState.Writing -> Res.string.minutes_writing
+            MinutesState.Failed -> Res.string.minutes_failed
+            MinutesState.Unavailable -> Res.string.minutes_unavailable
+            null, is MinutesState.Written -> null
+        },
         now = now,
         backLabel = backLabel,
         backDescription = backDescription,
@@ -108,11 +140,12 @@ fun MinutesRoute(
                 },
             )
         },
-        transcript = transcript,
+        transcript = recorded?.lines,
         modifier = modifier,
     )
 }
 
+// notice replaces the minutes when they are not written.
 @Composable
 fun MinutesScreen(
     minutes: Minutes,
@@ -121,6 +154,7 @@ fun MinutesScreen(
     backDescription: String,
     onBack: () -> Unit,
     onToggleAction: (Int) -> Unit,
+    notice: StringResource? = null,
     transcript: List<TranscriptLine>? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -152,12 +186,14 @@ fun MinutesScreen(
                 ),
                 modifier = Modifier.padding(top = spacing.xs),
             )
-            FlowRow(
-                modifier = Modifier.padding(top = spacing.l),
-                horizontalArrangement = Arrangement.spacedBy(spacing.s),
-                verticalArrangement = Arrangement.spacedBy(spacing.s),
-            ) {
-                minutes.speakers.forEachIndexed { index, name -> SpeakerChip(name, index) }
+            if (minutes.speakers.isNotEmpty()) {
+                FlowRow(
+                    modifier = Modifier.padding(top = spacing.l),
+                    horizontalArrangement = Arrangement.spacedBy(spacing.s),
+                    verticalArrangement = Arrangement.spacedBy(spacing.s),
+                ) {
+                    minutes.speakers.forEachIndexed { index, name -> SpeakerChip(name, index) }
+                }
             }
             NotitiaSegmentedControl(
                 options = listOf(
@@ -169,7 +205,11 @@ fun MinutesScreen(
                 modifier = Modifier.padding(top = spacing.xl),
             )
             // The made-up meetings have no transcript: their tab stays empty.
-            if (tab == 0) MinutesContent(minutes, onToggleAction) else transcript?.let { TranscriptContent(it) }
+            when {
+                tab != 0 -> transcript?.let { TranscriptContent(it) }
+                notice != null -> Notice(stringResource(notice), Modifier.padding(top = spacing.xxl))
+                else -> MinutesContent(minutes, onToggleAction)
+            }
         }
         HorizontalDivider(color = NotitiaTheme.colors.divider)
         NotitiaButton(
@@ -227,6 +267,7 @@ private fun MinutesContent(minutes: Minutes, onToggleAction: (Int) -> Unit) {
         count = minutes.decisions.size,
         modifier = Modifier.padding(top = spacing.xxl, bottom = spacing.s),
     )
+    if (minutes.decisions.isEmpty()) Notice(stringResource(Res.string.minutes_no_decisions))
     Column(verticalArrangement = Arrangement.spacedBy(spacing.s)) {
         minutes.decisions.forEach { Bullet(it) }
     }
@@ -236,10 +277,11 @@ private fun MinutesContent(minutes: Minutes, onToggleAction: (Int) -> Unit) {
         count = minutes.actions.size,
         modifier = Modifier.padding(top = spacing.xxl, bottom = spacing.xs),
     )
+    if (minutes.actions.isEmpty()) Notice(stringResource(Res.string.minutes_no_actions))
     minutes.actions.forEachIndexed { index, action ->
         ActionRow(
             action = action,
-            owner = minutes.speakers.getOrElse(action.owner) { "" },
+            speaker = minutes.speakers.indexOf(action.owner),
             onToggle = { onToggleAction(index) },
         )
     }
@@ -248,7 +290,21 @@ private fun MinutesContent(minutes: Minutes, onToggleAction: (Int) -> Unit) {
         title = stringResource(Res.string.minutes_summary),
         modifier = Modifier.padding(top = spacing.xxl, bottom = spacing.s),
     )
-    Text(text = minutes.summary, style = NotitiaTheme.typography.body)
+    if (minutes.summary.isEmpty()) {
+        Notice(stringResource(Res.string.minutes_no_summary))
+    } else {
+        Text(text = minutes.summary, style = NotitiaTheme.typography.body)
+    }
+}
+
+@Composable
+private fun Notice(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        style = NotitiaTheme.typography.body,
+        color = NotitiaTheme.colors.textSecondary,
+        modifier = modifier,
+    )
 }
 
 @Composable
@@ -260,13 +316,7 @@ private fun TranscriptContent(lines: List<TranscriptLine>) {
         modifier = Modifier.padding(top = spacing.xl),
         verticalArrangement = Arrangement.spacedBy(spacing.m),
     ) {
-        if (lines.isEmpty()) {
-            Text(
-                text = stringResource(Res.string.transcript_empty),
-                style = typography.body,
-                color = colors.textSecondary,
-            )
-        }
+        if (lines.isEmpty()) Notice(stringResource(Res.string.transcript_empty))
         lines.forEach { line ->
             Column(
                 modifier = Modifier.semantics(mergeDescendants = true) {},
@@ -302,12 +352,13 @@ private fun Bullet(text: String) {
 
 // The whole row checks the action, so the target is large and screen readers read it in one go:
 // "Préparer la démo, Clément, avant le 8 nov., case à cocher, non cochée".
+// speaker is -1 when the owner is not one of the speakers, who then has no colour.
 @Composable
-private fun ActionRow(action: MinutesAction, owner: String, onToggle: () -> Unit) {
+private fun ActionRow(action: MinutesAction, speaker: Int, onToggle: () -> Unit) {
     val colors = NotitiaTheme.colors
     val spacing = NotitiaTheme.spacing
     val details = buildList {
-        add(owner)
+        add(action.owner ?: stringResource(Res.string.action_no_owner))
         action.due?.let { add(stringResource(Res.string.action_due, shortDateLabel(it))) }
     }
     Row(
@@ -338,7 +389,7 @@ private fun ActionRow(action: MinutesAction, owner: String, onToggle: () -> Unit
                 horizontalArrangement = Arrangement.spacedBy(spacing.s),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                SpeakerDot(action.owner)
+                if (speaker >= 0) SpeakerDot(speaker)
                 DetailsLine(details, style = NotitiaTheme.typography.caption)
             }
         }

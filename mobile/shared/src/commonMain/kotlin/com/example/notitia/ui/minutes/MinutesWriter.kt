@@ -1,0 +1,102 @@
+package com.example.notitia.ui.minutes
+
+import com.example.notitia.ai.LanguageModel
+import com.example.notitia.ai.withoutReasoning
+import com.example.notitia.ui.recording.TranscriptLine
+import com.example.notitia.ui.recording.timerText
+import kotlinx.datetime.LocalDate
+
+private const val SUMMARY = "SUMMARY:"
+private const val DECISION = "DECISION:"
+private const val ACTION = "ACTION:"
+private const val NONE = "-"
+
+// One line per item rather than JSON: the open models break JSON more often than lines.
+private val MINUTES_INSTRUCTIONS = """
+    You write the minutes of a meeting, in French, from its transcript. Each transcript line starts with its time.
+    Keep only what was actually said: never make up a decision, a task, a name or a date.
+    The speakers are not identified: name the person in charge of a task only if the transcript names them.
+    Reply only with these lines, and nothing else:
+    $SUMMARY two or three sentences on what the meeting was about.
+    $DECISION one line per decision taken. If nothing was decided, write exactly: $DECISION $NONE
+    $ACTION task | first name of the person in charge, or $NONE | due date as YYYY-MM-DD, or $NONE
+    One $ACTION line per task someone agreed to do. If there is none, write exactly: $ACTION $NONE
+""".trimIndent()
+
+data class WrittenMinutes(
+    val summary: String,
+    val decisions: List<String>,
+    val actions: List<MinutesAction>,
+)
+
+interface MinutesWriter {
+    // day is when the meeting took place, so "vendredi" becomes a date.
+    suspend fun write(lines: List<TranscriptLine>, day: LocalDate): WrittenMinutes
+}
+
+sealed interface MinutesState {
+    data object Writing : MinutesState
+    data class Written(val minutes: WrittenMinutes) : MinutesState
+    data object Failed : MinutesState
+    // No writer in this build: release builds have no gateway.
+    data object Unavailable : MinutesState
+}
+
+class LanguageModelMinutesWriter(private val model: LanguageModel) : MinutesWriter {
+    override suspend fun write(lines: List<TranscriptLine>, day: LocalDate): WrittenMinutes =
+        parseMinutes(model.complete(MINUTES_INSTRUCTIONS, minutesPrompt(lines, day)))
+}
+
+internal fun minutesPrompt(lines: List<TranscriptLine>, day: LocalDate): String = buildString {
+    appendLine("Meeting of $day (${day.dayOfWeek.name.lowercase()}).")
+    appendLine()
+    lines.forEach { line -> line.text?.let { appendLine("[${timerText(line.at)}] $it") } }
+}
+
+// What the model writes for an empty list despite the instructions: "Aucune décision n’a été prise."
+// Only the whole sentence counts, so "Aucune action marketing avant janvier" stays a decision.
+private val nothingSaid = Regex(
+    """^(-|none|n/?a|néant|rien|aucune?|pas de|pas d['’]\s*\p{L}+)\.?$|""" +
+        """^(aucune?|pas de|pas d['’])\s*(décision|action|tâche)s?(\s+\p{L}+)?""" +
+        """(\s+(n['’](a|ont|est|sont)|ne\s|prises?|retenues?|identifiées?|définies?|attribuées?|à signaler)\b.*)?\.?$""",
+    RegexOption.IGNORE_CASE,
+)
+
+// Lines the model adds around the expected ones are dropped, and so is a date it wrote in another format.
+internal fun parseMinutes(reply: String): WrittenMinutes {
+    val summary = mutableListOf<String>()
+    val decisions = mutableListOf<String>()
+    val actions = mutableListOf<MinutesAction>()
+    withoutReasoning(reply).lines()
+        .map { it.trim().trimStart('-', '*', '•', ' ') }
+        .forEach { line ->
+            when {
+                line.startsWith(SUMMARY, ignoreCase = true) -> summary += line.substring(SUMMARY.length).trim()
+                line.startsWith(DECISION, ignoreCase = true) -> decisions += line.substring(DECISION.length).trim()
+                line.startsWith(ACTION, ignoreCase = true) -> parseAction(line.substring(ACTION.length))?.let { actions += it }
+            }
+        }
+    return WrittenMinutes(
+        summary = summary.filter { it.isNotEmpty() && it != NONE }.joinToString(" "),
+        decisions = decisions.filter { it.isNotEmpty() && !nothingSaid.matches(it) },
+        actions = actions.filterNot { nothingSaid.matches(it.text) },
+    )
+}
+
+private fun parseAction(line: String): MinutesAction? {
+    val parts = line.split('|').map { it.trim() }
+    val text = parts[0].takeIf { it.isNotEmpty() } ?: return null
+    return MinutesAction(
+        text = text,
+        owner = parts.getOrNull(1)?.takeUnless { it.isEmpty() || it == NONE },
+        due = parts.getOrNull(2)?.let(::parseDate),
+        done = false,
+    )
+}
+
+private fun parseDate(text: String): LocalDate? =
+    try {
+        LocalDate.parse(text)
+    } catch (_: IllegalArgumentException) {
+        null
+    }

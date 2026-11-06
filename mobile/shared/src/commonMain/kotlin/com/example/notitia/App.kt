@@ -26,6 +26,7 @@ import com.example.notitia.ui.components.NotitiaTabBar
 import com.example.notitia.ui.meetings.MeetingsScreen
 import com.example.notitia.ui.meetings.sampleMeetings
 import com.example.notitia.ui.minutes.MinutesRoute
+import com.example.notitia.ui.minutes.MinutesWriter
 import com.example.notitia.ui.navigation.Tab
 import com.example.notitia.ui.recording.FakeRecording
 import com.example.notitia.ui.recording.PlayerPosition
@@ -53,10 +54,14 @@ import org.jetbrains.compose.resources.stringResource
 // No transition between screens: the content switches at once, only the tab bar animates.
 @Composable
 @Preview
-fun App(answerEngine: AnswerEngine = SampleAnswerEngine, speechEngine: SpeechEngine? = null) {
+fun App(
+    answerEngine: AnswerEngine = SampleAnswerEngine,
+    speechEngine: SpeechEngine? = null,
+    minutesWriter: MinutesWriter? = null,
+) {
     NotitiaTheme {
         var tab by rememberSaveable { mutableStateOf(Tab.Meetings) }
-        val recordings = speechEngine?.let { viewModel { RecordedMeetings(it) } }
+        val recordings = speechEngine?.let { viewModel { RecordedMeetings(it, minutesWriter) } }
         // Made-up meetings until US-16 stores real ones.
         val samples = remember { sampleMeetings(Clock.System.now()) }
         val meetings = recordings?.meetings.orEmpty().map { it.listItem() } + samples
@@ -111,12 +116,12 @@ fun App(answerEngine: AnswerEngine = SampleAnswerEngine, speechEngine: SpeechEng
                         val fromSearch = tab == Tab.Search
                         MinutesRoute(
                             meeting = openedMeeting,
+                            recorded = recordings?.meetings?.firstOrNull { it.id == openedMeetingId },
                             backLabel = stringResource(if (fromSearch) Res.string.search_title else Res.string.meetings_title),
                             backDescription = stringResource(
                                 if (fromSearch) Res.string.search_back_description else Res.string.minutes_back_description,
                             ),
                             onBack = { openedMeetingId = null },
-                            transcript = recordings?.meetings?.firstOrNull { it.id == openedMeetingId }?.lines,
                             modifier = screenModifier,
                         )
                     } else {
