@@ -1,7 +1,6 @@
 package com.example.notitia.ui.minutes
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,7 +30,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextDecoration
@@ -39,6 +37,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import com.example.notitia.ui.components.BackButton
 import com.example.notitia.ui.components.DetailsLine
 import com.example.notitia.ui.components.NotitiaButton
 import com.example.notitia.ui.components.NotitiaSegmentedControl
@@ -62,7 +61,6 @@ import notitia.shared.generated.resources.Res
 import notitia.shared.generated.resources.action_due
 import notitia.shared.generated.resources.action_no_owner
 import notitia.shared.generated.resources.check_circle_filled
-import notitia.shared.generated.resources.chevron_left
 import notitia.shared.generated.resources.meetings_title
 import notitia.shared.generated.resources.minutes_actions
 import notitia.shared.generated.resources.minutes_back_description
@@ -228,25 +226,7 @@ private fun TopBar(backLabel: String, backDescription: String, onBack: () -> Uni
         modifier = Modifier.fillMaxWidth().padding(horizontal = NotitiaTheme.spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier
-                .heightIn(min = NotitiaTheme.sizes.touchTarget)
-                .clickable(role = Role.Button, onClick = onBack)
-                .semantics(mergeDescendants = true) { contentDescription = backDescription }
-                .padding(end = NotitiaTheme.spacing.s),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                painter = painterResource(Res.drawable.chevron_left),
-                contentDescription = null,
-                tint = colors.accentContent,
-            )
-            Text(
-                text = backLabel,
-                style = NotitiaTheme.typography.label,
-                color = colors.accentContent,
-            )
-        }
+        BackButton(backLabel, backDescription, onBack)
         Box(Modifier.weight(1f))
         // The menu (rename, delete) comes with US-16.
         IconButton(onClick = {}, modifier = Modifier.size(NotitiaTheme.sizes.touchTarget)) {

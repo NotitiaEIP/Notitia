@@ -40,6 +40,10 @@ data class NotitiaColors(
 ) {
     // index is the order in which the speaker first talked.
     fun speaker(index: Int): Color = speakers[index.mod(speakers.size)]
+
+    companion object {
+        const val DISABLED_ALPHA = 0.38f
+    }
 }
 
 private val Violet = Color(0xFF882DCD)
