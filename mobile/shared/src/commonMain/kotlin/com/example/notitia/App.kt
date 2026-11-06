@@ -58,6 +58,7 @@ fun App(
     answerEngine: AnswerEngine = SampleAnswerEngine,
     speechEngine: SpeechEngine? = null,
     minutesWriter: MinutesWriter? = null,
+    recordRequests: Int = 0,
 ) {
     NotitiaTheme {
         var tab by rememberSaveable { mutableStateOf(Tab.Meetings) }
@@ -78,6 +79,15 @@ fun App(
         var recording by rememberSaveable(stateSaver = FakeRecording.Saver) { mutableStateOf(null) }
         recording?.let { current -> LaunchedEffect(current) { current.run() } }
         LaunchedEffect(recording?.paused) { recordings?.setPaused(recording?.paused == true) }
+        fun startRecording() {
+            val started = FakeRecording(startedAt = Clock.System.now())
+            recording = started
+            recordings?.start(started.startedAt)
+        }
+        // Each touch on the home screen widget starts a recording, unless one already runs.
+        LaunchedEffect(recordRequests) {
+            if (recordRequests > 0 && recording == null) startRecording()
+        }
         // A new recording gets a new sheet, which rises from the mini bar to the full screen.
         val player = rememberSaveable(recording?.startedAt, saver = RecordingPlayerState.Saver) {
             RecordingPlayerState(PlayerPosition.Collapsed, openOnStart = true)
@@ -130,11 +140,7 @@ fun App(
                                 meetings = meetings,
                                 recording = recording != null,
                                 onOpen = { openedMeetingId = it.id },
-                                onRecord = {
-                                    val started = FakeRecording(startedAt = Clock.System.now())
-                                    recording = started
-                                    recordings?.start(started.startedAt)
-                                },
+                                onRecord = ::startRecording,
                                 onSettings = {},
                                 modifier = screenModifier,
                             )

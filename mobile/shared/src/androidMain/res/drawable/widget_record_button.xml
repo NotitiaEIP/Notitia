@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The dark part of the logo gradient, as on the record button of the app. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <gradient
+        android:angle="315"
+        android:centerColor="#8E2BB0"
+        android:endColor="#C21A7A"
+        android:startColor="#4B3BC6"
+        android:type="linear" />
+</shape>

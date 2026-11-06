@@ -1,0 +1,8 @@
+<resources>
+    <!-- Android resources, not composeResources: a home screen widget cannot read Compose resources. -->
+    <string name="widget_name">Enregistrer une réunion</string>
+    <string name="widget_description">Lancez l’enregistrement d’une réunion depuis l’écran d’accueil.</string>
+    <string name="widget_record">Enregistrer</string>
+    <string name="widget_record_description">Enregistrer une réunion</string>
+    <string name="widget_on_device">Sur l’appareil</string>
+</resources>
