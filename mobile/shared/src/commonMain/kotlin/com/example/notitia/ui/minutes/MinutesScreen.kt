@@ -92,7 +92,7 @@ fun MinutesRoute(
     val now = remember { Clock.System.now() }
     val state = recorded?.minutes
     val written = remember(meeting, state) { meetingMinutes(meeting, state, now) }
-    val minutes = actions.ticked(written)
+    val minutes = actions.applied(written)
     NavigationBackHandler(
         state = rememberNavigationEventState(NavigationEventInfo.None),
         onBackCompleted = onBack,
