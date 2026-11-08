@@ -19,7 +19,7 @@ private val MINUTES_INSTRUCTIONS = """
     Reply only with these lines, and nothing else:
     $SUMMARY two or three sentences on what the meeting was about.
     $DECISION one line per decision taken. If nothing was decided, write exactly: $DECISION $NONE
-    $ACTION task | first name of the person in charge, or $NONE | due date as YYYY-MM-DD, or $NONE
+    $ACTION task | first name of the person in charge, or $NONE | due date as YYYY-MM-DD, or $NONE | time of the transcript line where it was agreed, as written at its start, or $NONE
     One $ACTION line per task someone agreed to do. If there is none, write exactly: $ACTION $NONE
 """.trimIndent()
 
@@ -44,7 +44,7 @@ sealed interface MinutesState {
 
 class LanguageModelMinutesWriter(private val model: LanguageModel) : MinutesWriter {
     override suspend fun write(lines: List<TranscriptLine>, day: LocalDate): WrittenMinutes =
-        parseMinutes(model.complete(MINUTES_INSTRUCTIONS, minutesPrompt(lines, day)))
+        parseMinutes(model.complete(MINUTES_INSTRUCTIONS, minutesPrompt(lines, day)), lines)
 }
 
 internal fun minutesPrompt(lines: List<TranscriptLine>, day: LocalDate): String = buildString {
@@ -63,7 +63,8 @@ private val nothingSaid = Regex(
 )
 
 // Lines the model adds around the expected ones are dropped, and so is a date it wrote in another format.
-internal fun parseMinutes(reply: String): WrittenMinutes {
+// lines is the transcript the model read: an action's time points to one of them.
+internal fun parseMinutes(reply: String, lines: List<TranscriptLine> = emptyList()): WrittenMinutes {
     val summary = mutableListOf<String>()
     val decisions = mutableListOf<String>()
     val actions = mutableListOf<MinutesAction>()
@@ -73,7 +74,7 @@ internal fun parseMinutes(reply: String): WrittenMinutes {
             when {
                 line.startsWith(SUMMARY, ignoreCase = true) -> summary += line.substring(SUMMARY.length).trim()
                 line.startsWith(DECISION, ignoreCase = true) -> decisions += line.substring(DECISION.length).trim()
-                line.startsWith(ACTION, ignoreCase = true) -> parseAction(line.substring(ACTION.length))?.let { actions += it }
+                line.startsWith(ACTION, ignoreCase = true) -> parseAction(line.substring(ACTION.length), lines)?.let { actions += it }
             }
         }
     return WrittenMinutes(
@@ -83,7 +84,7 @@ internal fun parseMinutes(reply: String): WrittenMinutes {
     )
 }
 
-private fun parseAction(line: String): MinutesAction? {
+private fun parseAction(line: String, lines: List<TranscriptLine>): MinutesAction? {
     val parts = line.split('|').map { it.trim() }
     val text = parts[0].takeIf { it.isNotEmpty() } ?: return null
     return MinutesAction(
@@ -91,7 +92,17 @@ private fun parseAction(line: String): MinutesAction? {
         owner = parts.getOrNull(1)?.takeUnless { it.isEmpty() || it == NONE },
         due = parts.getOrNull(2)?.let(::parseDate),
         done = false,
+        source = parts.getOrNull(3)?.let { sourceAt(it, lines) },
     )
+}
+
+// The quote is copied from the transcript, so the model can point to a sentence but never make one up.
+// A time that matches no line gives no source.
+private fun sourceAt(time: String, lines: List<TranscriptLine>): ActionSource? {
+    val wanted = time.trim('[', ']', ' ')
+    return lines.firstNotNullOfOrNull { line ->
+        line.text?.takeIf { timerText(line.at) == wanted }?.let { ActionSource(quote = it, speaker = null, at = line.at) }
+    }
 }
 
 private fun parseDate(text: String): LocalDate? =

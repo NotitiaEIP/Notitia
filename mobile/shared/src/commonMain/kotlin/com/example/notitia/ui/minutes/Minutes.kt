@@ -1,6 +1,7 @@
 package com.example.notitia.ui.minutes
 
 import com.example.notitia.ui.meetings.MeetingListItem
+import kotlin.time.Duration
 import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
 
@@ -20,7 +21,12 @@ data class MinutesAction(
     val owner: String?,
     val due: LocalDate?,
     val done: Boolean,
+    // null when the minutes cannot point to the sentence: the sheet then shows only the meeting.
+    val source: ActionSource? = null,
 )
+
+// The sentence as transcribed, never as the model rewrote it. speaker is null until the voices are told apart (E2).
+data class ActionSource(val quote: String, val speaker: String?, val at: Duration)
 
 // The owner has a colour only when they are one of the meeting's speakers.
 fun Minutes.speakerOf(action: MinutesAction): Int? = speakers.indexOf(action.owner).takeIf { it >= 0 }

@@ -65,6 +65,35 @@ class MinutesWriterTest {
     }
 
     @Test
+    fun anActionTakesItsSentenceFromTheTranscriptNotFromTheModel() {
+        val lines = listOf(
+            TranscriptLine(5.seconds, "Bonjour à tous."),
+            TranscriptLine(2.minutes + 3.seconds, "Lucas, tu prépares la démo pour vendredi ?"),
+        )
+        val action = parseMinutes("ACTION: Préparer la démo | Lucas | 2026-11-13 | [02:03]", lines).actions.single()
+        assertEquals(
+            ActionSource("Lucas, tu prépares la démo pour vendredi ?", speaker = null, at = 2.minutes + 3.seconds),
+            action.source,
+        )
+    }
+
+    @Test
+    fun aTimeThatPointsToNoSentenceGivesNoSource() {
+        val lines = listOf(TranscriptLine(5.seconds, "Bonjour à tous."), TranscriptLine(30.seconds, text = null))
+        val actions = parseMinutes(
+            """
+            ACTION: Réserver la salle | - | - | 04:00
+            ACTION: Relire la PR | Adam | - | 00:30
+            ACTION: Envoyer le devis | Adam | - | -
+            ACTION: Choisir la police | Clément | -
+            """.trimIndent(),
+            lines,
+        ).actions
+        assertEquals(listOf(null, null, null, null), actions.map { it.source })
+        assertEquals("Choisir la police", actions.last().text)
+    }
+
+    @Test
     fun aDateInAnotherFormatIsDroppedButNotItsAction() {
         val action = parseMinutes("ACTION: Envoyer le devis | Adam | vendredi prochain").actions.single()
         assertEquals("Adam", action.owner)
@@ -128,11 +157,12 @@ class MinutesWriterTest {
 
     @Test
     fun theWriterSendsTheTranscriptAndReadsTheReply() {
-        val model = FakeModel("SUMMARY: Point rapide.\nACTION: Relire la PR | Clément | -")
+        val model = FakeModel("SUMMARY: Point rapide.\nACTION: Relire la PR | Clément | - | 00:00")
         val lines = listOf(TranscriptLine(0.seconds, "Clément relit la PR."))
         val minutes = runNow { LanguageModelMinutesWriter(model).write(lines, day) }
         assertTrue("Clément relit la PR." in model.prompts.single())
         assertEquals("Point rapide.", minutes.summary)
         assertEquals("Clément", minutes.actions.single().owner)
+        assertEquals("Clément relit la PR.", minutes.actions.single().source?.quote)
     }
 }
