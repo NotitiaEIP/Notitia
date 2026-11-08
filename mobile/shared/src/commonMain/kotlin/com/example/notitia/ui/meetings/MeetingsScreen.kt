@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.example.notitia.ui.components.MeetingCard
 import com.example.notitia.ui.components.RecordButton
+import com.example.notitia.ui.components.EmptyState
 import com.example.notitia.ui.components.GroupTitle
 import com.example.notitia.ui.components.HeaderAction
 import com.example.notitia.ui.components.ScreenHeader
@@ -98,19 +99,12 @@ private fun OnThisPhone(count: Int, modifier: Modifier = Modifier) {
 
 @Composable
 private fun EmptyMeetings(onSettings: () -> Unit) {
-    Column(
-        modifier = Modifier.padding(horizontal = NotitiaTheme.spacing.l),
-        verticalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.s),
-    ) {
-        Box(Modifier.padding(bottom = NotitiaTheme.spacing.xxxl)) { Header(onSettings) }
-        Text(
-            text = stringResource(Res.string.meetings_empty),
-            style = NotitiaTheme.typography.body,
-        )
-        Text(
-            text = stringResource(Res.string.meetings_on_device),
-            style = NotitiaTheme.typography.callout,
-            color = NotitiaTheme.colors.textSecondary,
+    Column(Modifier.padding(horizontal = NotitiaTheme.spacing.l)) {
+        Header(onSettings)
+        EmptyState(
+            message = stringResource(Res.string.meetings_empty),
+            hint = stringResource(Res.string.meetings_on_device),
+            modifier = Modifier.padding(top = NotitiaTheme.spacing.xxxl),
         )
     }
 }

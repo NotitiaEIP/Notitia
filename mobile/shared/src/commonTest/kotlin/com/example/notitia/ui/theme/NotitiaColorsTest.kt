@@ -20,6 +20,7 @@ class NotitiaColorsTest {
             assertContrast(c.accentContent, c.accentSoft.compositeOver(c.background), 4.5f)
             assertContrast(c.onAccent, c.accent, 4.5f)
             assertContrast(c.onRed, c.red, 4.5f)
+            assertContrast(c.onGreen, c.green, 4.5f)
             assertContrast(c.outline, c.background, 3f)
             c.buttonGradient.forEach { assertContrast(Color.White, it, 4.5f) }
         }

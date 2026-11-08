@@ -31,6 +31,8 @@ data class NotitiaColors(
     val onRed: Color,
     val redSoft: Color,
     val green: Color,
+    // The check and the words on green: the dark theme's green is too light for white.
+    val onGreen: Color,
     val greenSoft: Color,
     val amber: Color,
     val speakers: List<Color>,
@@ -76,6 +78,7 @@ internal val DarkColors = NotitiaColors(
     onRed = Color(0xFF0B0A0F),
     redSoft = Color(0xFFFF5A52).copy(alpha = 0.16f),
     green = Color(0xFF3DD68C),
+    onGreen = Color(0xFF0B0A0F),
     greenSoft = Color(0xFF3DD68C).copy(alpha = 0.14f),
     amber = Color(0xFFFFB224),
     speakers = listOf(
@@ -110,6 +113,7 @@ internal val LightColors = NotitiaColors(
     onRed = Color.White,
     redSoft = Color(0xFFBF2D2A).copy(alpha = 0.10f),
     green = Color(0xFF15724A),
+    onGreen = Color.White,
     greenSoft = Color(0xFF15724A).copy(alpha = 0.08f),
     amber = Color(0xFFA35200),
     speakers = listOf(

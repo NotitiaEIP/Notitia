@@ -22,7 +22,7 @@ Quand une règle chiffrée ne couvre pas un cas, on revient à ces six phrases.
 1. **Le contenu d'abord.** L'interface s'efface derrière le compte rendu : un fond calme, du texte bien composé, un accent quand il faut agir. Un écran de compte rendu, c'est 90 % de texte.
 2. **Un geste pour enregistrer.** Le bouton Enregistrer est à un appui depuis l'accueil, et hors de l'app : widget, tuile Android, écran verrouillé.
 3. **Toujours savoir où l'on est.** Trois onglets, un titre par écran, le geste retour du système toujours actif, trois niveaux au plus.
-4. **La couleur a un sens.** Violet : agir ou sélectionné. Rouge : enregistrement ou suppression. Une couleur par locuteur. Si on retire le violet d'un écran, on doit perdre une information.
+4. **La couleur a un sens.** Violet : agir ou sélectionné. Rouge : enregistrement, suppression ou retard. Une couleur par locuteur. Si on retire le violet d'un écran, on doit perdre une information.
 5. **Accessible par défaut.** Un écran qui ne marche pas avec TalkBack ou VoiceOver n'est pas fini.
 6. **La confidentialité se voit.** On montre que tout reste sur le téléphone (le badge « Sur l'appareil » pendant l'enregistrement), et on demande le consentement avant chaque enregistrement, comme sur Mac.
 
@@ -66,11 +66,11 @@ L'app suit le réglage clair ou sombre du téléphone. Les deux thèmes sont des
 | `focus` | Contour d'un champ actif | `#B66EED` | `#882DCD` | |
 | `dim` | Voile sous un panneau ou une feuille | noir à 50 % | noir à 25 % | |
 | `popup` | Menus au-dessus d'une surface | `#2B2A35` | blanc, avec ombre | |
-| `red` | Enregistrement, suppression | `#FF5A52` | `#BF2D2A` | 6,4 / 5,2 |
+| `red` | Enregistrement, suppression, retard | `#FF5A52` | `#BF2D2A` | 6,4 / 5,2 |
 | `green` | Succès, action faite | `#3DD68C` | `#15724A` | 10,5 / 5,3 |
 | `amber` | Attention (batterie, espace disque) | `#FFB224` | `#A35200` | 10,9 / 5,0 |
 
-Les contrastes sont mesurés contre le fond du thème, et les textes gardent 4,5:1 au moins sur les cartes. `redSoft` et `greenSoft` (rouge à 16 % et 10 %, vert à 14 % et 8 %) servent de fond aux badges de ces couleurs.
+Les contrastes sont mesurés contre le fond du thème, et les textes gardent 4,5:1 au moins sur les cartes. `redSoft` et `greenSoft` (rouge à 16 % et 10 %, vert à 14 % et 8 %) servent de fond aux badges de ces couleurs. `onGreen` (blanc en clair, `#0B0A0F` en sombre) pour la coche et le texte posés sur le vert.
 
 Le violet vient du logo (`#7929B6` au milieu du N), éclairci pour rester lisible. Sa teinte, plus rose que le violet habituel des apps d'IA (`#7C3AED`), le rend reconnaissable.
 
@@ -187,6 +187,7 @@ Chaque composant n'existe qu'une fois dans le code (`NotitiaButton`, `RecordButt
 ### Cartes, badges, champs
 
 - **Carte** : fond `surface`, coins de 16, marge intérieure de 16, ombre de 1 dp en clair. Toute la carte se touche.
+- **Carte d'action** : une carte par action, comme les autres. Le rond à gauche, centré sur la première ligne, est un bouton à lui seul (cible de 56 × 48) ; le reste de la carte ouvre la réunion. Cocher : le rond se remplit de vert depuis 40 % de sa taille, la coche se trace, une ligne barre le texte de gauche à droite ; la carte reste 1,1 s à sa place (un nouveau toucher annule), puis rejoint « Terminées », repliée en bas. Glisser la carte vers la droite la termine aussitôt, avec le glissement de Material sur les deux systèmes, comme Google Tasks et Gmail : la carte suit le doigt sans retard, un fond vert apparaît dessous, avec la coche centrée dans la bande découverte, qui grandit à 40 % de la largeur, avec une vibration légère ; un lancer rapide suffit ; la carte part hors de l'écran et la liste se resserre. Dans les deux cas, quand la carte s'en va, un message bref « Action terminée » propose « Annuler ». Une action en retard le dit en rouge, en mots (« 2 j de retard »).
 - **Badge** : 24 de haut, coins de 8, texte 13 en 600, icône de 16. Il dit l'état en mots, pas seulement en couleur (« Compte rendu prêt », « Transcription 64 % »).
 - **Champ** : 52 de haut, coins de 12. Le libellé est au-dessus, jamais remplacé par le texte d'exemple. Actif : contour `focus` de 2 dp. Une erreur dit ce qui ne va pas et comment corriger, avec une icône.
 - **Barre de recherche** : l'exception au champ, une seule, en bas de l'écran Recherche. 52 de haut au moins, coins de 26, qui restent les mêmes quand elle grandit jusqu'à 4 lignes. Pas de libellé au-dessus : son texte d'exemple (« Demander à Notitia ») dit ce qu'elle fait et sert de libellé aux lecteurs d'écran. Active : contour `focus` de 2 dp. Le clavier la fait monter ; la barre d'onglets reste dessous.
@@ -253,7 +254,7 @@ La sortie douce s'écrit `CubicBezierEasing(0.23f, 1f, 0.32f, 1f)`. Dans le code
 - Une réponse arrive morceau par morceau, 60 ms d'écart, 8 dp de montée : elle décélère comme Material sur Android et suit le ressort d'iOS sur iPhone. Dans le code, `motion.swap()` et `motion.arrive()` choisissent selon le système. Elle ne se déroule qu'à son arrivée, une fois : quand on revient sur l'écran, elle est déjà là.
 - Ce qui suit le doigt utilise un ressort, interruptible, sans rebond. Un léger rebond seulement après un geste lancé (une feuille jetée vers le bas).
 - « Réduire les animations » : les mouvements deviennent des fondus. Compose le respecte tout seul sur Android ; sur iPhone, il faut lire le réglage d'iOS (à faire avec la première animation qui bouge).
-- Vibration légère au début et à la fin d'un enregistrement, « succès » quand le compte rendu est prêt. Jamais à chaque appui.
+- Vibration légère au début et à la fin d'un enregistrement, et au passage du seuil d'un glissement ; « succès » quand le compte rendu est prêt. Jamais à chaque appui.
 
 ## Accessibilité
 

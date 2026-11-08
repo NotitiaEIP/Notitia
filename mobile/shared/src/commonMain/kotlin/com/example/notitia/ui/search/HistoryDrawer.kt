@@ -28,10 +28,8 @@ import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -69,6 +67,7 @@ import androidx.compose.ui.unit.min
 import com.example.notitia.ui.components.ContextMenu
 import com.example.notitia.ui.components.ContextMenuItem
 import com.example.notitia.ui.components.GroupTitle
+import com.example.notitia.ui.components.offerUndo
 import com.example.notitia.ui.meetings.label
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
@@ -146,11 +145,7 @@ fun SearchHistoryDrawer(drawerState: DrawerState, state: SearchState) {
     }
 
     fun offerUndo(message: String, onUndo: () -> Unit) {
-        scope.launch {
-            snackbars.currentSnackbarData?.dismiss()
-            val result = snackbars.showSnackbar(message, actionLabel = undo, duration = SnackbarDuration.Short)
-            if (result == SnackbarResult.ActionPerformed) onUndo()
-        }
+        scope.launch { if (snackbars.offerUndo(message, undo)) onUndo() }
     }
 
     ModalDrawerSheet(

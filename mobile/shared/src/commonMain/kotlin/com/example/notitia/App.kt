@@ -2,9 +2,13 @@ package com.example.notitia
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -14,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.tooling.preview.Preview
@@ -22,11 +27,14 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.notitia.ai.SpeechEngine
 import com.example.notitia.ui.actions.ActionsScreen
+import com.example.notitia.ui.actions.ActionsState
 import com.example.notitia.ui.components.NotitiaTabBar
+import com.example.notitia.ui.components.offerUndo
 import com.example.notitia.ui.meetings.MeetingsScreen
 import com.example.notitia.ui.meetings.sampleMeetings
 import com.example.notitia.ui.minutes.MinutesRoute
 import com.example.notitia.ui.minutes.MinutesWriter
+import com.example.notitia.ui.minutes.meetingMinutes
 import com.example.notitia.ui.navigation.Tab
 import com.example.notitia.ui.recording.FakeRecording
 import com.example.notitia.ui.recording.PlayerPosition
@@ -49,10 +57,10 @@ import com.example.notitia.ui.theme.reducedMotion
 import kotlin.time.Clock
 import kotlinx.coroutines.launch
 import notitia.shared.generated.resources.Res
-import notitia.shared.generated.resources.meetings_title
-import notitia.shared.generated.resources.minutes_back_description
-import notitia.shared.generated.resources.search_back_description
-import notitia.shared.generated.resources.search_title
+import notitia.shared.generated.resources.actions_done_message
+import notitia.shared.generated.resources.undo
+import org.jetbrains.compose.resources.getPluralString
+import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 
 // No transition between screens: the content switches at once, only the tab bar animates.
@@ -71,9 +79,13 @@ fun App(
     NotitiaTheme(darkTheme = darkTheme) {
         var tab by rememberSaveable { mutableStateOf(Tab.Meetings) }
         val recordings = speechEngine?.let { viewModel { RecordedMeetings(it, minutesWriter) } }
+        val now = remember { Clock.System.now() }
         // Made-up meetings until US-16 stores real ones.
-        val samples = remember { sampleMeetings(Clock.System.now()) }
+        val samples = remember { sampleMeetings(now) }
         val meetings = recordings?.meetings.orEmpty().map { it.listItem() } + samples
+        fun recorded(id: String?) = recordings?.meetings?.firstOrNull { it.id == id }
+        val actions = rememberSaveable(saver = ActionsState.Saver) { ActionsState() }
+        val snackbars = remember { SnackbarHostState() }
         var openedMeetingId by rememberSaveable { mutableStateOf<String?>(null) }
         val openedMeeting = meetings.firstOrNull { it.id == openedMeetingId }
         var settingsOpen by rememberSaveable { mutableStateOf(false) }
@@ -132,15 +144,12 @@ fun App(
                 ) { padding ->
                     val screenModifier = Modifier.padding(padding).consumeWindowInsets(padding)
                     if (openedMeeting != null) {
-                        // A meeting opens over the tab it came from, and its back button names that tab.
-                        val fromSearch = tab == Tab.Search
                         MinutesRoute(
                             meeting = openedMeeting,
-                            recorded = recordings?.meetings?.firstOrNull { it.id == openedMeetingId },
-                            backLabel = stringResource(if (fromSearch) Res.string.search_title else Res.string.meetings_title),
-                            backDescription = stringResource(
-                                if (fromSearch) Res.string.search_back_description else Res.string.minutes_back_description,
-                            ),
+                            recorded = recorded(openedMeetingId),
+                            actions = actions,
+                            backLabel = stringResource(tab.title),
+                            backDescription = stringResource(tab.backDescription),
                             onBack = { openedMeetingId = null },
                             modifier = screenModifier,
                         )
@@ -161,7 +170,20 @@ fun App(
                                 onSettings = { settingsOpen = true },
                                 modifier = screenModifier,
                             )
-                            Tab.Actions -> ActionsScreen(screenModifier)
+                            Tab.Actions -> ActionsScreen(
+                                actions = actions.tracked(meetings.map { meetingMinutes(it, recorded(it.id)?.minutes, now) }),
+                                onSetDone = actions::setDone,
+                                onCompleted = { ids ->
+                                    scope.launch {
+                                        val message = getPluralString(Res.plurals.actions_done_message, ids.size, ids.size)
+                                        if (snackbars.offerUndo(message, getString(Res.string.undo))) {
+                                            ids.forEach { actions.setDone(it, false) }
+                                        }
+                                    }
+                                },
+                                onOpenMeeting = { openedMeetingId = it },
+                                modifier = screenModifier,
+                            )
                             Tab.Search -> SearchScreen(
                                 meetings = meetings,
                                 state = search,
@@ -172,6 +194,11 @@ fun App(
                             )
                         }
                     }
+                    // Over the tab bar and the mini bar, and kept across tabs, so an action can still be taken back.
+                    SnackbarHost(
+                        hostState = snackbars,
+                        modifier = Modifier.fillMaxSize().padding(padding).wrapContentHeight(Alignment.Bottom),
+                    )
                 }
             }
         }

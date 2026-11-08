@@ -13,11 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -27,9 +24,7 @@ import com.example.notitia.ui.navigation.Tab
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
 
-// The values of the charter's demo, on the 24 × 24 grid of Material Symbols.
-private const val GRID = 24f
-private val CENTER = Offset(GRID / 2, GRID / 2)
+// The values of the charter's demo, on the grid of Material Symbols.
 private val IconStroke = 2f to 2.4f
 
 private val BarLeft = listOf(2f, 6.4f, 10.8f, 15.2f, 19.6f)
@@ -47,9 +42,7 @@ private const val BAR_WIDTH = 2.4f
 private const val RING_RADIUS = 9f
 private const val RING_TOP_END = 64f
 private const val RING_SWEEP = 360f - (64f - 5f)
-private val CheckStart = Offset(7.76f, 12.36f)
-private val CheckCorner = Offset(10.59f, 15.18f)
-private val CheckEnd = Offset(20.58f, 5.19f)
+private val TaskAltCheck = CheckShape(Offset(7.76f, 12.36f), Offset(10.59f, 15.18f), Offset(20.58f, 5.19f))
 // (start, length) shares of the gesture, not a range.
 private val RingTraceStep = 0f to 0.4f
 private val CheckTraceStep = 0.3f to 0.4f
@@ -86,7 +79,7 @@ internal fun TabIcon(tab: Tab, weight: () -> Float, gesture: () -> Float, color:
     Canvas(modifier.size(NotitiaTheme.sizes.icon)) {
         val w = weight()
         val t = gesture()
-        scale(size.minDimension / GRID, pivot = Offset.Zero) {
+        scale(size.minDimension / SYMBOL_GRID, pivot = Offset.Zero) {
             when (tab) {
                 Tab.Meetings -> drawSoundBars(color, w, t)
                 Tab.Actions -> drawCheck(
@@ -108,7 +101,7 @@ private fun DrawScope.drawSoundBars(color: Color, weight: Float, gesture: Float)
         val height = BarHeight[i] * BarStretch[i].valueAt(gesture)
         drawRoundRect(
             color = color,
-            topLeft = Offset(left + (BAR_WIDTH - width) / 2, GRID / 2 - height / 2),
+            topLeft = Offset(left + (BAR_WIDTH - width) / 2, SYMBOL_GRID / 2 - height / 2),
             size = Size(width, height),
             cornerRadius = CornerRadius(width / 2),
         )
@@ -118,44 +111,26 @@ private fun DrawScope.drawSoundBars(color: Color, weight: Float, gesture: Float)
 // Nothing is drawn before a stroke starts, or its round cap would show as a dot.
 private fun DrawScope.drawCheck(color: Color, weight: Float, ringTraced: Float, checkTraced: Float, swell: Float) {
     val stroke = IconStroke.at(weight)
-    scale(swell, pivot = CENTER) {
+    scale(swell, pivot = SymbolCenter) {
         if (ringTraced > 0f) {
             drawArc(
                 color = color,
                 startAngle = -RING_TOP_END,
                 sweepAngle = -ringTraced * RING_SWEEP,
                 useCenter = false,
-                topLeft = CENTER - Offset(RING_RADIUS, RING_RADIUS),
+                topLeft = SymbolCenter - Offset(RING_RADIUS, RING_RADIUS),
                 size = Size(RING_RADIUS * 2, RING_RADIUS * 2),
                 style = Stroke(stroke, cap = StrokeCap.Round),
             )
         }
-        drawTracedCheck(color, stroke, checkTraced)
+        drawTracedCheck(TaskAltCheck, color, stroke, checkTraced)
     }
-}
-
-private fun DrawScope.drawTracedCheck(color: Color, stroke: Float, traced: Float) {
-    if (traced <= 0f) return
-    val shortArm = (CheckCorner - CheckStart).getDistance()
-    val longArm = (CheckEnd - CheckCorner).getDistance()
-    val length = traced * (shortArm + longArm)
-    val check = Path().apply {
-        moveTo(CheckStart.x, CheckStart.y)
-        val shortEnd = lerp(CheckStart, CheckCorner, (length / shortArm).coerceAtMost(1f))
-        lineTo(shortEnd.x, shortEnd.y)
-        if (length > shortArm) {
-            val longEnd = lerp(CheckCorner, CheckEnd, (length - shortArm) / longArm)
-            lineTo(longEnd.x, longEnd.y)
-        }
-    }
-    // One path, so the corner is a round join.
-    drawPath(check, color, style = Stroke(stroke, cap = StrokeCap.Round, join = StrokeJoin.Round))
 }
 
 private fun DrawScope.drawMagnifier(color: Color, weight: Float, gesture: Float) {
     val stroke = IconStroke.at(weight)
     translate(left = LensShiftX.valueAt(gesture), top = LensShiftY.valueAt(gesture)) {
-        rotate(LensTilt.valueAt(gesture), pivot = CENTER) {
+        rotate(LensTilt.valueAt(gesture), pivot = SymbolCenter) {
             drawCircle(color, LENS_RADIUS, LensCenter, alpha = LENS_FILL_ALPHA * weight)
             drawCircle(color, LENS_RADIUS, LensCenter, style = Stroke(stroke))
             drawLine(color, HandleStart, HandleEnd, stroke, StrokeCap.Round)

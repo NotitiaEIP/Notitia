@@ -31,6 +31,8 @@ object NotitiaSpacing {
 
 object NotitiaSizes {
     val touchTarget = 48.dp
+    // Wider than tall: the tick of an action sits at the edge of its card, where a thumb lands off target.
+    val checkTarget = 56.dp
     val button = 52.dp
     val buttonCompact = 40.dp
     val field = 52.dp
@@ -64,6 +66,7 @@ object NotitiaSizes {
     val tabPillHeight = 32.dp
     val sidePanel = 320.dp
     val sheetRadius = 28.dp
+    val strikeLine = 1.5.dp
 }
 
 // What can be touched is round, what is read has corners.
@@ -94,6 +97,14 @@ object NotitiaMotion {
     // A quick answer never flashes a loader.
     const val LOADER_DELAY_MS = 300
     const val SCAN_STEP_MS = 90
+    // A ticked action stays in its place, struck through, long enough to see it done or to take it back.
+    const val ACTION_LINGER_MS = 1100
+    const val CHECK_START_SCALE = 0.4f
+    const val CHECK_TRACE_DELAY_MS = 80
+    const val STRIKE_MS = 300
+    // Share of the card's width past which letting go acts, as in Google Tasks and Gmail.
+    const val SWIPE_THRESHOLD = 0.4f
+    const val SWIPE_ICON_REST_SCALE = 0.8f
     // Material's fade through: the old content leaves in the first third, then the new one grows in.
     const val FADE_THROUGH_MS = 300
     const val FADE_THROUGH_OUT_MS = 105
