@@ -2,7 +2,7 @@ package com.example.notitia.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -30,10 +30,13 @@ import notitia.shared.generated.resources.Res
 import notitia.shared.generated.resources.chevron_right
 import org.jetbrains.compose.resources.painterResource
 
+// onLongClick opens the card's context menu; longClickLabel says so to screen readers.
 @Composable
 fun NotitiaCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
+    longClickLabel: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -53,10 +56,12 @@ fun NotitiaCard(
             }
             .cardShadow(NotitiaTheme.shapes.card)
             .background(NotitiaTheme.colors.surface)
-            .clickable(
+            .combinedClickable(
                 interactionSource = interactionSource,
                 indication = ripple(),
                 role = Role.Button,
+                onLongClickLabel = longClickLabel,
+                onLongClick = onLongClick,
                 onClick = onClick,
             )
             .padding(NotitiaTheme.spacing.l),

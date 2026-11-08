@@ -55,7 +55,9 @@ import notitia.shared.generated.resources.action_no_owner
 import notitia.shared.generated.resources.actions_late
 import notitia.shared.generated.resources.actions_nothing_open
 import notitia.shared.generated.resources.actions_open
+import notitia.shared.generated.resources.chat_bubble
 import notitia.shared.generated.resources.keyboard_arrow_down
+import notitia.shared.generated.resources.nudge_title
 import notitia.shared.generated.resources.person
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
@@ -65,7 +67,8 @@ private const val MAX_LINES = 2
 
 // One owner, folded on what they have on, unfolded on their open actions, as the groups of Reminders. The header
 // unfolds the card; a line opens the action's sheet and its circle ticks it, as on an action card. No swipe in
-// here: a line is not a card, and a swipe would fight the list's scroll on a short row.
+// here: a line is not a card, and a swipe would fight the list's scroll on a short row. Under the lines, a link
+// nudges the person about all of them; onNudge is null when there is nobody to nudge.
 @Composable
 fun PersonCard(
     person: PersonActions,
@@ -74,6 +77,7 @@ fun PersonCard(
     onExpandedChange: (Boolean) -> Unit,
     onToggle: (TrackedAction) -> Unit,
     onOpen: (TrackedAction) -> Unit,
+    onNudge: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val colors = NotitiaTheme.colors
@@ -97,6 +101,11 @@ fun PersonCard(
                         HorizontalDivider(Modifier.padding(start = spacing.l), color = colors.divider)
                         PersonActionRow(tracked, today, onToggle = { onToggle(tracked) }, onOpen = { onOpen(tracked) })
                     }
+                }
+                val name = person.name
+                if (name != null && onNudge != null) {
+                    HorizontalDivider(Modifier.padding(start = spacing.l), color = colors.divider)
+                    NudgeRow(name, onNudge)
                 }
             }
         }
@@ -223,6 +232,37 @@ private fun PersonActionRow(tracked: TrackedAction, today: LocalDate, onToggle: 
     }
 }
 
+// A link, not a button, as « Nouveau rappel » at the foot of a list in Reminders: the icon under the circles, the
+// words under the actions.
+@Composable
+private fun NudgeRow(name: String, onClick: () -> Unit) {
+    val colors = NotitiaTheme.colors
+    val spacing = NotitiaTheme.spacing
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = NotitiaTheme.sizes.touchTarget)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = spacing.l, vertical = spacing.m),
+        horizontalArrangement = Arrangement.spacedBy(spacing.m),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.width(NotitiaTheme.sizes.personAvatar), contentAlignment = Alignment.Center) {
+            Icon(
+                painter = painterResource(Res.drawable.chat_bubble),
+                contentDescription = null,
+                tint = colors.accentContent,
+                modifier = Modifier.size(NotitiaTheme.sizes.iconInButton),
+            )
+        }
+        Text(
+            text = stringResource(Res.string.nudge_title, name),
+            style = NotitiaTheme.typography.body,
+            color = colors.accentContent,
+        )
+    }
+}
+
 @Composable
 private fun PersonCardsPreview(expandedFirst: Boolean) = NotitiaTheme {
     val now = Clock.System.now()
@@ -241,6 +281,7 @@ private fun PersonCardsPreview(expandedFirst: Boolean) = NotitiaTheme {
                 onExpandedChange = { expanded = if (it) expanded + person.key else expanded - person.key },
                 onToggle = {},
                 onOpen = {},
+                onNudge = person.name?.let { {} },
             )
         }
         Spacer(Modifier.size(NotitiaTheme.spacing.l))

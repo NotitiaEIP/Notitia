@@ -8,15 +8,23 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import com.example.notitia.ui.components.ActionCheck
+import com.example.notitia.ui.components.ContextMenu
+import com.example.notitia.ui.components.ContextMenuItem
 import com.example.notitia.ui.components.DetailsLine
 import com.example.notitia.ui.components.NotitiaCard
 import com.example.notitia.ui.components.SpeakerAvatar
@@ -33,14 +41,21 @@ import notitia.shared.generated.resources.action_due_tomorrow
 import notitia.shared.generated.resources.action_late_by
 import notitia.shared.generated.resources.action_mark_done
 import notitia.shared.generated.resources.action_mark_todo
+import notitia.shared.generated.resources.action_menu_open_minutes
 import notitia.shared.generated.resources.action_no_owner
+import notitia.shared.generated.resources.chat_bubble
+import notitia.shared.generated.resources.check
+import notitia.shared.generated.resources.description
+import notitia.shared.generated.resources.nudge_title
+import notitia.shared.generated.resources.search_options
 import org.jetbrains.compose.resources.stringResource
 
 private const val MAX_LINES = 3
 
 // The tick is a button of its own; the rest of the card opens the action's sheet. Screen readers
-// read the card in one go and tick it through its action, as they cannot swipe. A swipe completes it at once:
-// the card is already gone, so it does not wait like a tick does.
+// read the card in one go and tick or nudge it through its actions, as they cannot swipe. A swipe completes it at
+// once: the card is already gone, so it does not wait like a tick does. onNudge is null when there is nobody to
+// nudge. A long press opens the same choices as a context menu, as in Reminders and Gmail.
 @Composable
 fun ActionCard(
     tracked: TrackedAction,
@@ -48,30 +63,67 @@ fun ActionCard(
     onToggle: () -> Unit,
     onSwipedDone: () -> Unit,
     onOpen: () -> Unit,
+    onNudge: (() -> Unit)?,
+    onOpenMinutes: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val action = tracked.action
     val spacing = NotitiaTheme.spacing
+    val colors = NotitiaTheme.colors
+    val haptics = LocalHapticFeedback.current
     val toggleLabel = stringResource(if (action.done) Res.string.action_mark_todo else Res.string.action_mark_done)
-    SwipeableAction(enabled = !action.done, onDone = onSwipedDone, modifier = modifier) {
-        NotitiaCard(
-            onClick = onOpen,
-            modifier = Modifier.semantics {
-                customActions = listOf(CustomAccessibilityAction(toggleLabel) { onToggle(); true })
-            },
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(spacing.m)) {
-                CheckButton(action.done, onToggle)
-                Column(verticalArrangement = Arrangement.spacedBy(spacing.s)) {
-                    StrikeText(
-                        text = action.text,
-                        struck = action.done,
-                        style = NotitiaTheme.typography.body,
-                        maxLines = MAX_LINES,
+    val nudgeLabel = action.owner?.let { stringResource(Res.string.nudge_title, it) }
+    val minutesLabel = stringResource(Res.string.action_menu_open_minutes)
+    var menu by remember { mutableStateOf(false) }
+    // Run once the menu has faded out, so it never vanishes with a card that leaves the list.
+    var afterMenu by remember { mutableStateOf<(() -> Unit)?>(null) }
+    fun choose(then: () -> Unit) {
+        afterMenu = then
+        menu = false
+    }
+    Box(modifier) {
+        SwipeableAction(enabled = !action.done, onDone = onSwipedDone, onNudge = onNudge) {
+            NotitiaCard(
+                onClick = onOpen,
+                onLongClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    menu = true
+                },
+                longClickLabel = stringResource(Res.string.search_options),
+                modifier = Modifier.semantics {
+                    customActions = listOfNotNull(
+                        CustomAccessibilityAction(toggleLabel) { onToggle(); true },
+                        nudgeLabel?.let { label -> onNudge?.let { CustomAccessibilityAction(label) { it(); true } } },
                     )
-                    OwnerAndDue(tracked, today)
+                },
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(spacing.m)) {
+                    CheckButton(action.done, onToggle)
+                    Column(verticalArrangement = Arrangement.spacedBy(spacing.s)) {
+                        StrikeText(
+                            text = action.text,
+                            struck = action.done,
+                            style = NotitiaTheme.typography.body,
+                            maxLines = MAX_LINES,
+                        )
+                        OwnerAndDue(tracked, today)
+                    }
                 }
             }
+        }
+        ContextMenu(
+            expanded = menu,
+            onDismissRequest = { menu = false },
+            onClosed = {
+                afterMenu?.invoke()
+                afterMenu = null
+            },
+        ) {
+            ContextMenuItem(Res.drawable.check, toggleLabel, colors.text) { choose(onToggle) }
+            if (onNudge != null && nudgeLabel != null) {
+                ContextMenuItem(Res.drawable.chat_bubble, nudgeLabel, colors.text) { choose(onNudge) }
+            }
+            ContextMenuItem(Res.drawable.description, minutesLabel, colors.text) { choose(onOpenMinutes) }
         }
     }
 }

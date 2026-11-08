@@ -113,6 +113,8 @@ fun ActionsScreen(
     var lingering by remember { mutableStateOf(emptySet<ActionId>()) }
     var showDone by rememberSaveable { mutableStateOf(false) }
     var expanded by rememberSaveable(stateSaver = ExpandedSaver) { mutableStateOf(emptySet<String>()) }
+    var nudging by rememberSaveable(stateSaver = NudgeTargetSaver) { mutableStateOf<NudgeTarget?>(null) }
+    val timeZone = remember { TimeZone.currentSystemDefault() }
     // Written after each composition, read at the next one: not a state, so keeping it does not recompose.
     val personOrder = remember(view) { mutableListOf<String?>() }
     val people = if (view == ActionsView.ByPerson) {
@@ -152,6 +154,13 @@ fun ActionsScreen(
             onCompleted(listOf(tracked.id))
         },
         onOpen = { onOpenAction(it.id) },
+        nudgeOf = { tracked ->
+            nudgeFor(tracked, timeZone)?.let { { nudging = NudgeTarget.Action(tracked.id) } }
+        },
+        personNudgeOf = { person ->
+            nudgeFor(person, timeZone)?.let { person.key?.let { key -> { nudging = NudgeTarget.Person(key) } } }
+        },
+        onOpenMinutes = { onOpenMeeting(it.meeting.id) },
         modifier = modifier,
     )
     actions.firstOrNull { it.id == openedAction }?.let { tracked ->
@@ -165,10 +174,43 @@ fun ActionsScreen(
             onSetDue = { onSetDue(tracked.id, it) },
             onToggleDone = { toggle(tracked) },
             onOpenMinutes = { onOpenMeeting(tracked.meeting.id) },
+            onNudge = nudgeFor(tracked, timeZone)?.let { { nudging = NudgeTarget.Action(tracked.id) } },
             onDismiss = onCloseAction,
         )
     }
+    val nudge = when (val target = nudging) {
+        null -> null
+        is NudgeTarget.Action -> actions.firstOrNull { it.id == target.id }?.let { nudgeFor(it, timeZone) }
+        is NudgeTarget.Person -> actionsByPerson(actions, today).firstOrNull { it.key == target.key }?.let { nudgeFor(it, timeZone) }
+    }
+    // Nothing left to nudge about, the action ticked meanwhile for one: the sheet goes.
+    LaunchedEffect(nudging, nudge == null) {
+        if (nudging != null && nudge == null) nudging = null
+    }
+    if (nudge != null) {
+        key(nudging) { NudgeSheet(nudge, sheetReveal, onDismiss = { nudging = null }) }
+    }
 }
+
+// Whom the message is about: one action, or every open action of a person.
+private sealed interface NudgeTarget {
+    data class Action(val id: ActionId) : NudgeTarget
+    data class Person(val key: String) : NudgeTarget
+}
+
+// An Android Bundle keeps a list of strings, not a class of the app.
+private val NudgeTargetSaver = Saver<NudgeTarget?, ArrayList<String>>(
+    save = { target ->
+        when (target) {
+            null -> null
+            is NudgeTarget.Action -> arrayListOf(target.id.meetingId, target.id.index.toString())
+            is NudgeTarget.Person -> arrayListOf(target.key)
+        }
+    },
+    restore = { saved ->
+        if (saved.size == 2) NudgeTarget.Action(ActionId(saved[0], saved[1].toInt())) else NudgeTarget.Person(saved[0])
+    },
+)
 
 internal fun today(): LocalDate = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
 
@@ -191,6 +233,9 @@ private fun ActionList(
     onToggle: (TrackedAction) -> Unit,
     onSwipedDone: (TrackedAction) -> Unit,
     onOpen: (TrackedAction) -> Unit,
+    nudgeOf: (TrackedAction) -> (() -> Unit)?,
+    personNudgeOf: (PersonActions) -> (() -> Unit)?,
+    onOpenMinutes: (TrackedAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val spacing = NotitiaTheme.spacing
@@ -204,6 +249,8 @@ private fun ActionList(
         onToggle = { onToggle(tracked) },
         onSwipedDone = { onSwipedDone(tracked) },
         onOpen = { onOpen(tracked) },
+        onNudge = nudgeOf(tracked),
+        onOpenMinutes = { onOpenMinutes(tracked) },
         modifier = modifier.padding(bottom = spacing.s),
     )
 
@@ -243,6 +290,7 @@ private fun ActionList(
                     onExpandedChange = { onExpandedChange(person.expandKey(), it) },
                     onToggle = onToggle,
                     onOpen = onOpen,
+                    onNudge = personNudgeOf(person),
                     modifier = listMotion().padding(top = if (index == 0) spacing.l else spacing.s),
                 )
             }
@@ -387,6 +435,9 @@ private fun ActionListPreview(
         onToggle = {},
         onSwipedDone = {},
         onOpen = {},
+        nudgeOf = { tracked -> tracked.action.owner?.let { {} } },
+        personNudgeOf = { person -> person.name?.let { {} } },
+        onOpenMinutes = {},
         modifier = Modifier.background(NotitiaTheme.colors.background),
     )
 }
