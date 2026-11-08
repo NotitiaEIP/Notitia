@@ -82,6 +82,8 @@ object NotitiaShapes {
     val card = RoundedCornerShape(16.dp)
     val sheet = RoundedCornerShape(topStart = NotitiaSizes.sheetRadius, topEnd = NotitiaSizes.sheetRadius)
     val dialog = RoundedCornerShape(NotitiaSizes.sheetRadius)
+    // The corner under the sender stays tight, as on a sent message.
+    val bubble = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomEnd = 6.dp, bottomStart = 20.dp)
     val full = RoundedCornerShape(percent = 50)
     val stopSquare = RoundedCornerShape(7.dp)
     val stopSquareSmall = RoundedCornerShape(4.dp)

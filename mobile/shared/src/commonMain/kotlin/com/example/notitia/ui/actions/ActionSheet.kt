@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -36,6 +37,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetState
@@ -120,12 +122,14 @@ import notitia.shared.generated.resources.action_quote
 import notitia.shared.generated.resources.action_sheet_due
 import notitia.shared.generated.resources.action_sheet_owner
 import notitia.shared.generated.resources.calendar_today
+import notitia.shared.generated.resources.chat_bubble
 import notitia.shared.generated.resources.cancel
 import notitia.shared.generated.resources.check
 import notitia.shared.generated.resources.description
 import notitia.shared.generated.resources.group_today
 import notitia.shared.generated.resources.group_tomorrow
 import notitia.shared.generated.resources.keyboard_arrow_down
+import notitia.shared.generated.resources.nudge_title
 import notitia.shared.generated.resources.person
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
@@ -208,19 +212,44 @@ fun ActionSheet(
     onToggleDone: () -> Unit,
     onOpenMinutes: () -> Unit,
     onDismiss: () -> Unit,
+    onNudge: (() -> Unit)? = null,
 ) {
-    val colors = NotitiaTheme.colors
     val sheetState = rememberBottomSheetState(SheetValue.Hidden, enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded))
     val scope = rememberCoroutineScope()
-    DisposableEffect(sheetState) {
-        reveal.sheet = sheetState
-        onDispose { reveal.sheet = null }
-    }
     fun closeThen(then: () -> Unit) {
         scope.launch { sheetState.hide() }.invokeOnCompletion {
             then()
             onDismiss()
         }
+    }
+    RevealingSheet(sheetState, reveal, onDismiss) { measured ->
+        ActionSheetContent(
+            tracked = tracked,
+            owners = owners,
+            today = today,
+            onSetOwner = onSetOwner,
+            onSetDue = onSetDue,
+            onToggleDone = { closeThen(onToggleDone) },
+            onOpenMinutes = { closeThen(onOpenMinutes) },
+            onNudge = onNudge?.let { nudge -> { closeThen(nudge) } },
+            modifier = measured.windowInsetsPadding(WindowInsets.navigationBars),
+        )
+    }
+}
+
+// Material's sheet as the app draws it: its handle and colours, and the screen behind following it through reveal.
+// content gets the modifier that measures it, for the veil.
+@Composable
+internal fun RevealingSheet(
+    sheetState: SheetState,
+    reveal: SheetReveal,
+    onDismiss: () -> Unit,
+    content: @Composable (measured: Modifier) -> Unit,
+) {
+    val colors = NotitiaTheme.colors
+    DisposableEffect(sheetState) {
+        reveal.sheet = sheetState
+        onDispose { if (reveal.sheet === sheetState) reveal.sheet = null }
     }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -242,20 +271,11 @@ fun ActionSheet(
             }
         },
     ) {
-        ActionSheetContent(
-            tracked = tracked,
-            owners = owners,
-            today = today,
-            onSetOwner = onSetOwner,
-            onSetDue = onSetDue,
-            onToggleDone = { closeThen(onToggleDone) },
-            onOpenMinutes = { closeThen(onOpenMinutes) },
-            modifier = Modifier
-                .onGloballyPositioned {
-                    reveal.fullHeight = it.findRootCoordinates().size.height
-                    reveal.contentHeight = it.size.height
-                }
-                .windowInsetsPadding(WindowInsets.navigationBars),
+        content(
+            Modifier.onGloballyPositioned {
+                reveal.fullHeight = it.findRootCoordinates().size.height
+                reveal.contentHeight = it.size.height
+            },
         )
     }
 }
@@ -269,6 +289,7 @@ private fun ActionSheetContent(
     onSetDue: (LocalDate?) -> Unit,
     onToggleDone: () -> Unit,
     onOpenMinutes: () -> Unit,
+    onNudge: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val spacing = NotitiaTheme.spacing
@@ -283,7 +304,15 @@ private fun ActionSheetContent(
             .padding(start = spacing.xl, top = spacing.s, end = spacing.xl, bottom = spacing.xl),
         verticalArrangement = Arrangement.spacedBy(spacing.xl),
     ) {
-        StrikeText(text = action.text, struck = action.done, style = NotitiaTheme.typography.title2)
+        Row(horizontalArrangement = Arrangement.spacedBy(spacing.s)) {
+            StrikeText(
+                text = action.text,
+                struck = action.done,
+                style = NotitiaTheme.typography.title2,
+                modifier = Modifier.weight(1f),
+            )
+            if (onNudge != null && action.owner != null) NudgeButton(action.owner, onNudge)
+        }
         Column(Modifier.clip(NotitiaTheme.shapes.card).background(NotitiaTheme.colors.surface)) {
             OwnerRow(tracked, owners, onSetOwner, onTypeOwner = { typingOwner = true })
             HorizontalDivider(color = NotitiaTheme.colors.divider)
@@ -401,6 +430,25 @@ private fun dueLabel(due: LocalDate, today: LocalDate): String = when (dueGroup(
     DueGroup.Today -> stringResource(Res.string.group_today)
     DueGroup.Tomorrow -> stringResource(Res.string.group_tomorrow)
     else -> shortDateLabel(due)
+}
+
+// An icon at the end of the title, as in the toolbar of an iOS sheet: a nudge is never a big button. Its glyph lines
+// up with the edge of the content, its target reaches into the margin.
+@Composable
+private fun NudgeButton(owner: String, onClick: () -> Unit) {
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier
+            .size(NotitiaTheme.sizes.touchTarget)
+            .offset(x = NotitiaTheme.spacing.m, y = -NotitiaTheme.spacing.s),
+    ) {
+        Icon(
+            painter = painterResource(Res.drawable.chat_bubble),
+            contentDescription = stringResource(Res.string.nudge_title, owner),
+            tint = NotitiaTheme.colors.textSecondary,
+            modifier = Modifier.size(NotitiaTheme.sizes.icon),
+        )
+    }
 }
 
 // A line of a grouped list, as in the settings of both systems: what it is on the left, its value on the right.
@@ -635,6 +683,7 @@ private fun ActionSheetPreview(index: Int) = NotitiaTheme {
             onSetDue = {},
             onToggleDone = {},
             onOpenMinutes = {},
+            onNudge = {},
         )
     }
 }

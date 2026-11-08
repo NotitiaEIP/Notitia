@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,16 +24,22 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.IntOffset
 import com.example.notitia.ui.theme.NotitiaTheme
 import kotlin.math.roundToInt
+import kotlin.math.sign
+import kotlinx.coroutines.launch
 import notitia.shared.generated.resources.Res
+import notitia.shared.generated.resources.chat_bubble
 import notitia.shared.generated.resources.check
 import org.jetbrains.compose.resources.painterResource
 
 // Swiping an action card to the right completes it, as in Google Tasks and Gmail: Material's own swipe follows
-// the finger, takes the speed of a flick into account and sends the card off the screen.
+// the finger, takes the speed of a flick into account and sends the card off the screen. Swiping it to the left
+// nudges its owner: the card comes back to its place while the message opens, as Gmail's snooze does. Without
+// onNudge, it only goes right.
 @Composable
 fun SwipeableAction(
     enabled: Boolean,
     onDone: () -> Unit,
+    onNudge: (() -> Unit)?,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
@@ -43,6 +50,8 @@ fun SwipeableAction(
     val armed = state.targetValue != SwipeToDismissBoxValue.Settled
     val haptics = LocalHapticFeedback.current
     val done by rememberUpdatedState(onDone)
+    val nudge by rememberUpdatedState(onNudge)
+    val scope = rememberCoroutineScope()
     // Once each time the threshold is crossed, as Android does for gestures.
     LaunchedEffect(armed) {
         if (armed) haptics.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
@@ -51,21 +60,32 @@ fun SwipeableAction(
         state = state,
         backgroundContent = { SwipeBackground(state, armed) },
         modifier = modifier,
-        enableDismissFromEndToStart = false,
+        enableDismissFromEndToStart = onNudge != null,
         gesturesEnabled = enabled,
         // Material calls it again whenever it changes while the card is away: this one never changes.
-        onDismiss = remember { { _: SwipeToDismissBoxValue -> done() } },
+        onDismiss = remember {
+            { direction: SwipeToDismissBoxValue ->
+                if (direction == SwipeToDismissBoxValue.EndToStart) {
+                    nudge?.invoke()
+                    scope.launch { state.reset() }
+                } else {
+                    done()
+                }
+            }
+        },
     ) {
         content()
     }
 }
 
-// Green from the first millimetre: the colour says what the swipe does. The check stays centred in the strip the
-// card uncovers, and grows when letting go would act, as in Gmail.
+// Coloured from the first millimetre, green to complete, violet to nudge: the colour says what the swipe does. The
+// icon stays centred in the strip the card uncovers, and grows when letting go would act, as in Gmail.
 @Composable
 private fun SwipeBackground(state: SwipeToDismissBoxState, armed: Boolean) {
-    if (state.dismissDirection == SwipeToDismissBoxValue.Settled) return
+    val direction = state.dismissDirection
+    if (direction == SwipeToDismissBoxValue.Settled) return
     val colors = NotitiaTheme.colors
+    val nudging = direction == SwipeToDismissBoxValue.EndToStart
     val motion = NotitiaTheme.motion
     val icon = NotitiaTheme.sizes.icon
     val scale by animateFloatAsState(
@@ -77,16 +97,17 @@ private fun SwipeBackground(state: SwipeToDismissBoxState, armed: Boolean) {
         modifier = Modifier
             .fillMaxSize()
             .clip(NotitiaTheme.shapes.card)
-            .background(colors.green),
-        contentAlignment = Alignment.CenterStart,
+            .background(if (nudging) colors.accent else colors.green),
+        contentAlignment = if (nudging) Alignment.CenterEnd else Alignment.CenterStart,
     ) {
         Icon(
-            painter = painterResource(Res.drawable.check),
+            painter = painterResource(if (nudging) Res.drawable.chat_bubble else Res.drawable.check),
             contentDescription = null,
-            tint = colors.onGreen,
-            // The offset is read at placement, so following the card never recomposes.
+            tint = if (nudging) colors.onAccent else colors.onGreen,
+            // The offset is read at placement, so following the card never recomposes. To the left, the offset is
+            // negative and the strip starts from the end.
             modifier = Modifier
-                .offset { IntOffset(((state.requireOffset() - icon.toPx()) / 2).roundToInt(), 0) }
+                .offset { IntOffset(((state.requireOffset() - icon.toPx() * sign(state.requireOffset())) / 2).roundToInt(), 0) }
                 .graphicsLayer {
                     scaleX = scale
                     scaleY = scale
