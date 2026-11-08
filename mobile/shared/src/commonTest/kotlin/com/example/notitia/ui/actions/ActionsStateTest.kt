@@ -10,6 +10,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
+import kotlinx.datetime.LocalDate
 
 class ActionsStateTest {
 
@@ -33,7 +34,7 @@ class ActionsStateTest {
         val state = ActionsState()
         val first = state.tracked(listOf(minutes)).first()
         state.setDone(first.id, true)
-        assertEquals(listOf(true, true), state.ticked(minutes).actions.map { it.done })
+        assertEquals(listOf(true, true), state.applied(minutes).actions.map { it.done })
     }
 
     @Test
@@ -53,12 +54,48 @@ class ActionsStateTest {
     }
 
     @Test
-    fun theTicksSurviveARotation() {
+    fun aNewOwnerShowsInTheTabWithTheirColourAndInTheMinutes() {
+        val state = ActionsState()
+        state.setOwner(ActionId("m1", 1), "Lucas")
+        assertEquals(listOf("Nathan", "Lucas"), state.applied(minutes).actions.map { it.owner })
+        assertEquals(listOf(1, 0), state.tracked(listOf(minutes)).map { it.speaker })
+    }
+
+    @Test
+    fun aRemovedOwnerOrABlankOneLeavesTheActionWithNobody() {
+        val state = ActionsState()
+        state.setOwner(ActionId("m1", 0), null)
+        state.setOwner(ActionId("m1", 1), "  ")
+        assertEquals(listOf(null, null), state.applied(minutes).actions.map { it.owner })
+    }
+
+    @Test
+    fun aNewDueDateMovesTheActionToItsGroup() {
+        val state = ActionsState()
+        val today = LocalDate(2026, 11, 8)
+        state.setDue(ActionId("m1", 0), LocalDate(2026, 11, 9))
+        val action = state.tracked(listOf(minutes)).first().action
+        assertEquals(DueGroup.Tomorrow, dueGroup(assertNotNull(action.due), today))
+        assertEquals(LocalDate(2026, 11, 9), state.applied(minutes).actions.first().due)
+    }
+
+    @Test
+    fun theChangesSurviveARotationEvenTheRemovedOnes() {
         val state = ActionsState()
         state.setDone(ActionId("m1", 0), true)
         state.setDone(ActionId("m1", 1), false)
+        state.setOwner(ActionId("m1", 0), null)
+        state.setOwner(ActionId("m1", 1), "Lucas")
+        state.setDue(ActionId("m1", 0), LocalDate(2026, 11, 9))
         val saved = assertNotNull(with(ActionsState.Saver) { SaverScope { true }.save(state) })
-        val restored = assertNotNull(ActionsState.Saver.restore(saved))
-        assertEquals(listOf(true, false), restored.ticked(minutes).actions.map { it.done })
+        val restored = assertNotNull(ActionsState.Saver.restore(saved)).applied(minutes).actions
+        assertEquals(listOf(true, false), restored.map { it.done })
+        assertEquals(listOf(null, "Lucas"), restored.map { it.owner })
+        assertEquals(listOf(LocalDate(2026, 11, 9), null), restored.map { it.due })
+    }
+
+    @Test
+    fun theOwnersOfferedAreTheSpeakersThenTheOtherOwnersOfTheMeeting() {
+        assertEquals(listOf("Lucas", "Nathan", "Adam"), ownerChoices(minutes))
     }
 }

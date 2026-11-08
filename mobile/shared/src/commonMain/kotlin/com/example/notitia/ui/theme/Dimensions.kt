@@ -67,6 +67,7 @@ object NotitiaSizes {
     val sidePanel = 320.dp
     val sheetRadius = 28.dp
     val strikeLine = 1.5.dp
+    val quoteBar = 3.dp
 }
 
 // What can be touched is round, what is read has corners.
@@ -90,6 +91,8 @@ object NotitiaMotion {
     const val STANDARD_MS = 250
     const val PRESSED_SCALE = 0.97f
     const val ENTER_SCALE = 0.95f
+    // The screen under an action's sheet steps back this much, as a card on a stack.
+    const val STACK_SCALE = 0.94f
     // Long for a tab, but nobody waits for it: the screen has already switched.
     const val TAB_ICON_MS = 800
     // The recording dot breathes slowly: it says "still on", not "look at me".
