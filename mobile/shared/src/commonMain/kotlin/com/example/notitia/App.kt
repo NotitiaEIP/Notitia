@@ -26,6 +26,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.notitia.ai.SpeechEngine
 import com.example.notitia.ui.actions.ActionsScreen
+import com.example.notitia.ui.actions.ActionsView
 import com.example.notitia.ui.actions.ActionsState
 import com.example.notitia.ui.actions.RecedesUnderSheet
 import com.example.notitia.ui.actions.SheetReveal
@@ -87,6 +88,7 @@ fun App(
         val meetings = recordings?.meetings.orEmpty().map { it.listItem() } + samples
         fun recorded(id: String?) = recordings?.meetings?.firstOrNull { it.id == id }
         val actions = rememberSaveable(saver = ActionsState.Saver) { ActionsState() }
+        var actionsView by rememberSaveable { mutableStateOf(ActionsView.ByDue) }
         val snackbars = remember { SnackbarHostState() }
         var openedMeetingId by rememberSaveable { mutableStateOf<String?>(null) }
         // ActionId.key: a saved state takes a string, not the class.
@@ -184,6 +186,8 @@ fun App(
                                 val tracked = actions.tracked(minutes)
                                 ActionsScreen(
                                     actions = tracked,
+                                    view = actionsView,
+                                    onViewChange = { actionsView = it },
                                     openedAction = tracked.firstOrNull { it.id.key == openedActionKey }?.id,
                                     sheetReveal = actionSheet,
                                     ownerChoices = { meetingId ->

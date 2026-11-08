@@ -23,6 +23,7 @@ import com.example.notitia.ui.components.SpeakerAvatar
 import com.example.notitia.ui.components.StrikeText
 import com.example.notitia.ui.components.SwipeableAction
 import com.example.notitia.ui.meetings.shortDateLabel
+import com.example.notitia.ui.minutes.MinutesAction
 import com.example.notitia.ui.theme.NotitiaTheme
 import kotlinx.datetime.LocalDate
 import notitia.shared.generated.resources.Res
@@ -77,7 +78,7 @@ fun ActionCard(
 
 // Centred on the first line of the text. Its target reaches into the card's margin without pushing anything.
 @Composable
-private fun CheckButton(done: Boolean, onToggle: () -> Unit) {
+internal fun CheckButton(done: Boolean, onToggle: () -> Unit) {
     val sizes = NotitiaTheme.sizes
     val firstLine = with(LocalDensity.current) { NotitiaTheme.typography.body.lineHeight.toDp() }
     Box(Modifier.size(sizes.icon, firstLine), contentAlignment = Alignment.Center) {
@@ -94,10 +95,11 @@ private fun CheckButton(done: Boolean, onToggle: () -> Unit) {
     }
 }
 
-// "Clément · demain", or "Nathan · 2 j de retard" in red while it is not done.
+// "demain" or "avant le 3 nov.", or, while it is not done and past its date, only late: "2 j de retard".
+internal data class DueWords(val due: String?, val late: String?)
+
 @Composable
-private fun OwnerAndDue(tracked: TrackedAction, today: LocalDate) {
-    val action = tracked.action
+internal fun dueWords(action: MinutesAction, today: LocalDate): DueWords {
     val group = action.due?.let { dueGroup(it, today) }
     val late = action.due
         ?.takeIf { !action.done && group == DueGroup.Late }
@@ -109,6 +111,14 @@ private fun OwnerAndDue(tracked: TrackedAction, today: LocalDate) {
             else -> stringResource(Res.string.action_due, shortDateLabel(due))
         }
     }
+    return DueWords(due, late)
+}
+
+// "Clément · demain", or "Nathan · 2 j de retard" in red while it is not done.
+@Composable
+private fun OwnerAndDue(tracked: TrackedAction, today: LocalDate) {
+    val action = tracked.action
+    val (due, late) = dueWords(action, today)
     Row(
         horizontalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.s),
         verticalAlignment = Alignment.CenterVertically,

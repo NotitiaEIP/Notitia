@@ -115,6 +115,10 @@
     <string name="action_choose">Choisir</string>
     <string name="action_open_minutes">Compte rendu</string>
     <string name="action_quote">«&#160;%1$s&#160;»</string>
+    <string name="actions_by_due">Par échéance</string>
+    <string name="actions_by_person">Par personne</string>
+    <string name="person_done_ratio">%1$d/%2$d</string>
+    <string name="person_done_description">%1$d faites sur %2$d</string>
     <string name="duration_minutes">%1$s&#160;min</string>
     <string name="duration_hours">%1$s&#160;h</string>
     <string name="duration_hours_minutes">%1$s&#160;h&#160;%2$s</string>
