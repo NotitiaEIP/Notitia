@@ -36,6 +36,8 @@ data class NotitiaColors(
     // The check and the words on green: the dark theme's green is too light for white.
     val onGreen: Color,
     val greenSoft: Color,
+    // Under the ring of what is done: soft enough to read as empty, strong enough to show the ring is there.
+    val ringTrack: Color,
     val amber: Color,
     val amberSoft: Color,
     val speakers: List<Color>,
@@ -84,6 +86,7 @@ internal val DarkColors = NotitiaColors(
     green = Color(0xFF3DD68C),
     onGreen = Color(0xFF0B0A0F),
     greenSoft = Color(0xFF3DD68C).copy(alpha = 0.14f),
+    ringTrack = Color(0xFF3DD68C).copy(alpha = 0.18f),
     amber = Color(0xFFFFB224),
     amberSoft = Color(0xFFFFB224).copy(alpha = 0.16f),
     speakers = listOf(
@@ -121,6 +124,7 @@ internal val LightColors = NotitiaColors(
     green = Color(0xFF15724A),
     onGreen = Color.White,
     greenSoft = Color(0xFF15724A).copy(alpha = 0.08f),
+    ringTrack = Color(0xFF15724A).copy(alpha = 0.18f),
     amber = Color(0xFFA35200),
     amberSoft = Color(0xFFA35200).copy(alpha = 0.10f),
     speakers = listOf(

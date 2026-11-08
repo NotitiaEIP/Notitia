@@ -68,6 +68,9 @@ object NotitiaSizes {
     val sheetRadius = 28.dp
     val strikeLine = 1.5.dp
     val quoteBar = 3.dp
+    val personAvatar = 32.dp
+    val doneRing = 28.dp
+    val doneRingStroke = 3.dp
 }
 
 // What can be touched is round, what is read has corners.
