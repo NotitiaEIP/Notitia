@@ -21,7 +21,6 @@ import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun SectionHeader(title: String, modifier: Modifier = Modifier, count: Int? = null) {
-    val colors = NotitiaTheme.colors
     Row(
         // One heading for screen readers: "Actions, 3".
         modifier = modifier.semantics(mergeDescendants = true) { heading() },
@@ -29,18 +28,22 @@ fun SectionHeader(title: String, modifier: Modifier = Modifier, count: Int? = nu
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(text = title, style = NotitiaTheme.typography.title3)
-        if (count != null) {
-            Text(
-                text = count.toString(),
-                style = NotitiaTheme.typography.labelSmall,
-                color = colors.accentContent,
-                modifier = Modifier
-                    .background(colors.accentSoft, NotitiaTheme.shapes.badge)
-                    .heightIn(min = NotitiaTheme.sizes.badge)
-                    .padding(horizontal = NotitiaTheme.spacing.s, vertical = NotitiaTheme.spacing.xxs),
-            )
-        }
+        if (count != null) CountBadge(count)
     }
+}
+
+@Composable
+fun CountBadge(count: Int, modifier: Modifier = Modifier) {
+    val colors = NotitiaTheme.colors
+    Text(
+        text = count.toString(),
+        style = NotitiaTheme.typography.labelSmall,
+        color = colors.accentContent,
+        modifier = modifier
+            .background(colors.accentSoft, NotitiaTheme.shapes.badge)
+            .heightIn(min = NotitiaTheme.sizes.badge)
+            .padding(horizontal = NotitiaTheme.spacing.s, vertical = NotitiaTheme.spacing.xxs),
+    )
 }
 
 @NotitiaPreviews

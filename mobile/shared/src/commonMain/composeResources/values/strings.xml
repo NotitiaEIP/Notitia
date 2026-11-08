@@ -79,6 +79,27 @@
     <string name="action_no_owner">Sans responsable</string>
     <string name="minutes_share">Partager le compte rendu</string>
     <string name="action_due">avant le %1$s</string>
+    <string name="action_due_today">aujourd’hui</string>
+    <string name="action_due_tomorrow">demain</string>
+    <string name="action_late_by">%1$d&#160;j de retard</string>
+    <string name="action_mark_done">Marquer comme faite</string>
+    <string name="action_mark_todo">Remettre à faire</string>
+    <string name="actions_open">%1$d en cours</string>
+    <string name="actions_nothing_open">Rien en cours</string>
+    <string name="actions_late">%1$d en retard</string>
+    <string name="actions_done">Terminées</string>
+    <plurals name="actions_done_message">
+        <item quantity="one">Action terminée</item>
+        <item quantity="other">%1$d&#160;actions terminées</item>
+    </plurals>
+    <string name="actions_empty">Aucune action pour l’instant.</string>
+    <string name="actions_empty_hint">Quand quelqu’un dit «&#160;je m’en occupe&#160;» en réunion, l’action arrive ici, avec son responsable et son échéance.</string>
+    <string name="actions_back_description">Retour aux actions</string>
+    <string name="group_late">En retard</string>
+    <string name="group_tomorrow">Demain</string>
+    <string name="group_next_days">Dans les 7&#160;jours</string>
+    <string name="group_later">Plus tard</string>
+    <string name="group_no_due">Sans échéance</string>
     <string name="duration_minutes">%1$s&#160;min</string>
     <string name="duration_hours">%1$s&#160;h</string>
     <string name="duration_hours_minutes">%1$s&#160;h&#160;%2$s</string>

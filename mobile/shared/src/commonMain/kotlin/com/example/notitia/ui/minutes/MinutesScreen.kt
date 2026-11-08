@@ -9,11 +9,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -22,33 +20,31 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import com.example.notitia.ui.actions.ActionId
+import com.example.notitia.ui.actions.ActionsState
+import com.example.notitia.ui.components.ActionRow
 import com.example.notitia.ui.components.BackButton
 import com.example.notitia.ui.components.DetailsLine
 import com.example.notitia.ui.components.NotitiaButton
 import com.example.notitia.ui.components.NotitiaSegmentedControl
 import com.example.notitia.ui.components.SectionHeader
 import com.example.notitia.ui.components.SpeakerChip
-import com.example.notitia.ui.components.SpeakerDot
 import com.example.notitia.ui.meetings.MeetingListItem
 import com.example.notitia.ui.meetings.lengthLabel
 import com.example.notitia.ui.meetings.meetingWhenLabel
 import com.example.notitia.ui.meetings.sampleMeetings
-import com.example.notitia.ui.meetings.shortDateLabel
 import com.example.notitia.ui.recording.MeetingTranscription
 import com.example.notitia.ui.recording.TranscriptLine
 import com.example.notitia.ui.recording.timerText
@@ -58,9 +54,6 @@ import com.example.notitia.ui.theme.shareIcon
 import kotlin.time.Clock
 import kotlin.time.Instant
 import notitia.shared.generated.resources.Res
-import notitia.shared.generated.resources.action_due
-import notitia.shared.generated.resources.action_no_owner
-import notitia.shared.generated.resources.check_circle_filled
 import notitia.shared.generated.resources.meetings_title
 import notitia.shared.generated.resources.minutes_actions
 import notitia.shared.generated.resources.minutes_back_description
@@ -78,7 +71,6 @@ import notitia.shared.generated.resources.minutes_unavailable
 import notitia.shared.generated.resources.minutes_writing
 import notitia.shared.generated.resources.more_horiz
 import notitia.shared.generated.resources.participants
-import notitia.shared.generated.resources.radio_button_unchecked
 import notitia.shared.generated.resources.transcript_empty
 import notitia.shared.generated.resources.transcript_failed
 import org.jetbrains.compose.resources.StringResource
@@ -86,12 +78,12 @@ import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
-// Holds what the user ticks on the minutes, until they are stored (US-16).
-// recorded is null for a made-up meeting, which keeps its made-up minutes.
+// recorded is null for a made-up meeting.
 @Composable
 fun MinutesRoute(
     meeting: MeetingListItem,
     recorded: MeetingTranscription?,
+    actions: ActionsState,
     backLabel: String,
     backDescription: String,
     onBack: () -> Unit,
@@ -99,22 +91,8 @@ fun MinutesRoute(
 ) {
     val now = remember { Clock.System.now() }
     val state = recorded?.minutes
-    var minutes by remember(meeting.id, state) {
-        mutableStateOf(
-            when (state) {
-                null -> sampleMinutes(meeting, now)
-                is MinutesState.Written -> Minutes(
-                    meeting = meeting,
-                    // The gateway does not tell the voices apart (E2).
-                    speakers = emptyList(),
-                    decisions = state.minutes.decisions,
-                    actions = state.minutes.actions,
-                    summary = state.minutes.summary,
-                )
-                else -> Minutes(meeting, emptyList(), emptyList(), emptyList(), summary = "")
-            },
-        )
-    }
+    val written = remember(meeting, state) { meetingMinutes(meeting, state, now) }
+    val minutes = actions.ticked(written)
     NavigationBackHandler(
         state = rememberNavigationEventState(NavigationEventInfo.None),
         onBackCompleted = onBack,
@@ -131,13 +109,7 @@ fun MinutesRoute(
         backLabel = backLabel,
         backDescription = backDescription,
         onBack = onBack,
-        onToggleAction = { index ->
-            minutes = minutes.copy(
-                actions = minutes.actions.mapIndexed { i, action ->
-                    if (i == index) action.copy(done = !action.done) else action
-                },
-            )
-        },
+        onToggleAction = { index -> actions.setDone(ActionId(meeting.id, index), !minutes.actions[index].done) },
         transcript = recorded?.lines,
         modifier = modifier,
     )
@@ -259,11 +231,7 @@ private fun MinutesContent(minutes: Minutes, onToggleAction: (Int) -> Unit) {
     )
     if (minutes.actions.isEmpty()) Notice(stringResource(Res.string.minutes_no_actions))
     minutes.actions.forEachIndexed { index, action ->
-        ActionRow(
-            action = action,
-            speaker = minutes.speakers.indexOf(action.owner),
-            onToggle = { onToggleAction(index) },
-        )
+        ActionRow(action = action, onToggle = { onToggleAction(index) }, speaker = minutes.speakerOf(action))
     }
 
     SectionHeader(
@@ -327,52 +295,6 @@ private fun Bullet(text: String) {
             )
         }
         Text(text = text, style = style)
-    }
-}
-
-// The whole row checks the action, so the target is large and screen readers read it in one go:
-// "Préparer la démo, Clément, avant le 8 nov., case à cocher, non cochée".
-// speaker is -1 when the owner is not one of the speakers, who then has no colour.
-@Composable
-private fun ActionRow(action: MinutesAction, speaker: Int, onToggle: () -> Unit) {
-    val colors = NotitiaTheme.colors
-    val spacing = NotitiaTheme.spacing
-    val details = buildList {
-        add(action.owner ?: stringResource(Res.string.action_no_owner))
-        action.due?.let { add(stringResource(Res.string.action_due, shortDateLabel(it))) }
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = NotitiaTheme.sizes.touchTarget)
-            .toggleable(value = action.done, role = Role.Checkbox, onValueChange = { onToggle() })
-            .padding(vertical = spacing.s),
-        horizontalArrangement = Arrangement.spacedBy(spacing.m),
-    ) {
-        Icon(
-            painter = painterResource(
-                if (action.done) Res.drawable.check_circle_filled else Res.drawable.radio_button_unchecked,
-            ),
-            contentDescription = null,
-            tint = if (action.done) colors.green else colors.textSecondary,
-            modifier = Modifier.size(NotitiaTheme.sizes.icon),
-        )
-        Column(verticalArrangement = Arrangement.spacedBy(spacing.xxs)) {
-            Text(
-                text = action.text,
-                style = NotitiaTheme.typography.body.copy(
-                    textDecoration = if (action.done) TextDecoration.LineThrough else null,
-                ),
-                color = if (action.done) colors.textTertiary else colors.text,
-            )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(spacing.s),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (speaker >= 0) SpeakerDot(speaker)
-                DetailsLine(details, style = NotitiaTheme.typography.caption)
-            }
-        }
     }
 }
 
