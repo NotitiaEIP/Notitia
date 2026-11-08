@@ -119,6 +119,16 @@
     <string name="actions_by_person">Par personne</string>
     <string name="person_done_ratio">%1$d/%2$d</string>
     <string name="person_done_description">%1$d faites sur %2$d</string>
+    <string name="nudge_title">Relancer %1$s</string>
+    <string name="nudge_send">Envoyer à %1$s</string>
+    <string name="nudge_hello">Bonjour %1$s,</string>
+    <string name="nudge_one">Petit rappel de la réunion «&#160;%1$s&#160;» du %2$s&#160;:</string>
+    <string name="nudge_many">Petit point sur tes actions en cours&#160;:</string>
+    <string name="nudge_meeting">%1$s, %2$s</string>
+    <string name="nudge_line">– %1$s</string>
+    <string name="nudge_line_due">– %1$s, pour le %2$s</string>
+    <string name="nudge_thanks">Merci&#160;!</string>
+    <string name="action_menu_open_minutes">Ouvrir le compte rendu</string>
     <string name="duration_minutes">%1$s&#160;min</string>
     <string name="duration_hours">%1$s&#160;h</string>
     <string name="duration_hours_minutes">%1$s&#160;h&#160;%2$s</string>
