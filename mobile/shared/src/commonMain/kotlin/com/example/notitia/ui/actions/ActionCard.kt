@@ -37,7 +37,7 @@ import org.jetbrains.compose.resources.stringResource
 
 private const val MAX_LINES = 3
 
-// The tick is a button of its own; the rest of the card opens the meeting the action was agreed in. Screen readers
+// The tick is a button of its own; the rest of the card opens the action's sheet. Screen readers
 // read the card in one go and tick it through its action, as they cannot swipe. A swipe completes it at once:
 // the card is already gone, so it does not wait like a tick does.
 @Composable

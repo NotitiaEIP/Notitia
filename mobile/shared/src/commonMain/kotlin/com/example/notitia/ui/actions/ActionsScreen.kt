@@ -75,11 +75,20 @@ private const val HALF_TURN = 180f
 // A ticked action keeps its place a moment before it joins the done ones. Ticking several in a row keeps them all
 // in place until the last moment ends, so no card moves under the finger. A swiped one is already off the screen.
 // onCompleted gets the actions that just left the list, whichever way, so they can be taken back.
+// openedAction is the action whose sheet is up, and sheetReveal how much of it shows. ownerChoices gives the first
+// names of a meeting.
 @Composable
 fun ActionsScreen(
     actions: List<TrackedAction>,
+    openedAction: ActionId?,
+    sheetReveal: SheetReveal,
+    ownerChoices: (meetingId: String) -> List<String>,
     onSetDone: (ActionId, Boolean) -> Unit,
+    onSetOwner: (ActionId, String?) -> Unit,
+    onSetDue: (ActionId, LocalDate?) -> Unit,
     onCompleted: (List<ActionId>) -> Unit,
+    onOpenAction: (ActionId) -> Unit,
+    onCloseAction: () -> Unit,
     onOpenMeeting: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -94,23 +103,37 @@ fun ActionsScreen(
         completed(lingering.toList())
         lingering = emptySet()
     }
+    fun toggle(tracked: TrackedAction) {
+        val done = !tracked.action.done
+        lingering = if (done) lingering + tracked.id else lingering - tracked.id
+        onSetDone(tracked.id, done)
+    }
     ActionList(
         board = actionBoard(actions, today, lingering),
         today = today,
         showDone = showDone,
         onShowDoneChange = { showDone = it },
-        onToggle = { tracked ->
-            val done = !tracked.action.done
-            lingering = if (done) lingering + tracked.id else lingering - tracked.id
-            onSetDone(tracked.id, done)
-        },
+        onToggle = ::toggle,
         onSwipedDone = { tracked ->
             onSetDone(tracked.id, true)
             onCompleted(listOf(tracked.id))
         },
-        onOpenMeeting = onOpenMeeting,
+        onOpen = { onOpenAction(it.id) },
         modifier = modifier,
     )
+    actions.firstOrNull { it.id == openedAction }?.let { tracked ->
+        ActionSheet(
+            tracked = tracked,
+            owners = ownerChoices(tracked.meeting.id),
+            today = today,
+            reveal = sheetReveal,
+            onSetOwner = { onSetOwner(tracked.id, it) },
+            onSetDue = { onSetDue(tracked.id, it) },
+            onToggleDone = { toggle(tracked) },
+            onOpenMinutes = { onOpenMeeting(tracked.meeting.id) },
+            onDismiss = onCloseAction,
+        )
+    }
 }
 
 private fun today(): LocalDate = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
@@ -123,7 +146,7 @@ private fun ActionList(
     onShowDoneChange: (Boolean) -> Unit,
     onToggle: (TrackedAction) -> Unit,
     onSwipedDone: (TrackedAction) -> Unit,
-    onOpenMeeting: (String) -> Unit,
+    onOpen: (TrackedAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val spacing = NotitiaTheme.spacing
@@ -136,7 +159,7 @@ private fun ActionList(
         today = today,
         onToggle = { onToggle(tracked) },
         onSwipedDone = { onSwipedDone(tracked) },
-        onOpen = { onOpenMeeting(tracked.meeting.id) },
+        onOpen = { onOpen(tracked) },
         modifier = modifier.padding(bottom = spacing.s),
     )
 
@@ -282,7 +305,7 @@ private fun ActionListPreview(actions: List<TrackedAction>, showDone: Boolean) =
         onShowDoneChange = {},
         onToggle = {},
         onSwipedDone = {},
-        onOpenMeeting = {},
+        onOpen = {},
         modifier = Modifier.background(NotitiaTheme.colors.background),
     )
 }

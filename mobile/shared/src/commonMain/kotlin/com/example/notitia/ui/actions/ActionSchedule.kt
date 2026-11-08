@@ -1,7 +1,9 @@
 package com.example.notitia.ui.actions
 
+import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.daysUntil
+import kotlinx.datetime.plus
 import notitia.shared.generated.resources.Res
 import notitia.shared.generated.resources.group_late
 import notitia.shared.generated.resources.group_later
@@ -36,6 +38,10 @@ fun dueGroup(due: LocalDate?, today: LocalDate): DueGroup {
 }
 
 fun daysLate(due: LocalDate, today: LocalDate): Int = due.daysUntil(today)
+
+// Nothing is due before the meeting that agreed to it, and Notitia follows a working year, not a lifetime.
+fun dueDateRange(meetingDay: LocalDate, today: LocalDate): ClosedRange<LocalDate> =
+    meetingDay..today.plus(DatePeriod(years = 1))
 
 // open and late count what the groups show, so the line above the list always agrees with it.
 data class ActionBoard(

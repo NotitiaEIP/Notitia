@@ -27,6 +27,8 @@ data class NotitiaColors(
     val focus: Color,
     // Over what a panel or a sheet pushes aside: stronger in dark, where no shadow separates the two.
     val dim: Color,
+    // Behind a screen that steps back under a sheet: black on both themes, as on iOS.
+    val stack: Color,
     val red: Color,
     val onRed: Color,
     val redSoft: Color,
@@ -74,6 +76,7 @@ internal val DarkColors = NotitiaColors(
     accentSoft = Violet.copy(alpha = 0.22f),
     focus = Color(0xFFB66EED),
     dim = Color.Black.copy(alpha = 0.5f),
+    stack = Color.Black,
     red = Color(0xFFFF5A52),
     onRed = Color(0xFF0B0A0F),
     redSoft = Color(0xFFFF5A52).copy(alpha = 0.16f),
@@ -109,6 +112,7 @@ internal val LightColors = NotitiaColors(
     accentSoft = Violet.copy(alpha = 0.10f),
     focus = Violet,
     dim = Color.Black.copy(alpha = 0.25f),
+    stack = Color.Black,
     red = Color(0xFFBF2D2A),
     onRed = Color.White,
     redSoft = Color(0xFFBF2D2A).copy(alpha = 0.10f),

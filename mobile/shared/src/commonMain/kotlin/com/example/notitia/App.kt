@@ -1,6 +1,5 @@
 package com.example.notitia
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -28,6 +27,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.notitia.ai.SpeechEngine
 import com.example.notitia.ui.actions.ActionsScreen
 import com.example.notitia.ui.actions.ActionsState
+import com.example.notitia.ui.actions.RecedesUnderSheet
+import com.example.notitia.ui.actions.SheetReveal
+import com.example.notitia.ui.actions.ownerChoices
 import com.example.notitia.ui.components.NotitiaTabBar
 import com.example.notitia.ui.components.offerUndo
 import com.example.notitia.ui.meetings.MeetingsScreen
@@ -87,6 +89,9 @@ fun App(
         val actions = rememberSaveable(saver = ActionsState.Saver) { ActionsState() }
         val snackbars = remember { SnackbarHostState() }
         var openedMeetingId by rememberSaveable { mutableStateOf<String?>(null) }
+        // ActionId.key: a saved state takes a string, not the class.
+        var openedActionKey by rememberSaveable { mutableStateOf<String?>(null) }
+        val actionSheet = remember { SheetReveal() }
         val openedMeeting = meetings.firstOrNull { it.id == openedMeetingId }
         var settingsOpen by rememberSaveable { mutableStateOf(false) }
         val search = rememberSaveable(saver = SearchState.saver(answerEngine)) { SearchState(answerEngine) }
@@ -123,7 +128,10 @@ fun App(
             scrimColor = NotitiaTheme.colors.dim,
             drawerContent = { SearchHistoryDrawer(historyDrawer, search) },
         ) {
-            Box(if (historyDrawer.isOpen) Modifier.clearAndSetSemantics {} else Modifier) {
+            RecedesUnderSheet(
+                reveal = actionSheet,
+                modifier = if (historyDrawer.isOpen) Modifier.clearAndSetSemantics {} else Modifier,
+            ) {
                 RecordingPlayerHost(
                     recording = recording,
                     state = player,
@@ -137,6 +145,7 @@ fun App(
                             onSelect = {
                                 tab = it
                                 openedMeetingId = null
+                                openedActionKey = null
                                 settingsOpen = false
                             },
                         )
@@ -170,20 +179,35 @@ fun App(
                                 onSettings = { settingsOpen = true },
                                 modifier = screenModifier,
                             )
-                            Tab.Actions -> ActionsScreen(
-                                actions = actions.tracked(meetings.map { meetingMinutes(it, recorded(it.id)?.minutes, now) }),
-                                onSetDone = actions::setDone,
-                                onCompleted = { ids ->
-                                    scope.launch {
-                                        val message = getPluralString(Res.plurals.actions_done_message, ids.size, ids.size)
-                                        if (snackbars.offerUndo(message, getString(Res.string.undo))) {
-                                            ids.forEach { actions.setDone(it, false) }
+                            Tab.Actions -> {
+                                val minutes = meetings.map { meetingMinutes(it, recorded(it.id)?.minutes, now) }
+                                val tracked = actions.tracked(minutes)
+                                ActionsScreen(
+                                    actions = tracked,
+                                    openedAction = tracked.firstOrNull { it.id.key == openedActionKey }?.id,
+                                    sheetReveal = actionSheet,
+                                    ownerChoices = { meetingId ->
+                                        minutes.firstOrNull { it.meeting.id == meetingId }
+                                            ?.let { ownerChoices(actions.applied(it)) }
+                                            .orEmpty()
+                                    },
+                                    onSetDone = actions::setDone,
+                                    onSetOwner = actions::setOwner,
+                                    onSetDue = actions::setDue,
+                                    onCompleted = { ids ->
+                                        scope.launch {
+                                            val message = getPluralString(Res.plurals.actions_done_message, ids.size, ids.size)
+                                            if (snackbars.offerUndo(message, getString(Res.string.undo))) {
+                                                ids.forEach { actions.setDone(it, false) }
+                                            }
                                         }
-                                    }
-                                },
-                                onOpenMeeting = { openedMeetingId = it },
-                                modifier = screenModifier,
-                            )
+                                    },
+                                    onOpenAction = { openedActionKey = it.key },
+                                    onCloseAction = { openedActionKey = null },
+                                    onOpenMeeting = { openedMeetingId = it },
+                                    modifier = screenModifier,
+                                )
+                            }
                             Tab.Search -> SearchScreen(
                                 meetings = meetings,
                                 state = search,

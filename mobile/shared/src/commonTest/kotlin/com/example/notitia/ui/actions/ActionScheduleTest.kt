@@ -58,6 +58,14 @@ class ActionScheduleTest {
     }
 
     @Test
+    fun aDueDateRunsFromTheMeetingDayToAYearAfterToday() {
+        val range = dueDateRange(meetingDay = inDays(-3), today = today)
+        assertEquals(inDays(-3), range.start)
+        assertEquals(LocalDate(2027, 10, 26), range.endInclusive)
+        assertEquals(false, inDays(-4) in range)
+    }
+
+    @Test
     fun groupsComeMostUrgentFirstAndTheDoneOnesApart() {
         val board = actionBoard(
             listOf(
