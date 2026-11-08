@@ -155,12 +155,13 @@ fun ActionsScreen(
         modifier = modifier,
     )
     actions.firstOrNull { it.id == openedAction }?.let { tracked ->
+        val owners = ownerChoices(tracked.meeting.id)
         ActionSheet(
             tracked = tracked,
-            owners = ownerChoices(tracked.meeting.id),
+            owners = owners,
             today = today,
             reveal = sheetReveal,
-            onSetOwner = { onSetOwner(tracked.id, it) },
+            onSetOwner = { name -> onSetOwner(tracked.id, name?.let { knownSpelling(it, owners) }) },
             onSetDue = { onSetDue(tracked.id, it) },
             onToggleDone = { toggle(tracked) },
             onOpenMinutes = { onOpenMeeting(tracked.meeting.id) },
