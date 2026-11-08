@@ -151,7 +151,7 @@ private fun ActionList(
 ) {
     val spacing = NotitiaTheme.spacing
     val colors = NotitiaTheme.colors
-    val empty = board.groups.isEmpty() && board.done.isEmpty()
+    val empty = board.toComplete.isEmpty() && board.groups.isEmpty() && board.done.isEmpty()
 
     @Composable
     fun Card(tracked: TrackedAction, modifier: Modifier) = ActionCard(
@@ -180,6 +180,11 @@ private fun ActionList(
                     hint = stringResource(Res.string.actions_empty_hint),
                     modifier = Modifier.padding(top = spacing.xxxl),
                 )
+            }
+        }
+        if (board.toComplete.isNotEmpty()) {
+            item(key = "to-complete") {
+                ToCompleteCard(board.toComplete, onOpen, listMotion().padding(top = spacing.l))
             }
         }
         board.groups.forEach { (group, inGroup) ->

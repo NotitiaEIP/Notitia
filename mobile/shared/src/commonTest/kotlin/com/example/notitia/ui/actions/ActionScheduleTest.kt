@@ -3,6 +3,7 @@ package com.example.notitia.ui.actions
 import com.example.notitia.ui.meetings.MeetingListItem
 import com.example.notitia.ui.meetings.MeetingStatus
 import com.example.notitia.ui.meetings.sampleMeetings
+import com.example.notitia.ui.minutes.Minutes
 import com.example.notitia.ui.minutes.MinutesAction
 import com.example.notitia.ui.minutes.sampleMinutes
 import kotlin.test.Test
@@ -31,11 +32,12 @@ class ActionScheduleTest {
         text: String,
         due: LocalDate?,
         done: Boolean = false,
+        owner: String? = "Nathan",
         meetingAt: Instant = at(20, 10),
         index: Int = 0,
     ): TrackedAction {
         val meeting = MeetingListItem(text, text, meetingAt, 30.minutes, 2, MeetingStatus.Ready(actions = 1))
-        return TrackedAction(ActionId(meeting.id, index), MinutesAction(text, "Nathan", due, done), meeting, speaker = null)
+        return TrackedAction(ActionId(meeting.id, index), MinutesAction(text, owner, due, done), meeting, speaker = null)
     }
 
     @Test
@@ -48,7 +50,6 @@ class ActionScheduleTest {
             ),
             groups,
         )
-        assertEquals(DueGroup.NoDueDate, dueGroup(null, today))
     }
 
     @Test
@@ -70,7 +71,6 @@ class ActionScheduleTest {
         val board = actionBoard(
             listOf(
                 tracked("plus tard", inDays(30)),
-                tracked("sans date", null),
                 tracked("faite", inDays(-4), done = true),
                 tracked("demain", inDays(1)),
                 tracked("en retard", inDays(-2)),
@@ -81,7 +81,7 @@ class ActionScheduleTest {
         )
         assertEquals(DueGroup.entries.toList(), board.groups.map { it.first })
         assertEquals(listOf("faite"), board.done.map { it.action.text })
-        assertEquals(6, board.open)
+        assertEquals(5, board.open)
         assertEquals(1, board.late)
     }
 
@@ -124,14 +124,52 @@ class ActionScheduleTest {
     }
 
     @Test
+    fun anActionWithoutOwnerOrDueDateIsToCompleteAndCountsAsOpen() {
+        val board = actionBoard(
+            listOf(
+                tracked("sans responsable", inDays(-2), owner = null, meetingAt = at(23, 10)),
+                tracked("sans date", null, meetingAt = at(20, 10)),
+                tracked("complète", inDays(1)),
+                tracked("faite sans date", null, done = true),
+            ),
+            today,
+        )
+        assertEquals(listOf("sans date", "sans responsable"), board.toComplete.map { it.action.text })
+        assertEquals(listOf(DueGroup.Tomorrow), board.groups.map { it.first })
+        assertEquals(listOf("faite sans date"), board.done.map { it.action.text })
+        assertEquals(3, board.open)
+        // Late, but not in the late group: the line above the list counts what the list shows.
+        assertEquals(0, board.late)
+    }
+
+    @Test
+    fun aCompletedActionJoinsItsGroup() {
+        val state = ActionsState()
+        val minutes = Minutes(
+            meeting = MeetingListItem("m1", "Point", at(23, 10), 30.minutes, 2, MeetingStatus.Ready(actions = 1)),
+            speakers = emptyList(),
+            decisions = emptyList(),
+            actions = listOf(MinutesAction("Réserver la salle", owner = null, due = null, done = false)),
+            summary = "",
+        )
+        state.setOwner(ActionId("m1", 0), "Adam")
+        assertEquals(1, actionBoard(state.tracked(listOf(minutes)), today).toComplete.size)
+        state.setDue(ActionId("m1", 0), inDays(1))
+        val board = actionBoard(state.tracked(listOf(minutes)), today)
+        assertEquals(emptyList(), board.toComplete)
+        assertEquals(listOf(DueGroup.Tomorrow), board.groups.map { it.first })
+    }
+
+    @Test
     fun theSamplesFillEveryGroupAtAnyTimeOfDay() {
         for (now in listOf(at(26, 0).plus(5.minutes), at(26, 23).plus(55.minutes))) {
             val actions = ActionsState().tracked(sampleMeetings(now, paris).map { sampleMinutes(it, now, paris) })
             val board = actionBoard(actions, today)
             assertEquals(DueGroup.entries.toList(), board.groups.map { it.first })
-            assertEquals(7, board.open)
+            assertEquals(2, board.toComplete.size)
+            assertEquals(8, board.open)
             assertEquals(2, board.late)
-            assertEquals(2, board.done.size)
+            assertEquals(1, board.done.size)
         }
     }
 }

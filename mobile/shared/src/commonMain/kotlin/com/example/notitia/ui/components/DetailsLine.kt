@@ -3,6 +3,7 @@ package com.example.notitia.ui.components
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
@@ -28,6 +29,7 @@ fun DetailsLine(
     modifier: Modifier = Modifier,
     style: TextStyle = NotitiaTheme.typography.timestamp,
     alert: String? = null,
+    color: Color = NotitiaTheme.colors.textSecondary,
 ) {
     val alertStyle = SpanStyle(color = NotitiaTheme.colors.red, fontWeight = FontWeight.SemiBold)
     val all = parts + listOfNotNull(alert)
@@ -40,7 +42,7 @@ fun DetailsLine(
             }
         },
         style = style,
-        color = NotitiaTheme.colors.textSecondary,
+        color = color,
         modifier = modifier.semantics { contentDescription = spokenList(all) },
     )
 }

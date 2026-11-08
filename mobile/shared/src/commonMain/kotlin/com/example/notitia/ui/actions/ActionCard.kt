@@ -98,7 +98,7 @@ private fun CheckButton(done: Boolean, onToggle: () -> Unit) {
 @Composable
 private fun OwnerAndDue(tracked: TrackedAction, today: LocalDate) {
     val action = tracked.action
-    val group = dueGroup(action.due, today)
+    val group = action.due?.let { dueGroup(it, today) }
     val late = action.due
         ?.takeIf { !action.done && group == DueGroup.Late }
         ?.let { stringResource(Res.string.action_late_by, daysLate(it, today)) }

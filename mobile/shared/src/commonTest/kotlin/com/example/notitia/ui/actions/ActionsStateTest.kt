@@ -75,7 +75,7 @@ class ActionsStateTest {
         val today = LocalDate(2026, 11, 8)
         state.setDue(ActionId("m1", 0), LocalDate(2026, 11, 9))
         val action = state.tracked(listOf(minutes)).first().action
-        assertEquals(DueGroup.Tomorrow, dueGroup(action.due, today))
+        assertEquals(DueGroup.Tomorrow, dueGroup(assertNotNull(action.due), today))
         assertEquals(LocalDate(2026, 11, 9), state.applied(minutes).actions.first().due)
     }
 

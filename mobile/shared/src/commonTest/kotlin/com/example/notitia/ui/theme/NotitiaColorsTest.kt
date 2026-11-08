@@ -18,6 +18,7 @@ class NotitiaColorsTest {
             texts.forEach { assertContrast(it, c.surface, 4.5f) }
             listOf(c.text, c.red).forEach { assertContrast(it, c.popup, 4.5f) }
             assertContrast(c.accentContent, c.accentSoft.compositeOver(c.background), 4.5f)
+            listOf(c.text, c.amber).forEach { assertContrast(it, c.amberSoft.compositeOver(c.surface), 4.5f) }
             assertContrast(c.onAccent, c.accent, 4.5f)
             assertContrast(c.onRed, c.red, 4.5f)
             assertContrast(c.onGreen, c.green, 4.5f)

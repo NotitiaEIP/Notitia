@@ -99,7 +99,9 @@
     <string name="group_tomorrow">Demain</string>
     <string name="group_next_days">Dans les 7&#160;jours</string>
     <string name="group_later">Plus tard</string>
-    <string name="group_no_due">Sans échéance</string>
+    <string name="actions_to_complete">À compléter</string>
+    <string name="action_missing_owner">Qui&#160;?</string>
+    <string name="action_missing_due">Pour quand&#160;?</string>
     <string name="action_sheet_owner">Responsable</string>
     <string name="action_sheet_due">Échéance</string>
     <string name="action_other_owner">Autre prénom…</string>

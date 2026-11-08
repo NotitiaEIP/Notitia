@@ -37,6 +37,7 @@ data class NotitiaColors(
     val onGreen: Color,
     val greenSoft: Color,
     val amber: Color,
+    val amberSoft: Color,
     val speakers: List<Color>,
     val onSpeaker: Color,
     val logoGradient: List<Color>,
@@ -84,6 +85,7 @@ internal val DarkColors = NotitiaColors(
     onGreen = Color(0xFF0B0A0F),
     greenSoft = Color(0xFF3DD68C).copy(alpha = 0.14f),
     amber = Color(0xFFFFB224),
+    amberSoft = Color(0xFFFFB224).copy(alpha = 0.16f),
     speakers = listOf(
         Color(0xFF5AA9FF), Color(0xFF2CC7B5), Color(0xFFF5B83D),
         Color(0xFFFF7AB6), Color(0xFF9BD84A), Color(0xFFFF8A4C),
@@ -120,6 +122,7 @@ internal val LightColors = NotitiaColors(
     onGreen = Color.White,
     greenSoft = Color(0xFF15724A).copy(alpha = 0.08f),
     amber = Color(0xFFA35200),
+    amberSoft = Color(0xFFA35200).copy(alpha = 0.10f),
     speakers = listOf(
         Color(0xFF1E6CCC), Color(0xFF0E7C70), Color(0xFF966100),
         Color(0xFFC2266F), Color(0xFF4D7A12), Color(0xFFB4501A),

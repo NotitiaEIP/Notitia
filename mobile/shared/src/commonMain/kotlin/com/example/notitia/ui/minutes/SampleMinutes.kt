@@ -28,8 +28,8 @@ fun sampleMinutes(meeting: MeetingListItem, now: Instant, timeZone: TimeZone = T
         summary = "L’équipe a validé la nouvelle identité : une interface sobre, un seul accent violet repris du logo.",
     )
 
-// As many as the card of each made-up meeting announces, due around today so that every group shows. One has no
-// sentence, as when the model gives no time.
+// As many as the card of each made-up meeting announces, due around today so that every group shows, and two to
+// complete. One has no sentence, as when the model gives no time.
 private fun sampleActions(meetingId: String, today: LocalDate): List<MinutesAction> {
     val (lucas, clement, nathan, adam) = sampleSpeakers
     fun action(text: String, owner: String?, inDays: Int?, said: ActionSource?, done: Boolean = false) =
@@ -71,8 +71,8 @@ private fun sampleActions(meetingId: String, today: LocalDate): List<MinutesActi
                 said("Il faudrait comparer deux modèles, je peux le faire.", lucas, 9.minutes + 18.seconds),
             ),
             action(
-                "Fixer la date de la revue du sprint 2", adam, inDays = 3,
-                said("Adam, tu nous fixes la date de la prochaine revue ?", clement, 1.hours + 2.minutes), done = true,
+                "Fixer la date de la revue du sprint 2", adam, inDays = 10,
+                said("Adam, tu nous fixes la date de la prochaine revue ?", clement, 1.hours + 2.minutes),
             ),
         )
         else -> emptyList()
