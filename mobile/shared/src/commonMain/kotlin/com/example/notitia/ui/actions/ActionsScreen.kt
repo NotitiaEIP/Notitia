@@ -24,15 +24,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -46,6 +49,7 @@ import com.example.notitia.ui.components.CountBadge
 import com.example.notitia.ui.components.DetailsLine
 import com.example.notitia.ui.components.EmptyState
 import com.example.notitia.ui.components.GroupTitle
+import com.example.notitia.ui.components.NotitiaSegmentedControl
 import com.example.notitia.ui.components.ScreenHeader
 import com.example.notitia.ui.meetings.sampleMeetings
 import com.example.notitia.ui.minutes.sampleMinutes
@@ -59,6 +63,8 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import notitia.shared.generated.resources.Res
+import notitia.shared.generated.resources.actions_by_due
+import notitia.shared.generated.resources.actions_by_person
 import notitia.shared.generated.resources.actions_done
 import notitia.shared.generated.resources.actions_empty
 import notitia.shared.generated.resources.actions_empty_hint
@@ -67,19 +73,29 @@ import notitia.shared.generated.resources.actions_nothing_open
 import notitia.shared.generated.resources.actions_open
 import notitia.shared.generated.resources.actions_title
 import notitia.shared.generated.resources.keyboard_arrow_down
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 
 private const val HALF_TURN = 180f
+private const val NOBODY = "nobody"
+
+// The same actions, two ways to read them: what is due first, or who has what before a team meeting.
+enum class ActionsView(val label: StringResource) {
+    ByDue(Res.string.actions_by_due),
+    ByPerson(Res.string.actions_by_person),
+}
 
 // A ticked action keeps its place a moment before it joins the done ones. Ticking several in a row keeps them all
 // in place until the last moment ends, so no card moves under the finger. A swiped one is already off the screen.
 // onCompleted gets the actions that just left the list, whichever way, so they can be taken back.
 // openedAction is the action whose sheet is up, and sheetReveal how much of it shows. ownerChoices gives the first
-// names of a meeting.
+// names of a meeting. view is kept by the caller, so it survives a change of tab.
 @Composable
 fun ActionsScreen(
     actions: List<TrackedAction>,
+    view: ActionsView,
+    onViewChange: (ActionsView) -> Unit,
     openedAction: ActionId?,
     sheetReveal: SheetReveal,
     ownerChoices: (meetingId: String) -> List<String>,
@@ -96,6 +112,18 @@ fun ActionsScreen(
     val today = remember { today() }
     var lingering by remember { mutableStateOf(emptySet<ActionId>()) }
     var showDone by rememberSaveable { mutableStateOf(false) }
+    var expanded by rememberSaveable(stateSaver = ExpandedSaver) { mutableStateOf(emptySet<String>()) }
+    // Written after each composition, read at the next one: not a state, so keeping it does not recompose.
+    val personOrder = remember(view) { mutableListOf<String?>() }
+    val people = if (view == ActionsView.ByPerson) {
+        actionsByPerson(actions, today, lingering).keptInOrder(personOrder)
+    } else {
+        emptyList()
+    }
+    SideEffect {
+        personOrder.clear()
+        personOrder.addAll(people.map { it.key })
+    }
     val completed by rememberUpdatedState(onCompleted)
     LaunchedEffect(lingering) {
         if (lingering.isEmpty()) return@LaunchedEffect
@@ -110,9 +138,14 @@ fun ActionsScreen(
     }
     ActionList(
         board = actionBoard(actions, today, lingering),
+        people = people,
+        view = view,
+        onViewChange = onViewChange,
         today = today,
         showDone = showDone,
         onShowDoneChange = { showDone = it },
+        expanded = expanded,
+        onExpandedChange = { key, open -> expanded = if (open) expanded + key else expanded - key },
         onToggle = ::toggle,
         onSwipedDone = { tracked ->
             onSetDone(tracked.id, true)
@@ -136,14 +169,24 @@ fun ActionsScreen(
     }
 }
 
-private fun today(): LocalDate = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+internal fun today(): LocalDate = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+
+// An Android Bundle keeps a list of strings, not a set.
+private val ExpandedSaver = Saver<Set<String>, ArrayList<String>>(save = { ArrayList(it) }, restore = { it.toSet() })
+
+private fun PersonActions.expandKey(): String = key ?: NOBODY
 
 @Composable
 private fun ActionList(
     board: ActionBoard,
+    people: List<PersonActions>,
+    view: ActionsView,
+    onViewChange: (ActionsView) -> Unit,
     today: LocalDate,
     showDone: Boolean,
     onShowDoneChange: (Boolean) -> Unit,
+    expanded: Set<String>,
+    onExpandedChange: (key: String, expanded: Boolean) -> Unit,
     onToggle: (TrackedAction) -> Unit,
     onSwipedDone: (TrackedAction) -> Unit,
     onOpen: (TrackedAction) -> Unit,
@@ -170,7 +213,15 @@ private fun ActionList(
         item(key = "header") {
             Column(verticalArrangement = Arrangement.spacedBy(spacing.xs)) {
                 ScreenHeader(stringResource(Res.string.actions_title))
-                if (!empty) OpenCount(board)
+                if (!empty) {
+                    OpenCount(board)
+                    NotitiaSegmentedControl(
+                        options = ActionsView.entries.map { stringResource(it.label) },
+                        selected = view.ordinal,
+                        onSelect = { onViewChange(ActionsView.entries[it]) },
+                        modifier = Modifier.padding(top = spacing.m),
+                    )
+                }
             }
         }
         if (empty) {
@@ -181,6 +232,20 @@ private fun ActionList(
                     modifier = Modifier.padding(top = spacing.xxxl),
                 )
             }
+        }
+        if (view == ActionsView.ByPerson) {
+            itemsIndexed(people, key = { _, person -> "person/${person.expandKey()}" }) { index, person ->
+                PersonCard(
+                    person = person,
+                    today = today,
+                    expanded = person.expandKey() in expanded,
+                    onExpandedChange = { onExpandedChange(person.expandKey(), it) },
+                    onToggle = onToggle,
+                    onOpen = onOpen,
+                    modifier = listMotion().padding(top = if (index == 0) spacing.l else spacing.s),
+                )
+            }
+            return@LazyColumn
         }
         if (board.toComplete.isNotEmpty()) {
             item(key = "to-complete") {
@@ -226,14 +291,14 @@ private fun ActionList(
 
 // The done ones unfold from the top as Material's expanding lists do; with reduced motion, only the fades.
 @Composable
-private fun foldEnter(reduced: Boolean): EnterTransition {
+internal fun foldEnter(reduced: Boolean): EnterTransition {
     val motion = NotitiaTheme.motion
     val fade = fadeIn(motion.standard())
     return if (reduced) fade else fade + expandVertically(motion.standard(), expandFrom = Alignment.Top)
 }
 
 @Composable
-private fun foldExit(reduced: Boolean): ExitTransition {
+internal fun foldExit(reduced: Boolean): ExitTransition {
     val motion = NotitiaTheme.motion
     val fade = fadeOut(motion.quick())
     return if (reduced) fade else fade + shrinkVertically(motion.standard(), shrinkTowards = Alignment.Top)
@@ -301,13 +366,23 @@ private fun DoneHeader(count: Int, expanded: Boolean, onExpandedChange: (Boolean
 }
 
 @Composable
-private fun ActionListPreview(actions: List<TrackedAction>, showDone: Boolean) = NotitiaTheme {
+private fun ActionListPreview(
+    actions: List<TrackedAction>,
+    showDone: Boolean,
+    view: ActionsView = ActionsView.ByDue,
+    expanded: Set<String> = emptySet(),
+) = NotitiaTheme {
     val today = today()
     ActionList(
         board = actionBoard(actions, today),
+        people = actionsByPerson(actions, today),
+        view = view,
+        onViewChange = {},
         today = today,
         showDone = showDone,
         onShowDoneChange = {},
+        expanded = expanded,
+        onExpandedChange = { _, _ -> },
         onToggle = {},
         onSwipedDone = {},
         onOpen = {},
@@ -327,6 +402,14 @@ private fun ActionsByDuePreview() = ActionListPreview(sampleActions(), showDone 
 @NotitiaPreviews
 @Composable
 private fun ActionsWithDonePreview() = ActionListPreview(sampleActions(), showDone = true)
+
+@NotitiaPreviews
+@Composable
+private fun ActionsByPersonPreview() {
+    val actions = sampleActions()
+    val first = actionsByPerson(actions, today()).firstOrNull()?.expandKey()
+    ActionListPreview(actions, showDone = false, view = ActionsView.ByPerson, expanded = setOfNotNull(first))
+}
 
 @NotitiaPreviews
 @Composable
