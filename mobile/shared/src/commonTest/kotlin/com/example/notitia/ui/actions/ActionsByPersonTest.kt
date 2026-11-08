@@ -169,4 +169,19 @@ class ActionsByPersonTest {
         ).keptInOrder(before.map { it.key })
         assertEquals(listOf("Nathan", "Adam", "Zoé", null), after.names())
     }
+
+    @Test
+    fun aTypedFirstNameTakesTheSpellingTheMeetingKnows() {
+        val known = listOf("Clément", "Nathan")
+        assertEquals("Clément", knownSpelling("clement", known))
+        assertEquals("Nathan", knownSpelling(" NATHAN ", known))
+        assertEquals("Zoé", knownSpelling("Zoé", known))
+    }
+
+    // Two people with the same first name are told apart by what the user wrote, such as an initial.
+    @Test
+    fun aFirstNameWithAnInitialIsSomeoneElse() {
+        val people = actionsByPerson(listOf(tracked("1", "Clément B."), tracked("2", "Clément D.")), today)
+        assertEquals(2, people.size)
+    }
 }

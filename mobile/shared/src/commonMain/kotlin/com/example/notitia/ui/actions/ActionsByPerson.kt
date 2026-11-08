@@ -20,6 +20,11 @@ data class PersonActions(
 fun personKey(name: String): String =
     name.trim().split(Regex("\\s+")).joinToString(" ").lowercase().map { ACCENTS[it] ?: it.toString() }.joinToString("")
 
+// A first name typed in the sheet takes the spelling the meeting already has for it: "clement" becomes "Clément",
+// with Clément's colour, in every view, not a stranger next to him.
+fun knownSpelling(name: String, known: List<String>): String =
+    known.firstOrNull { personKey(it) == personKey(name) } ?: name
+
 private val ACCENTS: Map<Char, String> = buildMap {
     "àâäá".forEach { put(it, "a") }
     "ç".forEach { put(it, "c") }
