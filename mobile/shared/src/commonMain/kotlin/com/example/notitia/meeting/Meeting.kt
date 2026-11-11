@@ -76,6 +76,8 @@ data class MinutesAction(
     val done: Boolean,
     // null when the minutes cannot point to the sentence: the sheet then shows only the meeting.
     val source: ActionSource? = null,
+    // Asked by the user on the action's sheet: a notification the day before it is due.
+    val reminder: Boolean = false,
 )
 
 // A name typed with spaces around it, or left blank, is no owner.

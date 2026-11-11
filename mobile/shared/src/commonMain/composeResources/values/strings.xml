@@ -92,6 +92,10 @@
         <item quantity="one">Action terminée</item>
         <item quantity="other">%1$d&#160;actions terminées</item>
     </plurals>
+    <plurals name="reminder_message">
+        <item quantity="one">Une action arrive à échéance demain</item>
+        <item quantity="other">%1$d&#160;actions arrivent à échéance demain</item>
+    </plurals>
     <string name="actions_empty">Aucune action pour l’instant.</string>
     <string name="actions_empty_hint">Quand quelqu’un dit «&#160;je m’en occupe&#160;» en réunion, l’action arrive ici, avec son responsable et son échéance.</string>
     <string name="actions_back_description">Retour aux actions</string>
