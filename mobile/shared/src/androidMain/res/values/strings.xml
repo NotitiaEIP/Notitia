@@ -1,8 +1,10 @@
 <resources>
-    <!-- Android resources, not composeResources: a home screen widget cannot read Compose resources. -->
+    <!-- Android resources, not composeResources: a home screen widget and a notification channel cannot read them. -->
     <string name="widget_name">Enregistrer une réunion</string>
     <string name="widget_description">Lancez l’enregistrement d’une réunion depuis l’écran d’accueil.</string>
     <string name="widget_record">Enregistrer</string>
     <string name="widget_record_description">Enregistrer une réunion</string>
     <string name="widget_on_device">Sur l’appareil</string>
+    <string name="reminder_channel">Rappels d’échéance</string>
+    <string name="reminder_channel_description">La veille de l’échéance d’une action, à 9&#160;h.</string>
 </resources>

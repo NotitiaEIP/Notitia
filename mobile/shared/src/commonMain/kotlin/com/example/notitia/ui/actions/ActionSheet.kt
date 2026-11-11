@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldLineLimits
@@ -43,6 +44,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.SheetValue
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberBottomSheetState
@@ -60,6 +62,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
@@ -67,10 +70,13 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -78,18 +84,22 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import com.example.notitia.meeting.ActionSource
+import com.example.notitia.meeting.MinutesAction
+import com.example.notitia.reminder.reminderAt
 import com.example.notitia.ui.components.CardChevron
 import com.example.notitia.ui.components.ContextMenu
 import com.example.notitia.ui.components.DetailsLine
 import com.example.notitia.ui.components.NotitiaButton
 import com.example.notitia.ui.components.SpeakerAvatar
 import com.example.notitia.ui.components.StrikeText
+import com.example.notitia.ui.components.rememberNotificationAccess
 import com.example.notitia.ui.meetings.MeetingListItem
 import com.example.notitia.ui.meetings.clockTime
 import com.example.notitia.ui.meetings.meetingWhenLabel
 import com.example.notitia.ui.meetings.sampleMinutes
 import com.example.notitia.ui.meetings.shortDateLabel
 import com.example.notitia.ui.theme.MotionStyle
+import com.example.notitia.ui.theme.NotitiaColors
 import com.example.notitia.ui.theme.NotitiaMotion
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
@@ -118,6 +128,11 @@ import notitia.shared.generated.resources.action_other_owner
 import notitia.shared.generated.resources.action_other_owner_label
 import notitia.shared.generated.resources.action_other_owner_title
 import notitia.shared.generated.resources.action_quote
+import notitia.shared.generated.resources.action_reminder
+import notitia.shared.generated.resources.action_reminder_blocked
+import notitia.shared.generated.resources.action_reminder_no_due
+import notitia.shared.generated.resources.action_reminder_past
+import notitia.shared.generated.resources.action_reminder_when
 import notitia.shared.generated.resources.action_sheet_due
 import notitia.shared.generated.resources.action_sheet_owner
 import notitia.shared.generated.resources.calendar_today
@@ -128,6 +143,7 @@ import notitia.shared.generated.resources.description
 import notitia.shared.generated.resources.group_today
 import notitia.shared.generated.resources.group_tomorrow
 import notitia.shared.generated.resources.keyboard_arrow_down
+import notitia.shared.generated.resources.notifications
 import notitia.shared.generated.resources.nudge_title
 import notitia.shared.generated.resources.person
 import org.jetbrains.compose.resources.DrawableResource
@@ -208,6 +224,7 @@ fun ActionSheet(
     reveal: SheetReveal,
     onSetOwner: (String?) -> Unit,
     onSetDue: (LocalDate?) -> Unit,
+    onSetReminder: (Boolean) -> Unit,
     onToggleDone: () -> Unit,
     onOpenMinutes: () -> Unit,
     onDismiss: () -> Unit,
@@ -228,6 +245,7 @@ fun ActionSheet(
             today = today,
             onSetOwner = onSetOwner,
             onSetDue = onSetDue,
+            onSetReminder = onSetReminder,
             onToggleDone = { closeThen(onToggleDone) },
             onOpenMinutes = { closeThen(onOpenMinutes) },
             onNudge = onNudge?.let { nudge -> { closeThen(nudge) } },
@@ -286,6 +304,7 @@ private fun ActionSheetContent(
     today: LocalDate,
     onSetOwner: (String?) -> Unit,
     onSetDue: (LocalDate?) -> Unit,
+    onSetReminder: (Boolean) -> Unit,
     onToggleDone: () -> Unit,
     onOpenMinutes: () -> Unit,
     onNudge: (() -> Unit)?,
@@ -316,6 +335,8 @@ private fun ActionSheetContent(
             OwnerRow(tracked, owners, onSetOwner, onTypeOwner = { typingOwner = true })
             HorizontalDivider(color = NotitiaTheme.colors.divider)
             DueRow(tracked, today, onSetDue, onPickDate = { pickingDate = true })
+            HorizontalDivider(color = NotitiaTheme.colors.divider)
+            ReminderRow(action, onSetReminder)
         }
         action.source?.let { Quote(it, tracked.meeting) }
         MeetingRow(tracked.meeting, onOpenMinutes)
@@ -421,6 +442,75 @@ private fun DueRow(tracked: TrackedAction, today: LocalDate, onSetDue: (LocalDat
             MenuChoice(stringResource(Res.string.action_due_pick), selected = picked) { choose(onPickDate) }
             MenuChoice(stringResource(Res.string.action_no_due), selected = due == null) { choose { onSetDue(null) } }
         }
+    }
+}
+
+// A switch the whole row flips, as the alarm of Reminders. Notifications are asked for when it is first turned on,
+// never before. Turning it off is always possible, even once its day has passed.
+@Composable
+private fun ReminderRow(action: MinutesAction, onSetReminder: (Boolean) -> Unit) {
+    val colors = NotitiaTheme.colors
+    val spacing = NotitiaTheme.spacing
+    val access = rememberNotificationAccess()
+    val haptics = LocalHapticFeedback.current
+    var refused by rememberSaveable { mutableStateOf(false) }
+    val due = action.due
+    val possible = due != null && reminderAt(due, TimeZone.currentSystemDefault()) > Clock.System.now()
+    val enabled = possible || action.reminder
+    val blocked = due != null && (refused || action.reminder) && !access.granted
+    fun change(on: Boolean) {
+        haptics.performHapticFeedback(if (on) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff)
+        if (!on) {
+            onSetReminder(false)
+        } else {
+            access.request { granted ->
+                refused = !granted
+                if (granted) onSetReminder(true)
+            }
+        }
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = NotitiaTheme.sizes.field)
+            .toggleable(value = action.reminder, enabled = enabled, role = Role.Switch, onValueChange = ::change)
+            .padding(horizontal = spacing.l, vertical = spacing.m),
+        horizontalArrangement = Arrangement.spacedBy(spacing.m),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val fade = Modifier.alpha(if (enabled) 1f else NotitiaColors.DISABLED_ALPHA)
+        Icon(
+            painter = painterResource(Res.drawable.notifications),
+            contentDescription = null,
+            tint = colors.textSecondary,
+            modifier = fade.size(NotitiaTheme.sizes.icon),
+        )
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(spacing.xxs)) {
+            Text(text = stringResource(Res.string.action_reminder), style = NotitiaTheme.typography.body, modifier = fade)
+            if (blocked) {
+                // Straight to the app's notification settings: saying where to go is not enough.
+                Text(
+                    text = stringResource(Res.string.action_reminder_blocked),
+                    style = NotitiaTheme.typography.caption,
+                    color = colors.accentContent,
+                    modifier = Modifier.clickable(role = Role.Button, onClick = access::openSettings),
+                )
+            } else {
+                Text(
+                    text = stringResource(
+                        when {
+                            due == null -> Res.string.action_reminder_no_due
+                            enabled -> Res.string.action_reminder_when
+                            else -> Res.string.action_reminder_past
+                        },
+                    ),
+                    style = NotitiaTheme.typography.caption,
+                    color = colors.textSecondary,
+                    modifier = fade,
+                )
+            }
+        }
+        Switch(checked = action.reminder, onCheckedChange = null, enabled = enabled)
     }
 }
 
@@ -680,6 +770,7 @@ private fun ActionSheetPreview(index: Int) = NotitiaTheme {
             today = today,
             onSetOwner = {},
             onSetDue = {},
+            onSetReminder = {},
             onToggleDone = {},
             onOpenMinutes = {},
             onNudge = {},

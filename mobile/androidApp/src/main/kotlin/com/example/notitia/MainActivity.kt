@@ -10,26 +10,32 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.tooling.preview.Preview
+import com.example.notitia.reminder.AlarmReminderScheduler
+import com.example.notitia.reminder.EXTRA_REMINDER_ACTIONS
+import com.example.notitia.reminder.ReminderTap
 import com.example.notitia.storage.phoneMeetingStore
 import com.example.notitia.widget.ACTION_RECORD
 
 class MainActivity : ComponentActivity() {
     // Counts the touches on the widget, also those that come while the app is already open.
     private var recordRequests by mutableIntStateOf(0)
+    private var reminderTap by mutableStateOf<ReminderTap?>(null)
     private var meetingsLoaded = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         // After a rotation the intent is the same one, already handled.
-        if (savedInstanceState == null) countRecordRequest(intent)
+        if (savedInstanceState == null) handle(intent)
 
         val answerEngine = answerEngineForBuild()
         val speechEngine = speechEngineForBuild(this, savedInstanceState)
         val minutesWriter = minutesWriterForBuild()
         val meetingStore = phoneMeetingStore(this)
+        val reminderScheduler = AlarmReminderScheduler(this)
         holdSplashScreenUntil { meetingsLoaded }
         setContent {
             App(
@@ -37,7 +43,9 @@ class MainActivity : ComponentActivity() {
                 speechEngine = speechEngine,
                 minutesWriter = minutesWriter,
                 meetingStore = meetingStore,
+                reminderScheduler = reminderScheduler,
                 recordRequests = recordRequests,
+                reminderTap = reminderTap,
                 onLoaded = { meetingsLoaded = true },
             )
         }
@@ -45,7 +53,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        countRecordRequest(intent)
+        handle(intent)
     }
 
     // Android 12+ keeps its splash screen while no frame is drawn; older versions keep the window background.
@@ -57,9 +65,10 @@ class MainActivity : ComponentActivity() {
     }
 
     // Reopening the app from the recent apps replays the intent that started it: that is not a new touch.
-    private fun countRecordRequest(intent: Intent) {
-        val fromRecents = (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0
-        if (intent.action == ACTION_RECORD && !fromRecents) recordRequests++
+    private fun handle(intent: Intent) {
+        if ((intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0) return
+        if (intent.action == ACTION_RECORD) recordRequests++
+        intent.getStringArrayExtra(EXTRA_REMINDER_ACTIONS)?.let { reminderTap = ReminderTap(it.toList()) }
     }
 }
 
