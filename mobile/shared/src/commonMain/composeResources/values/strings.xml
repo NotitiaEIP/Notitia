@@ -113,6 +113,12 @@
     <string name="action_other_owner_label">Prénom</string>
     <string name="action_nobody">Personne</string>
     <string name="action_due_next_week">Dans une semaine</string>
+    <string name="action_reminder">Me le rappeler</string>
+    <string name="action_reminder_when">La veille à 9&#160;h</string>
+    <string name="action_reminder_no_due">Choisissez d’abord une date.</string>
+    <string name="action_reminder_past">La veille est déjà passée.</string>
+    <string name="action_reminder_blocked">Autorisez les notifications dans les réglages du téléphone.</string>
+    <string name="action_reminder_set">Rappel la veille</string>
     <string name="action_due_pick">Choisir une date…</string>
     <string name="action_no_due">Sans échéance</string>
     <string name="action_due_none">Aucune</string>

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -23,6 +24,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import com.example.notitia.meeting.MinutesAction
+import com.example.notitia.reminder.hasReminder
 import com.example.notitia.ui.components.ActionCheck
 import com.example.notitia.ui.components.ContextMenu
 import com.example.notitia.ui.components.ContextMenuItem
@@ -43,11 +45,14 @@ import notitia.shared.generated.resources.action_mark_done
 import notitia.shared.generated.resources.action_mark_todo
 import notitia.shared.generated.resources.action_menu_open_minutes
 import notitia.shared.generated.resources.action_no_owner
+import notitia.shared.generated.resources.action_reminder_set
 import notitia.shared.generated.resources.chat_bubble
 import notitia.shared.generated.resources.check
 import notitia.shared.generated.resources.description
+import notitia.shared.generated.resources.notifications
 import notitia.shared.generated.resources.nudge_title
 import notitia.shared.generated.resources.search_options
+import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 
 private const val MAX_LINES = 3
@@ -166,7 +171,8 @@ internal fun dueWords(action: MinutesAction, today: LocalDate): DueWords {
     return DueWords(due, late)
 }
 
-// "Clément · demain", or "Nathan · 2 j de retard" in red while it is not done.
+// "Clément · demain", or "Nathan · 2 j de retard" in red while it is not done. A bell follows when a reminder is set,
+// as in Reminders.
 @Composable
 private fun OwnerAndDue(tracked: TrackedAction, today: LocalDate) {
     val action = tracked.action
@@ -181,5 +187,13 @@ private fun OwnerAndDue(tracked: TrackedAction, today: LocalDate) {
             style = NotitiaTheme.typography.caption,
             alert = late,
         )
+        if (action.hasReminder(today)) {
+            Icon(
+                painter = painterResource(Res.drawable.notifications),
+                contentDescription = stringResource(Res.string.action_reminder_set),
+                tint = NotitiaTheme.colors.textTertiary,
+                modifier = Modifier.size(NotitiaTheme.sizes.iconSmall),
+            )
+        }
     }
 }

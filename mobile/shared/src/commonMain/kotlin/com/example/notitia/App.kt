@@ -221,6 +221,7 @@ fun App(
                                     onSetDone = meetingsModel::setDone,
                                     onSetOwner = meetingsModel::setOwner,
                                     onSetDue = meetingsModel::setDue,
+                                    onSetReminder = meetingsModel::setReminder,
                                     onCompleted = { ids ->
                                         scope.launch {
                                             val message = getPluralString(Res.plurals.actions_done_message, ids.size, ids.size)
