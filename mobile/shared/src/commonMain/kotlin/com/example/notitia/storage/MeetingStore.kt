@@ -16,6 +16,13 @@ interface MeetingStore {
     fun save(meeting: Meeting)
 }
 
+// For previews: nothing is read, nothing is kept.
+object NoMeetingStore : MeetingStore {
+    override fun device() = "preview"
+    override fun loadAll() = emptyList<Meeting>()
+    override fun save(meeting: Meeting) = Unit
+}
+
 private const val EXTENSION = ".notitia"
 
 // One file per meeting, so a damaged file loses one meeting and not all of them.

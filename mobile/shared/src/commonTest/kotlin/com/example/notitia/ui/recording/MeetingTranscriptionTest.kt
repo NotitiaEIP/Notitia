@@ -62,6 +62,21 @@ class MeetingTranscriptionTest {
     }
 
     @Test
+    fun theKeptMeetingHoldsWhatWasHeardAndWritten() {
+        val transcription = transcribed(FakeSpeech("Bonjour.", "On commence."), pieces = 2)
+        transcription.duration = 42.seconds
+        val now = Instant.fromEpochMilliseconds(90_000)
+        val meeting = transcription.toMeeting(device = "phone-1", now = now)
+        assertEquals(transcription.id, meeting.id)
+        assertEquals(startedAt, meeting.startedAt)
+        assertEquals(42.seconds, meeting.duration)
+        assertEquals(now, meeting.modifiedAt)
+        assertEquals("phone-1", meeting.device)
+        assertEquals(transcription.lines, meeting.transcript)
+        assertEquals(MinutesState.Unavailable, meeting.minutes)
+    }
+
+    @Test
     fun aFailedPieceIsMarkedAndTheNextOnesGoOn() {
         val transcription = transcribed(
             FakeSpeech("Bonjour.", IllegalStateException("HTTP 502"), "On continue."),

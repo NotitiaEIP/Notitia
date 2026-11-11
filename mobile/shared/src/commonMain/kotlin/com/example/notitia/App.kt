@@ -23,17 +23,23 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.notitia.ai.SpeechEngine
+import com.example.notitia.storage.MeetingRepository
+import com.example.notitia.storage.MeetingStore
+import com.example.notitia.storage.NoMeetingStore
 import com.example.notitia.ui.actions.ActionsScreen
-import com.example.notitia.ui.actions.ActionsView
 import com.example.notitia.ui.actions.ActionsState
+import com.example.notitia.ui.actions.ActionsView
 import com.example.notitia.ui.actions.RecedesUnderSheet
 import com.example.notitia.ui.actions.SheetReveal
 import com.example.notitia.ui.actions.ownerChoices
 import com.example.notitia.ui.components.NotitiaTabBar
 import com.example.notitia.ui.components.offerUndo
 import com.example.notitia.ui.meetings.MeetingsScreen
+import com.example.notitia.ui.meetings.MeetingsViewModel
+import com.example.notitia.ui.meetings.listItem
 import com.example.notitia.ui.meetings.sampleMeetings
 import com.example.notitia.ui.minutes.MinutesRoute
 import com.example.notitia.ui.minutes.MinutesWriter
@@ -41,10 +47,8 @@ import com.example.notitia.ui.minutes.meetingMinutes
 import com.example.notitia.ui.navigation.Tab
 import com.example.notitia.ui.recording.FakeRecording
 import com.example.notitia.ui.recording.PlayerPosition
-import com.example.notitia.ui.recording.RecordedMeetings
 import com.example.notitia.ui.recording.RecordingPlayerHost
 import com.example.notitia.ui.recording.RecordingPlayerState
-import com.example.notitia.ui.recording.listItem
 import com.example.notitia.ui.search.AnswerEngine
 import com.example.notitia.ui.search.SampleAnswerEngine
 import com.example.notitia.ui.search.SearchHistoryDrawer
@@ -73,7 +77,10 @@ fun App(
     answerEngine: AnswerEngine = SampleAnswerEngine,
     speechEngine: SpeechEngine? = null,
     minutesWriter: MinutesWriter? = null,
+    meetingStore: MeetingStore = NoMeetingStore,
     recordRequests: Int = 0,
+    // Android holds its splash screen until then, so the list never opens empty for a frame.
+    onLoaded: () -> Unit = {},
 ) {
     // Not saved when the app closes yet: it follows the phone again on the next launch.
     var theme by rememberSaveable { mutableStateOf(ThemeChoice.System) }
@@ -81,12 +88,16 @@ fun App(
     SystemBarsFollow(darkTheme)
     NotitiaTheme(darkTheme = darkTheme) {
         var tab by rememberSaveable { mutableStateOf(Tab.Meetings) }
-        val recordings = speechEngine?.let { viewModel { RecordedMeetings(it, minutesWriter) } }
+        val meetingsModel = viewModel {
+            MeetingsViewModel(MeetingRepository(meetingStore), speechEngine, minutesWriter)
+        }
+        val stored = meetingsModel.meetings.collectAsStateWithLifecycle().value ?: return@NotitiaTheme
+        LaunchedEffect(Unit) { onLoaded() }
         val now = remember { Clock.System.now() }
-        // Made-up meetings until US-16 stores real ones.
+        // Made-up meetings beside the user's, so the app has something to show before a first recording.
         val samples = remember { sampleMeetings(now) }
-        val meetings = recordings?.meetings.orEmpty().map { it.listItem() } + samples
-        fun recorded(id: String?) = recordings?.meetings?.firstOrNull { it.id == id }
+        val meetings = stored.map { it.listItem(meetingsModel.progress(it.id)) } + samples
+        fun recorded(id: String?) = stored.firstOrNull { it.id == id }
         val actions = rememberSaveable(saver = ActionsState.Saver) { ActionsState() }
         var actionsView by rememberSaveable { mutableStateOf(ActionsView.ByDue) }
         val snackbars = remember { SnackbarHostState() }
@@ -106,11 +117,11 @@ fun App(
         }
         var recording by rememberSaveable(stateSaver = FakeRecording.Saver) { mutableStateOf(null) }
         recording?.let { current -> LaunchedEffect(current) { current.run() } }
-        LaunchedEffect(recording?.paused) { recordings?.setPaused(recording?.paused == true) }
+        LaunchedEffect(recording?.paused) { meetingsModel.setPaused(recording?.paused == true) }
         fun startRecording() {
             val started = FakeRecording(startedAt = Clock.System.now())
             recording = started
-            recordings?.start(started.startedAt)
+            meetingsModel.start(started.startedAt)
         }
         // Each touch on the home screen widget starts a recording, unless one already runs.
         LaunchedEffect(recordRequests) {
@@ -138,7 +149,7 @@ fun App(
                     recording = recording,
                     state = player,
                     onStop = {
-                        recording?.let { recordings?.stop(it.elapsed) }
+                        recording?.let { meetingsModel.stop(it.elapsed) }
                         recording = null
                     },
                     tabBar = {

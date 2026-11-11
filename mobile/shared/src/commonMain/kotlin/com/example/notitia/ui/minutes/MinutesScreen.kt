@@ -33,6 +33,7 @@ import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import com.example.notitia.meeting.ActionId
+import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MinutesState
 import com.example.notitia.meeting.TranscriptLine
 import com.example.notitia.ui.actions.ActionsState
@@ -47,7 +48,6 @@ import com.example.notitia.ui.meetings.MeetingListItem
 import com.example.notitia.ui.meetings.lengthLabel
 import com.example.notitia.ui.meetings.meetingWhenLabel
 import com.example.notitia.ui.meetings.sampleMeetings
-import com.example.notitia.ui.recording.MeetingTranscription
 import com.example.notitia.ui.recording.timerText
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
@@ -83,7 +83,7 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun MinutesRoute(
     meeting: MeetingListItem,
-    recorded: MeetingTranscription?,
+    recorded: Meeting?,
     actions: ActionsState,
     backLabel: String,
     backDescription: String,
@@ -111,7 +111,7 @@ fun MinutesRoute(
         backDescription = backDescription,
         onBack = onBack,
         onToggleAction = { index -> actions.setDone(ActionId(meeting.id, index), !minutes.actions[index].done) },
-        transcript = recorded?.lines,
+        transcript = recorded?.transcript,
         modifier = modifier,
     )
 }
