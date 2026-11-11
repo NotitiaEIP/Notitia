@@ -27,6 +27,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.notitia.ai.SpeechEngine
 import com.example.notitia.meeting.Meeting
+import com.example.notitia.reminder.NoReminderScheduler
+import com.example.notitia.reminder.ReminderScheduler
+import com.example.notitia.reminder.ReminderTap
 import com.example.notitia.storage.MeetingRepository
 import com.example.notitia.storage.MeetingStore
 import com.example.notitia.storage.NoMeetingStore
@@ -79,7 +82,9 @@ fun App(
     speechEngine: SpeechEngine? = null,
     minutesWriter: MinutesWriter? = null,
     meetingStore: MeetingStore = NoMeetingStore,
+    reminderScheduler: ReminderScheduler = NoReminderScheduler,
     recordRequests: Int = 0,
+    reminderTap: ReminderTap? = null,
     // Android holds its splash screen until then, so the list never opens empty for a frame.
     onLoaded: () -> Unit = {},
 ) {
@@ -92,7 +97,7 @@ fun App(
         val meetingsModel = viewModel {
             // Made-up meetings beside the user's, so the app has something to show before a first recording.
             val samples = sampleMeetings(Clock.System.now())
-            MeetingsViewModel(MeetingRepository(meetingStore, samples), speechEngine, minutesWriter)
+            MeetingsViewModel(MeetingRepository(meetingStore, samples), speechEngine, minutesWriter, reminderScheduler)
         }
         val stored = meetingsModel.meetings.collectAsStateWithLifecycle().value ?: return@NotitiaTheme
         LaunchedEffect(Unit) { onLoaded() }
@@ -105,6 +110,15 @@ fun App(
         val actionSheet = remember { SheetReveal() }
         val openedMeeting = stored.zip(meetings).firstOrNull { (meeting, _) -> meeting.id == openedMeetingId }
         var settingsOpen by rememberSaveable { mutableStateOf(false) }
+        // A reminder opens its action's sheet, or the list by due date when several actions share its day.
+        LaunchedEffect(reminderTap) {
+            val keys = reminderTap?.actionKeys ?: return@LaunchedEffect
+            tab = Tab.Actions
+            actionsView = ActionsView.ByDue
+            openedMeetingId = null
+            settingsOpen = false
+            openedActionKey = keys.singleOrNull()
+        }
         val search = rememberSaveable(saver = SearchState.saver(answerEngine)) { SearchState(answerEngine) }
         val historyDrawer = rememberDrawerState(DrawerValue.Closed)
         val scope = rememberCoroutineScope()

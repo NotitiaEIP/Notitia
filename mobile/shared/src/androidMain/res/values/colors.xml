@@ -1,7 +1,7 @@
 <resources>
-    <!-- Copies of NotitiaTheme tokens: a home screen widget cannot read the Compose theme. -->
+    <!-- Copies of NotitiaTheme tokens: a home screen widget and a notification cannot read the Compose theme. -->
     <color name="widget_surface">#FFFFFF</color>
     <color name="widget_text">#121117</color>
     <color name="widget_text_secondary">#5E5C69</color>
-    <color name="widget_accent">#882DCD</color>
+    <color name="accent">#882DCD</color>
 </resources>
