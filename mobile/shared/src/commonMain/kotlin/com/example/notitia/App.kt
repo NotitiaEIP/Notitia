@@ -26,15 +26,16 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.notitia.ai.SpeechEngine
+import com.example.notitia.meeting.Meeting
 import com.example.notitia.storage.MeetingRepository
 import com.example.notitia.storage.MeetingStore
 import com.example.notitia.storage.NoMeetingStore
 import com.example.notitia.ui.actions.ActionsScreen
-import com.example.notitia.ui.actions.ActionsState
 import com.example.notitia.ui.actions.ActionsView
 import com.example.notitia.ui.actions.RecedesUnderSheet
 import com.example.notitia.ui.actions.SheetReveal
 import com.example.notitia.ui.actions.ownerChoices
+import com.example.notitia.ui.actions.trackedActions
 import com.example.notitia.ui.components.NotitiaTabBar
 import com.example.notitia.ui.components.offerUndo
 import com.example.notitia.ui.meetings.MeetingsScreen
@@ -43,7 +44,7 @@ import com.example.notitia.ui.meetings.listItem
 import com.example.notitia.ui.meetings.sampleMeetings
 import com.example.notitia.ui.minutes.MinutesRoute
 import com.example.notitia.ui.minutes.MinutesWriter
-import com.example.notitia.ui.minutes.meetingMinutes
+import com.example.notitia.ui.minutes.toMinutes
 import com.example.notitia.ui.navigation.Tab
 import com.example.notitia.ui.recording.FakeRecording
 import com.example.notitia.ui.recording.PlayerPosition
@@ -89,23 +90,20 @@ fun App(
     NotitiaTheme(darkTheme = darkTheme) {
         var tab by rememberSaveable { mutableStateOf(Tab.Meetings) }
         val meetingsModel = viewModel {
-            MeetingsViewModel(MeetingRepository(meetingStore), speechEngine, minutesWriter)
+            // Made-up meetings beside the user's, so the app has something to show before a first recording.
+            val samples = sampleMeetings(Clock.System.now())
+            MeetingsViewModel(MeetingRepository(meetingStore, samples), speechEngine, minutesWriter)
         }
         val stored = meetingsModel.meetings.collectAsStateWithLifecycle().value ?: return@NotitiaTheme
         LaunchedEffect(Unit) { onLoaded() }
-        val now = remember { Clock.System.now() }
-        // Made-up meetings beside the user's, so the app has something to show before a first recording.
-        val samples = remember { sampleMeetings(now) }
-        val meetings = stored.map { it.listItem(meetingsModel.progress(it.id)) } + samples
-        fun recorded(id: String?) = stored.firstOrNull { it.id == id }
-        val actions = rememberSaveable(saver = ActionsState.Saver) { ActionsState() }
+        val meetings = stored.map { it.listItem(meetingsModel.progress(it.id)) }
         var actionsView by rememberSaveable { mutableStateOf(ActionsView.ByDue) }
         val snackbars = remember { SnackbarHostState() }
         var openedMeetingId by rememberSaveable { mutableStateOf<String?>(null) }
         // ActionId.key: a saved state takes a string, not the class.
         var openedActionKey by rememberSaveable { mutableStateOf<String?>(null) }
         val actionSheet = remember { SheetReveal() }
-        val openedMeeting = meetings.firstOrNull { it.id == openedMeetingId }
+        val openedMeeting = stored.zip(meetings).firstOrNull { (meeting, _) -> meeting.id == openedMeetingId }
         var settingsOpen by rememberSaveable { mutableStateOf(false) }
         val search = rememberSaveable(saver = SearchState.saver(answerEngine)) { SearchState(answerEngine) }
         val historyDrawer = rememberDrawerState(DrawerValue.Closed)
@@ -167,9 +165,9 @@ fun App(
                     val screenModifier = Modifier.padding(padding).consumeWindowInsets(padding)
                     if (openedMeeting != null) {
                         MinutesRoute(
-                            meeting = openedMeeting,
-                            recorded = recorded(openedMeetingId),
-                            actions = actions,
+                            meeting = openedMeeting.first,
+                            item = openedMeeting.second,
+                            onSetDone = meetingsModel::setDone,
                             backLabel = stringResource(tab.title),
                             backDescription = stringResource(tab.backDescription),
                             onBack = { openedMeetingId = null },
@@ -193,8 +191,8 @@ fun App(
                                 modifier = screenModifier,
                             )
                             Tab.Actions -> {
-                                val minutes = meetings.map { meetingMinutes(it, recorded(it.id)?.minutes, now) }
-                                val tracked = actions.tracked(minutes)
+                                val minutes = stored.zip(meetings, Meeting::toMinutes)
+                                val tracked = trackedActions(minutes)
                                 ActionsScreen(
                                     actions = tracked,
                                     view = actionsView,
@@ -203,17 +201,17 @@ fun App(
                                     sheetReveal = actionSheet,
                                     ownerChoices = { meetingId ->
                                         minutes.firstOrNull { it.meeting.id == meetingId }
-                                            ?.let { ownerChoices(actions.applied(it)) }
+                                            ?.let(::ownerChoices)
                                             .orEmpty()
                                     },
-                                    onSetDone = actions::setDone,
-                                    onSetOwner = actions::setOwner,
-                                    onSetDue = actions::setDue,
+                                    onSetDone = meetingsModel::setDone,
+                                    onSetOwner = meetingsModel::setOwner,
+                                    onSetDue = meetingsModel::setDue,
                                     onCompleted = { ids ->
                                         scope.launch {
                                             val message = getPluralString(Res.plurals.actions_done_message, ids.size, ids.size)
                                             if (snackbars.offerUndo(message, getString(Res.string.undo))) {
-                                                ids.forEach { actions.setDone(it, false) }
+                                                ids.forEach { meetingsModel.setDone(it, false) }
                                             }
                                         }
                                     },

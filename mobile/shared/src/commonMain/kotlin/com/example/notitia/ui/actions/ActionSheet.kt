@@ -87,9 +87,8 @@ import com.example.notitia.ui.components.StrikeText
 import com.example.notitia.ui.meetings.MeetingListItem
 import com.example.notitia.ui.meetings.clockTime
 import com.example.notitia.ui.meetings.meetingWhenLabel
-import com.example.notitia.ui.meetings.sampleMeetings
+import com.example.notitia.ui.meetings.sampleMinutes
 import com.example.notitia.ui.meetings.shortDateLabel
-import com.example.notitia.ui.minutes.sampleMinutes
 import com.example.notitia.ui.theme.MotionStyle
 import com.example.notitia.ui.theme.NotitiaMotion
 import com.example.notitia.ui.theme.NotitiaPreviews
@@ -672,8 +671,8 @@ private fun utcDate(millis: Long): LocalDate = Instant.fromEpochMilliseconds(mil
 private fun ActionSheetPreview(index: Int) = NotitiaTheme {
     val now = Clock.System.now()
     val today = now.toLocalDateTime(TimeZone.currentSystemDefault()).date
-    val minutes = sampleMinutes(sampleMeetings(now).first(), now)
-    val tracked = ActionsState().tracked(listOf(minutes))[index]
+    val minutes = sampleMinutes(now).first()
+    val tracked = trackedActions(listOf(minutes))[index]
     Box(Modifier.background(NotitiaTheme.colors.surfaceRaised)) {
         ActionSheetContent(
             tracked = tracked,

@@ -60,7 +60,7 @@ import com.example.notitia.ui.components.HeaderAction
 import com.example.notitia.ui.components.ScreenHeader
 import com.example.notitia.ui.components.cardShadow
 import com.example.notitia.ui.meetings.MeetingListItem
-import com.example.notitia.ui.meetings.sampleMeetings
+import com.example.notitia.ui.meetings.sampleItems
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
 import com.example.notitia.ui.theme.reducedMotion
@@ -507,7 +507,7 @@ private fun SearchLayoutPreview(step: SearchStep, input: String = "") = NotitiaT
     SearchLayout(
         step = step,
         input = remember { TextFieldState(input) },
-        meetings = sampleMeetings(now),
+        meetings = sampleItems(now),
         now = now,
         fieldFocus = remember { FocusRequester() },
         revealing = false,

@@ -36,7 +36,6 @@ import com.example.notitia.meeting.ActionId
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MinutesState
 import com.example.notitia.meeting.TranscriptLine
-import com.example.notitia.ui.actions.ActionsState
 import com.example.notitia.ui.components.ActionRow
 import com.example.notitia.ui.components.BackButton
 import com.example.notitia.ui.components.DetailsLine
@@ -45,9 +44,9 @@ import com.example.notitia.ui.components.NotitiaSegmentedControl
 import com.example.notitia.ui.components.SectionHeader
 import com.example.notitia.ui.components.SpeakerChip
 import com.example.notitia.ui.meetings.MeetingListItem
+import com.example.notitia.ui.meetings.sampleMinutes
 import com.example.notitia.ui.meetings.lengthLabel
 import com.example.notitia.ui.meetings.meetingWhenLabel
-import com.example.notitia.ui.meetings.sampleMeetings
 import com.example.notitia.ui.recording.timerText
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
@@ -79,39 +78,36 @@ import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
-// recorded is null for a made-up meeting.
 @Composable
 fun MinutesRoute(
-    meeting: MeetingListItem,
-    recorded: Meeting?,
-    actions: ActionsState,
+    meeting: Meeting,
+    item: MeetingListItem,
+    onSetDone: (ActionId, Boolean) -> Unit,
     backLabel: String,
     backDescription: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val now = remember { Clock.System.now() }
-    val state = recorded?.minutes
-    val written = remember(meeting, state) { meetingMinutes(meeting, state, now) }
-    val minutes = actions.applied(written)
+    val minutes = meeting.toMinutes(item)
     NavigationBackHandler(
         state = rememberNavigationEventState(NavigationEventInfo.None),
         onBackCompleted = onBack,
     )
     MinutesScreen(
         minutes = minutes,
-        notice = when (state) {
+        notice = when (meeting.minutes) {
             MinutesState.Writing -> Res.string.minutes_writing
             MinutesState.Failed -> Res.string.minutes_failed
             MinutesState.Unavailable -> Res.string.minutes_unavailable
-            null, is MinutesState.Written -> null
+            is MinutesState.Written -> null
         },
         now = now,
         backLabel = backLabel,
         backDescription = backDescription,
         onBack = onBack,
-        onToggleAction = { index -> actions.setDone(ActionId(meeting.id, index), !minutes.actions[index].done) },
-        transcript = recorded?.transcript,
+        onToggleAction = { index -> onSetDone(ActionId(meeting.id, index), !minutes.actions[index].done) },
+        transcript = meeting.transcript,
         modifier = modifier,
     )
 }
@@ -126,7 +122,7 @@ fun MinutesScreen(
     onBack: () -> Unit,
     onToggleAction: (Int) -> Unit,
     notice: StringResource? = null,
-    transcript: List<TranscriptLine>? = null,
+    transcript: List<TranscriptLine> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
     val spacing = NotitiaTheme.spacing
@@ -175,9 +171,8 @@ fun MinutesScreen(
                 onSelect = { tab = it },
                 modifier = Modifier.padding(top = spacing.xl),
             )
-            // The made-up meetings have no transcript: their tab stays empty.
             when {
-                tab != 0 -> transcript?.let { TranscriptContent(it) }
+                tab != 0 -> TranscriptContent(transcript)
                 notice != null -> Notice(stringResource(notice), Modifier.padding(top = spacing.xxl))
                 else -> MinutesContent(minutes, onToggleAction)
             }
@@ -304,7 +299,7 @@ private fun Bullet(text: String) {
 private fun MinutesScreenPreview() = NotitiaTheme {
     val now = Clock.System.now()
     MinutesScreen(
-        minutes = sampleMinutes(sampleMeetings(now).first(), now),
+        minutes = sampleMinutes(now).first(),
         now = now,
         backLabel = stringResource(Res.string.meetings_title),
         backDescription = stringResource(Res.string.minutes_back_description),

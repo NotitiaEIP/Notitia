@@ -1,9 +1,9 @@
 package com.example.notitia.ui.minutes
 
+import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MinutesAction
 import com.example.notitia.meeting.MinutesState
 import com.example.notitia.ui.meetings.MeetingListItem
-import kotlin.time.Instant
 
 // What the minutes screen shows, not the stored minutes: those live in Meeting.
 data class Minutes(
@@ -18,16 +18,14 @@ data class Minutes(
 // The owner has a colour only when they are one of the meeting's speakers.
 fun Minutes.speakerOf(action: MinutesAction): Int? = speakers.indexOf(action.owner).takeIf { it >= 0 }
 
-// state is null for a made-up meeting, which keeps its made-up minutes. The minutes stay empty until written.
-fun meetingMinutes(meeting: MeetingListItem, state: MinutesState?, now: Instant): Minutes = when (state) {
-    null -> sampleMinutes(meeting, now)
-    is MinutesState.Written -> Minutes(
-        meeting = meeting,
-        // The gateway does not tell the voices apart (E2).
-        speakers = emptyList(),
-        decisions = state.minutes.decisions,
-        actions = state.minutes.actions,
-        summary = state.minutes.summary,
+// Minutes not written yet are empty: the screen shows a notice in their place.
+fun Meeting.toMinutes(item: MeetingListItem): Minutes {
+    val written = (minutes as? MinutesState.Written)?.minutes
+    return Minutes(
+        meeting = item,
+        speakers = speakers,
+        decisions = written?.decisions.orEmpty(),
+        actions = written?.actions.orEmpty(),
+        summary = written?.summary.orEmpty(),
     )
-    else -> Minutes(meeting, emptyList(), emptyList(), emptyList(), summary = "")
 }

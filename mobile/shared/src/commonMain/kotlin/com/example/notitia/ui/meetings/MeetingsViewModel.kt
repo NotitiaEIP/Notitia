@@ -7,8 +7,10 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.notitia.ai.SpeechEngine
+import com.example.notitia.meeting.ActionId
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MinutesState
+import com.example.notitia.meeting.ownedBy
 import com.example.notitia.storage.MeetingRepository
 import com.example.notitia.ui.minutes.MinutesWriter
 import com.example.notitia.ui.recording.MeetingTranscription
@@ -22,6 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDate
 
 // A view model, so a rotation neither stops the microphone nor loses a transcription. speech is null when this
 // build cannot record: the kept meetings still show.
@@ -43,6 +46,12 @@ class MeetingsViewModel(
     private var paused = false
 
     fun progress(id: String): MeetingStatus? = transcribing[id]?.status
+
+    fun setDone(id: ActionId, done: Boolean) = repository.updateAction(id) { it.copy(done = done) }
+
+    fun setOwner(id: ActionId, owner: String?) = repository.updateAction(id) { it.ownedBy(owner) }
+
+    fun setDue(id: ActionId, due: LocalDate?) = repository.updateAction(id) { it.copy(due = due) }
 
     fun start(startedAt: Instant) {
         val speech = speech?.takeIf { it.canListen() } ?: return

@@ -13,9 +13,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import com.example.notitia.meeting.MinutesAction
-import com.example.notitia.ui.meetings.sampleMeetings
+import com.example.notitia.ui.meetings.sampleMinutes
 import com.example.notitia.ui.meetings.shortDateLabel
-import com.example.notitia.ui.minutes.sampleMinutes
 import com.example.notitia.ui.minutes.speakerOf
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
@@ -61,7 +60,7 @@ fun ActionRow(action: MinutesAction, onToggle: () -> Unit, modifier: Modifier = 
 @Composable
 private fun ActionRowPreview() = NotitiaTheme {
     val now = Clock.System.now()
-    val minutes = sampleMinutes(sampleMeetings(now).first(), now)
+    val minutes = sampleMinutes(now).first()
     Column(Modifier.background(NotitiaTheme.colors.background).padding(NotitiaTheme.spacing.l)) {
         minutes.actions.forEach { action ->
             ActionRow(action = action, onToggle = {}, speaker = minutes.speakerOf(action))

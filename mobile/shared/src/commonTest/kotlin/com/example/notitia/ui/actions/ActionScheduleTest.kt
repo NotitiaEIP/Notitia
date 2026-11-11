@@ -2,11 +2,10 @@ package com.example.notitia.ui.actions
 
 import com.example.notitia.meeting.ActionId
 import com.example.notitia.meeting.MinutesAction
+import com.example.notitia.meeting.ownedBy
 import com.example.notitia.ui.meetings.MeetingListItem
 import com.example.notitia.ui.meetings.MeetingStatus
-import com.example.notitia.ui.meetings.sampleMeetings
-import com.example.notitia.ui.minutes.Minutes
-import com.example.notitia.ui.minutes.sampleMinutes
+import com.example.notitia.ui.meetings.sampleMinutes
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.minutes
@@ -145,18 +144,10 @@ class ActionScheduleTest {
 
     @Test
     fun aCompletedActionJoinsItsGroup() {
-        val state = ActionsState()
-        val minutes = Minutes(
-            meeting = MeetingListItem("m1", "Point", at(23, 10), 30.minutes, 2, MeetingStatus.Ready(actions = 1)),
-            speakers = emptyList(),
-            decisions = emptyList(),
-            actions = listOf(MinutesAction("Réserver la salle", owner = null, due = null, done = false)),
-            summary = "",
-        )
-        state.setOwner(ActionId("m1", 0), "Adam")
-        assertEquals(1, actionBoard(state.tracked(listOf(minutes)), today).toComplete.size)
-        state.setDue(ActionId("m1", 0), inDays(1))
-        val board = actionBoard(state.tracked(listOf(minutes)), today)
+        val toComplete = tracked("Réserver la salle", due = null, owner = null)
+        val withOwner = toComplete.copy(action = toComplete.action.ownedBy("Adam"))
+        assertEquals(1, actionBoard(listOf(withOwner), today).toComplete.size)
+        val board = actionBoard(listOf(withOwner.copy(action = withOwner.action.copy(due = inDays(1)))), today)
         assertEquals(emptyList(), board.toComplete)
         assertEquals(listOf(DueGroup.Tomorrow), board.groups.map { it.first })
     }
@@ -164,7 +155,7 @@ class ActionScheduleTest {
     @Test
     fun theSamplesFillEveryGroupAtAnyTimeOfDay() {
         for (now in listOf(at(26, 0).plus(5.minutes), at(26, 23).plus(55.minutes))) {
-            val actions = ActionsState().tracked(sampleMeetings(now, paris).map { sampleMinutes(it, now, paris) })
+            val actions = trackedActions(sampleMinutes(now, paris))
             val board = actionBoard(actions, today)
             assertEquals(DueGroup.entries.toList(), board.groups.map { it.first })
             assertEquals(2, board.toComplete.size)

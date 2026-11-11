@@ -34,16 +34,20 @@ fun MinutesState.status(): MeetingStatus = when (this) {
 }
 
 // progress is given while the meeting is still transcribed: the kept meeting does not hold it.
+fun Meeting.listItem(title: String, progress: MeetingStatus? = null) = MeetingListItem(
+    id = id,
+    title = title,
+    startedAt = startedAt,
+    duration = duration,
+    // Whoever recorded, until the speakers are told apart (E2).
+    participants = speakers.size.coerceAtLeast(1),
+    status = progress ?: minutes.status(),
+)
+
+// A meeting the user has not named is called after the moment it was recorded.
 @Composable
 fun Meeting.listItem(progress: MeetingStatus? = null): MeetingListItem {
     val start = startedAt.toLocalDateTime(TimeZone.currentSystemDefault())
-    return MeetingListItem(
-        id = id,
-        title = title ?: stringResource(Res.string.recording_title, shortDateLabel(start.date), clockTime(start.time)),
-        startedAt = startedAt,
-        duration = duration,
-        // Whoever recorded, until the speakers are told apart (E2).
-        participants = speakers.size.coerceAtLeast(1),
-        status = progress ?: minutes.status(),
-    )
+    val shown = title ?: stringResource(Res.string.recording_title, shortDateLabel(start.date), clockTime(start.time))
+    return listItem(shown, progress)
 }

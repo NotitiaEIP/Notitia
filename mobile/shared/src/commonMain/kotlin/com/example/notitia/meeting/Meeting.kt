@@ -78,6 +78,9 @@ data class MinutesAction(
     val source: ActionSource? = null,
 )
 
+// A name typed with spaces around it, or left blank, is no owner.
+fun MinutesAction.ownedBy(name: String?): MinutesAction = copy(owner = name?.trim()?.takeIf { it.isNotEmpty() })
+
 // The sentence as transcribed, never as the model rewrote it. speaker is null until the voices are told apart (E2).
 @Serializable
 data class ActionSource(val quote: String, val speaker: String?, val at: Duration)

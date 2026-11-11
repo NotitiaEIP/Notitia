@@ -52,8 +52,7 @@ import com.example.notitia.ui.components.EmptyState
 import com.example.notitia.ui.components.GroupTitle
 import com.example.notitia.ui.components.NotitiaSegmentedControl
 import com.example.notitia.ui.components.ScreenHeader
-import com.example.notitia.ui.meetings.sampleMeetings
-import com.example.notitia.ui.minutes.sampleMinutes
+import com.example.notitia.ui.meetings.sampleMinutes
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
 import com.example.notitia.ui.theme.reducedMotion
@@ -445,7 +444,7 @@ private fun ActionListPreview(
 
 private fun sampleActions(): List<TrackedAction> {
     val now = Clock.System.now()
-    return ActionsState().tracked(sampleMeetings(now).map { sampleMinutes(it, now) })
+    return trackedActions(sampleMinutes(now))
 }
 
 @NotitiaPreviews

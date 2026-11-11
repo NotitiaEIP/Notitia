@@ -40,8 +40,7 @@ import com.example.notitia.ui.components.DoneRing
 import com.example.notitia.ui.components.SpeakerAvatar
 import com.example.notitia.ui.components.StrikeText
 import com.example.notitia.ui.components.cardShadow
-import com.example.notitia.ui.meetings.sampleMeetings
-import com.example.notitia.ui.minutes.sampleMinutes
+import com.example.notitia.ui.meetings.sampleMinutes
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
 import com.example.notitia.ui.theme.reducedMotion
@@ -267,7 +266,7 @@ private fun NudgeRow(name: String, onClick: () -> Unit) {
 private fun PersonCardsPreview(expandedFirst: Boolean) = NotitiaTheme {
     val now = Clock.System.now()
     val today = today()
-    val people = actionsByPerson(ActionsState().tracked(sampleMeetings(now).map { sampleMinutes(it, now) }), today)
+    val people = actionsByPerson(trackedActions(sampleMinutes(now)), today)
     var expanded by remember { mutableStateOf(if (expandedFirst) setOf(people.first().key) else emptySet()) }
     Column(
         modifier = Modifier.background(NotitiaTheme.colors.background).padding(NotitiaTheme.spacing.l),

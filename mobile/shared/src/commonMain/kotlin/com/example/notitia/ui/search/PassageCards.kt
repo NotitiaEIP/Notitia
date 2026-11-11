@@ -30,7 +30,7 @@ import com.example.notitia.ui.components.spokenList
 import com.example.notitia.ui.meetings.MeetingListItem
 import com.example.notitia.ui.meetings.lengthLabel
 import com.example.notitia.ui.meetings.meetingWhenLabel
-import com.example.notitia.ui.meetings.sampleMeetings
+import com.example.notitia.ui.meetings.sampleItems
 import com.example.notitia.ui.recording.timerText
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
@@ -178,7 +178,7 @@ private fun highlighted(text: String, ranges: List<IntRange>): AnnotatedString {
 @Composable
 private fun FoundMeetingCardPreview() = NotitiaTheme {
     val now = Clock.System.now()
-    val meetings = sampleMeetings(now)
+    val meetings = sampleItems(now)
     Column(
         modifier = Modifier.background(NotitiaTheme.colors.background).padding(NotitiaTheme.spacing.l),
         verticalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.s),
@@ -198,7 +198,7 @@ private fun SourceCardPreview() = NotitiaTheme {
         SourceCard(
             number = 1,
             passage = passage,
-            meeting = sampleMeetings(now).first { it.id == passage.meetingId },
+            meeting = sampleItems(now).first { it.id == passage.meetingId },
             now = now,
             onClick = {},
         )
