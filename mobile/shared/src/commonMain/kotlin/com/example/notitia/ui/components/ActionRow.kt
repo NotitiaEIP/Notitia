@@ -12,9 +12,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import com.example.notitia.meeting.MinutesAction
 import com.example.notitia.ui.meetings.sampleMeetings
 import com.example.notitia.ui.meetings.shortDateLabel
-import com.example.notitia.ui.minutes.MinutesAction
 import com.example.notitia.ui.minutes.sampleMinutes
 import com.example.notitia.ui.minutes.speakerOf
 import com.example.notitia.ui.theme.NotitiaPreviews

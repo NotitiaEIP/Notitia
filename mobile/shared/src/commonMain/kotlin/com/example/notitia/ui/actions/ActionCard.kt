@@ -22,6 +22,7 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import com.example.notitia.meeting.MinutesAction
 import com.example.notitia.ui.components.ActionCheck
 import com.example.notitia.ui.components.ContextMenu
 import com.example.notitia.ui.components.ContextMenuItem
@@ -31,7 +32,6 @@ import com.example.notitia.ui.components.SpeakerAvatar
 import com.example.notitia.ui.components.StrikeText
 import com.example.notitia.ui.components.SwipeableAction
 import com.example.notitia.ui.meetings.shortDateLabel
-import com.example.notitia.ui.minutes.MinutesAction
 import com.example.notitia.ui.theme.NotitiaTheme
 import kotlinx.datetime.LocalDate
 import notitia.shared.generated.resources.Res

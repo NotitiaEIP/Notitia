@@ -2,11 +2,12 @@ package com.example.notitia.ui.recording
 
 import com.example.notitia.ai.SpeechEngine
 import com.example.notitia.ai.audio
+import com.example.notitia.meeting.MinutesAction
+import com.example.notitia.meeting.MinutesState
+import com.example.notitia.meeting.TranscriptLine
+import com.example.notitia.meeting.WrittenMinutes
 import com.example.notitia.ui.meetings.MeetingStatus
-import com.example.notitia.ui.minutes.MinutesAction
-import com.example.notitia.ui.minutes.MinutesState
 import com.example.notitia.ui.minutes.MinutesWriter
-import com.example.notitia.ui.minutes.WrittenMinutes
 import com.example.notitia.ui.search.runNow
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.test.Test

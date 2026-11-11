@@ -1,5 +1,7 @@
 package com.example.notitia.ui.minutes
 
+import com.example.notitia.meeting.ActionSource
+import com.example.notitia.meeting.MinutesAction
 import com.example.notitia.ui.meetings.MeetingListItem
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours

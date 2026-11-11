@@ -32,6 +32,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import com.example.notitia.meeting.MinutesState
+import com.example.notitia.meeting.TranscriptLine
 import com.example.notitia.ui.actions.ActionId
 import com.example.notitia.ui.actions.ActionsState
 import com.example.notitia.ui.components.ActionRow
@@ -46,7 +48,6 @@ import com.example.notitia.ui.meetings.lengthLabel
 import com.example.notitia.ui.meetings.meetingWhenLabel
 import com.example.notitia.ui.meetings.sampleMeetings
 import com.example.notitia.ui.recording.MeetingTranscription
-import com.example.notitia.ui.recording.TranscriptLine
 import com.example.notitia.ui.recording.timerText
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme

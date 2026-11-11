@@ -8,10 +8,11 @@ import com.example.notitia.ai.SpeechEngine
 import com.example.notitia.ai.SpeechSegment
 import com.example.notitia.ai.SpeechSegmenter
 import com.example.notitia.ai.pcmToWav
+import com.example.notitia.meeting.MinutesState
+import com.example.notitia.meeting.TranscriptLine
+import com.example.notitia.meeting.WrittenMinutes
 import com.example.notitia.ui.meetings.MeetingStatus
-import com.example.notitia.ui.minutes.MinutesState
 import com.example.notitia.ui.minutes.MinutesWriter
-import com.example.notitia.ui.minutes.WrittenMinutes
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
 import kotlin.time.Instant
@@ -31,9 +32,6 @@ private val madeUpSentences = listOf(
     Regex("""^abonnez-vous""", RegexOption.IGNORE_CASE),
     Regex("""^thanks? for watching""", RegexOption.IGNORE_CASE),
 )
-
-// text is null for a passage the engine could not transcribe.
-data class TranscriptLine(val at: Duration, val text: String?)
 
 internal fun cleanTranscript(text: String): String {
     val cleaned = text.trim()

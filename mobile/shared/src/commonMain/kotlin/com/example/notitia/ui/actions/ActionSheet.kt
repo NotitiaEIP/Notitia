@@ -40,8 +40,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SheetState
 import androidx.compose.material3.SelectableDates
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -77,6 +77,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
+import com.example.notitia.meeting.ActionSource
 import com.example.notitia.ui.components.CardChevron
 import com.example.notitia.ui.components.ContextMenu
 import com.example.notitia.ui.components.DetailsLine
@@ -88,7 +89,6 @@ import com.example.notitia.ui.meetings.clockTime
 import com.example.notitia.ui.meetings.meetingWhenLabel
 import com.example.notitia.ui.meetings.sampleMeetings
 import com.example.notitia.ui.meetings.shortDateLabel
-import com.example.notitia.ui.minutes.ActionSource
 import com.example.notitia.ui.minutes.sampleMinutes
 import com.example.notitia.ui.theme.MotionStyle
 import com.example.notitia.ui.theme.NotitiaMotion
@@ -122,8 +122,8 @@ import notitia.shared.generated.resources.action_quote
 import notitia.shared.generated.resources.action_sheet_due
 import notitia.shared.generated.resources.action_sheet_owner
 import notitia.shared.generated.resources.calendar_today
-import notitia.shared.generated.resources.chat_bubble
 import notitia.shared.generated.resources.cancel
+import notitia.shared.generated.resources.chat_bubble
 import notitia.shared.generated.resources.check
 import notitia.shared.generated.resources.description
 import notitia.shared.generated.resources.group_today

@@ -1,10 +1,10 @@
 package com.example.notitia.ui.actions
 
+import com.example.notitia.meeting.MinutesAction
 import com.example.notitia.ui.meetings.MeetingListItem
 import com.example.notitia.ui.meetings.MeetingStatus
 import com.example.notitia.ui.meetings.sampleMeetings
 import com.example.notitia.ui.minutes.Minutes
-import com.example.notitia.ui.minutes.MinutesAction
 import com.example.notitia.ui.minutes.sampleMinutes
 import kotlin.test.Test
 import kotlin.test.assertEquals

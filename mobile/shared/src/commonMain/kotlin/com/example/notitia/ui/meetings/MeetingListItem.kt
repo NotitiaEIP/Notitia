@@ -3,7 +3,7 @@ package com.example.notitia.ui.meetings
 import kotlin.time.Duration
 import kotlin.time.Instant
 
-// What the list shows, not the stored meeting: T-07 defines that one.
+// What the list shows, not the stored meeting: that one is Meeting.
 data class MeetingListItem(
     val id: String,
     val title: String,

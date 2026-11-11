@@ -1,7 +1,10 @@
 package com.example.notitia.ui.minutes
 
 import com.example.notitia.ai.LanguageModel
-import com.example.notitia.ui.recording.TranscriptLine
+import com.example.notitia.meeting.ActionSource
+import com.example.notitia.meeting.MinutesAction
+import com.example.notitia.meeting.TranscriptLine
+import com.example.notitia.meeting.WrittenMinutes
 import com.example.notitia.ui.search.runNow
 import kotlin.test.Test
 import kotlin.test.assertEquals

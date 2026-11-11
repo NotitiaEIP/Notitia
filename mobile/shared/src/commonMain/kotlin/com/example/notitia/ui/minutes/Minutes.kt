@@ -1,11 +1,11 @@
 package com.example.notitia.ui.minutes
 
+import com.example.notitia.meeting.MinutesAction
+import com.example.notitia.meeting.MinutesState
 import com.example.notitia.ui.meetings.MeetingListItem
-import kotlin.time.Duration
 import kotlin.time.Instant
-import kotlinx.datetime.LocalDate
 
-// What the minutes screen shows, not the stored minutes: T-07 defines those.
+// What the minutes screen shows, not the stored minutes: those live in Meeting.
 data class Minutes(
     val meeting: MeetingListItem,
     // Named by the user, meeting by meeting: no voiceprint links them across meetings (product rule 4).
@@ -14,19 +14,6 @@ data class Minutes(
     val actions: List<MinutesAction>,
     val summary: String,
 )
-
-data class MinutesAction(
-    val text: String,
-    // A first name, as said in the meeting: null when nobody was named.
-    val owner: String?,
-    val due: LocalDate?,
-    val done: Boolean,
-    // null when the minutes cannot point to the sentence: the sheet then shows only the meeting.
-    val source: ActionSource? = null,
-)
-
-// The sentence as transcribed, never as the model rewrote it. speaker is null until the voices are told apart (E2).
-data class ActionSource(val quote: String, val speaker: String?, val at: Duration)
 
 // The owner has a colour only when they are one of the meeting's speakers.
 fun Minutes.speakerOf(action: MinutesAction): Int? = speakers.indexOf(action.owner).takeIf { it >= 0 }
