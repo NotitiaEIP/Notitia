@@ -6,17 +6,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.setValue
+import com.example.notitia.meeting.ActionId
 import com.example.notitia.meeting.MinutesAction
 import com.example.notitia.ui.meetings.MeetingListItem
 import com.example.notitia.ui.minutes.Minutes
 import com.example.notitia.ui.minutes.speakerOf
 import kotlinx.datetime.LocalDate
-
-// An action is known by its place in the minutes of its meeting.
-data class ActionId(val meetingId: String, val index: Int) {
-    // Lazy lists keep their keys in an Android Bundle, which takes a string but not this class.
-    val key: String get() = "$meetingId/$index"
-}
 
 // An action with the meeting it was agreed in, for the list that mixes every meeting. speaker is the owner's
 // colour in that meeting.

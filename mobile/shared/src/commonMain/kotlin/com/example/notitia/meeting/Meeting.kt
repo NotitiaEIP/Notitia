@@ -23,6 +23,19 @@ data class Meeting(
     val minutes: MinutesState,
 )
 
+// Minutes not written yet have no action to change.
+fun Meeting.withAction(index: Int, transform: (MinutesAction) -> MinutesAction): Meeting {
+    val written = (minutes as? MinutesState.Written)?.minutes ?: return this
+    val actions = written.actions.mapIndexed { i, action -> if (i == index) transform(action) else action }
+    return copy(minutes = MinutesState.Written(written.copy(actions = actions)))
+}
+
+// An action is known by its place in the minutes of its meeting.
+data class ActionId(val meetingId: String, val index: Int) {
+    // Lazy lists keep their keys in an Android Bundle, which takes a string but not this class.
+    val key: String get() = "$meetingId/$index"
+}
+
 // text is null for a passage the engine could not transcribe.
 @Serializable
 data class TranscriptLine(val at: Duration, val text: String?)
