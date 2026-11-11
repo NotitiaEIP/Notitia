@@ -19,7 +19,7 @@ import com.example.notitia.ui.meetings.MeetingStatus
 import com.example.notitia.ui.meetings.clockTime
 import com.example.notitia.ui.meetings.lengthLabel
 import com.example.notitia.ui.meetings.meetingDay
-import com.example.notitia.ui.meetings.sampleMeetings
+import com.example.notitia.ui.meetings.sampleItems
 import com.example.notitia.ui.meetings.shortDateLabel
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
@@ -136,6 +136,6 @@ private fun MeetingCardPreview() = NotitiaTheme {
         modifier = Modifier.background(NotitiaTheme.colors.background).padding(NotitiaTheme.spacing.l),
         verticalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.s),
     ) {
-        sampleMeetings(now).take(2).forEach { MeetingCard(meeting = it, now = now, onClick = {}) }
+        sampleItems(now).take(2).forEach { MeetingCard(meeting = it, now = now, onClick = {}) }
     }
 }

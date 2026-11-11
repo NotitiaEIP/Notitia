@@ -1,6 +1,6 @@
 package com.example.notitia.ui.search
 
-import com.example.notitia.ui.meetings.sampleMeetings
+import com.example.notitia.ui.meetings.sampleItems
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -39,7 +39,7 @@ class SearchQueryTest {
 
     @Test
     fun aWordIsFoundInTheMostRecentMeetingFirst() {
-        val meetings = sampleMeetings(Clock.System.now())
+        val meetings = sampleItems(Clock.System.now())
         val found = findPassages("BUDGET", samplePassages)
         assertEquals(4, found.size)
         val groups = groupByMeeting(found, meetings)

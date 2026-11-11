@@ -2,11 +2,12 @@ package com.example.notitia.ui.recording
 
 import com.example.notitia.ai.SpeechEngine
 import com.example.notitia.ai.audio
+import com.example.notitia.meeting.MinutesAction
+import com.example.notitia.meeting.MinutesState
+import com.example.notitia.meeting.TranscriptLine
+import com.example.notitia.meeting.WrittenMinutes
 import com.example.notitia.ui.meetings.MeetingStatus
-import com.example.notitia.ui.minutes.MinutesAction
-import com.example.notitia.ui.minutes.MinutesState
 import com.example.notitia.ui.minutes.MinutesWriter
-import com.example.notitia.ui.minutes.WrittenMinutes
 import com.example.notitia.ui.search.runNow
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.test.Test
@@ -58,6 +59,21 @@ class MeetingTranscriptionTest {
         assertEquals(listOf("Bonjour à tous.", "On commence."), transcription.lines.map { it.text })
         assertEquals(Duration.ZERO, transcription.lines[0].at)
         assertTrue(transcription.lines[1].at in 3.seconds..4.seconds, "at: ${transcription.lines[1].at}")
+    }
+
+    @Test
+    fun theKeptMeetingHoldsWhatWasHeardAndWritten() {
+        val transcription = transcribed(FakeSpeech("Bonjour.", "On commence."), pieces = 2)
+        transcription.duration = 42.seconds
+        val now = Instant.fromEpochMilliseconds(90_000)
+        val meeting = transcription.toMeeting(device = "phone-1", now = now)
+        assertEquals(transcription.id, meeting.id)
+        assertEquals(startedAt, meeting.startedAt)
+        assertEquals(42.seconds, meeting.duration)
+        assertEquals(now, meeting.modifiedAt)
+        assertEquals("phone-1", meeting.device)
+        assertEquals(transcription.lines, meeting.transcript)
+        assertEquals(MinutesState.Unavailable, meeting.minutes)
     }
 
     @Test

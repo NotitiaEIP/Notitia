@@ -23,8 +23,7 @@ import androidx.compose.ui.semantics.semantics
 import com.example.notitia.ui.components.CardChevron
 import com.example.notitia.ui.components.DetailsLine
 import com.example.notitia.ui.components.StrikeText
-import com.example.notitia.ui.meetings.sampleMeetings
-import com.example.notitia.ui.minutes.sampleMinutes
+import com.example.notitia.ui.meetings.sampleMinutes
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
 import com.example.notitia.ui.theme.reducedMotion
@@ -117,7 +116,7 @@ private fun ToCompleteRow(tracked: TrackedAction, onOpen: () -> Unit) {
 @Composable
 private fun ToCompleteCardPreview() = NotitiaTheme {
     val now = Clock.System.now()
-    val actions = ActionsState().tracked(sampleMeetings(now).map { sampleMinutes(it, now) })
+    val actions = trackedActions(sampleMinutes(now))
     ToCompleteCard(
         actions = actions.filter { !it.action.done && (it.action.owner == null || it.action.due == null) },
         onOpen = {},

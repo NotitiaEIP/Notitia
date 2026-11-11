@@ -1,8 +1,9 @@
 package com.example.notitia.ui.actions
 
+import com.example.notitia.meeting.ActionId
+import com.example.notitia.meeting.MinutesAction
 import com.example.notitia.ui.meetings.MeetingListItem
 import com.example.notitia.ui.meetings.MeetingStatus
-import com.example.notitia.ui.minutes.MinutesAction
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.minutes

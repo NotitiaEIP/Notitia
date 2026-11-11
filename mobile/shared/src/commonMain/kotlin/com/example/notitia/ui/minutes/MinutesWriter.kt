@@ -2,7 +2,10 @@ package com.example.notitia.ui.minutes
 
 import com.example.notitia.ai.LanguageModel
 import com.example.notitia.ai.withoutReasoning
-import com.example.notitia.ui.recording.TranscriptLine
+import com.example.notitia.meeting.ActionSource
+import com.example.notitia.meeting.MinutesAction
+import com.example.notitia.meeting.TranscriptLine
+import com.example.notitia.meeting.WrittenMinutes
 import com.example.notitia.ui.recording.timerText
 import kotlinx.datetime.LocalDate
 
@@ -23,23 +26,9 @@ private val MINUTES_INSTRUCTIONS = """
     One $ACTION line per task someone agreed to do. If there is none, write exactly: $ACTION $NONE
 """.trimIndent()
 
-data class WrittenMinutes(
-    val summary: String,
-    val decisions: List<String>,
-    val actions: List<MinutesAction>,
-)
-
 interface MinutesWriter {
     // day is when the meeting took place, so "vendredi" becomes a date.
     suspend fun write(lines: List<TranscriptLine>, day: LocalDate): WrittenMinutes
-}
-
-sealed interface MinutesState {
-    data object Writing : MinutesState
-    data class Written(val minutes: WrittenMinutes) : MinutesState
-    data object Failed : MinutesState
-    // No writer in this build: release builds have no gateway.
-    data object Unavailable : MinutesState
 }
 
 class LanguageModelMinutesWriter(private val model: LanguageModel) : MinutesWriter {

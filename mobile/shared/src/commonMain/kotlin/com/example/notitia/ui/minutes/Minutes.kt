@@ -1,11 +1,11 @@
 package com.example.notitia.ui.minutes
 
+import com.example.notitia.meeting.Meeting
+import com.example.notitia.meeting.MinutesAction
+import com.example.notitia.meeting.MinutesState
 import com.example.notitia.ui.meetings.MeetingListItem
-import kotlin.time.Duration
-import kotlin.time.Instant
-import kotlinx.datetime.LocalDate
 
-// What the minutes screen shows, not the stored minutes: T-07 defines those.
+// What the minutes screen shows, not the stored minutes: those live in Meeting.
 data class Minutes(
     val meeting: MeetingListItem,
     // Named by the user, meeting by meeting: no voiceprint links them across meetings (product rule 4).
@@ -15,32 +15,17 @@ data class Minutes(
     val summary: String,
 )
 
-data class MinutesAction(
-    val text: String,
-    // A first name, as said in the meeting: null when nobody was named.
-    val owner: String?,
-    val due: LocalDate?,
-    val done: Boolean,
-    // null when the minutes cannot point to the sentence: the sheet then shows only the meeting.
-    val source: ActionSource? = null,
-)
-
-// The sentence as transcribed, never as the model rewrote it. speaker is null until the voices are told apart (E2).
-data class ActionSource(val quote: String, val speaker: String?, val at: Duration)
-
 // The owner has a colour only when they are one of the meeting's speakers.
 fun Minutes.speakerOf(action: MinutesAction): Int? = speakers.indexOf(action.owner).takeIf { it >= 0 }
 
-// state is null for a made-up meeting, which keeps its made-up minutes. The minutes stay empty until written.
-fun meetingMinutes(meeting: MeetingListItem, state: MinutesState?, now: Instant): Minutes = when (state) {
-    null -> sampleMinutes(meeting, now)
-    is MinutesState.Written -> Minutes(
-        meeting = meeting,
-        // The gateway does not tell the voices apart (E2).
-        speakers = emptyList(),
-        decisions = state.minutes.decisions,
-        actions = state.minutes.actions,
-        summary = state.minutes.summary,
+// Minutes not written yet are empty: the screen shows a notice in their place.
+fun Meeting.toMinutes(item: MeetingListItem): Minutes {
+    val written = (minutes as? MinutesState.Written)?.minutes
+    return Minutes(
+        meeting = item,
+        speakers = speakers,
+        decisions = written?.decisions.orEmpty(),
+        actions = written?.actions.orEmpty(),
+        summary = written?.summary.orEmpty(),
     )
-    else -> Minutes(meeting, emptyList(), emptyList(), emptyList(), summary = "")
 }

@@ -1,35 +1,31 @@
 package com.example.notitia.ui.minutes
 
-import com.example.notitia.ui.meetings.MeetingListItem
+import com.example.notitia.meeting.ActionSource
+import com.example.notitia.meeting.MinutesAction
+import com.example.notitia.meeting.WrittenMinutes
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.Instant
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
-import kotlinx.datetime.TimeZone
 import kotlinx.datetime.plus
-import kotlinx.datetime.toLocalDateTime
 
 val sampleSpeakers = listOf("Lucas", "Clément", "Nathan", "Adam")
 
-// The same made-up decisions and summary for every made-up meeting, until the minutes are written on the phone
-// (E3). The actions differ, so the Actions tab has something to sort.
-fun sampleMinutes(meeting: MeetingListItem, now: Instant, timeZone: TimeZone = TimeZone.currentSystemDefault()): Minutes =
-    Minutes(
-        meeting = meeting,
-        speakers = sampleSpeakers,
-        decisions = listOf(
-            "La démo à Epitech a lieu le 15 novembre.",
-            "On garde le violet du logo comme accent.",
-        ),
-        actions = sampleActions(meeting.id, now.toLocalDateTime(timeZone).date),
-        summary = "L’équipe a validé la nouvelle identité : une interface sobre, un seul accent violet repris du logo.",
-    )
+// The same made-up decisions and summary for every made-up meeting. The actions differ, so the Actions tab has
+// something to sort.
+fun sampleWrittenMinutes(meetingId: String, today: LocalDate): WrittenMinutes = WrittenMinutes(
+    summary = "L’équipe a validé la nouvelle identité : une interface sobre, un seul accent violet repris du logo.",
+    decisions = listOf(
+        "La démo à Epitech a lieu le 15 novembre.",
+        "On garde le violet du logo comme accent.",
+    ),
+    actions = sampleActions(meetingId, today),
+)
 
-// As many as the card of each made-up meeting announces, due around today so that every group shows, and two to
-// complete. One has no sentence, as when the model gives no time.
+// Due around today so that every group shows, and two to complete. One has no sentence, as when the model gives
+// no time.
 private fun sampleActions(meetingId: String, today: LocalDate): List<MinutesAction> {
     val (lucas, clement, nathan, adam) = sampleSpeakers
     fun action(text: String, owner: String?, inDays: Int?, said: ActionSource?, done: Boolean = false) =

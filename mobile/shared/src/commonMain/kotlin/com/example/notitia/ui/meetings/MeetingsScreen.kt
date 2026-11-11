@@ -17,11 +17,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.example.notitia.ui.components.MeetingCard
-import com.example.notitia.ui.components.RecordButton
 import com.example.notitia.ui.components.EmptyState
 import com.example.notitia.ui.components.GroupTitle
 import com.example.notitia.ui.components.HeaderAction
+import com.example.notitia.ui.components.MeetingCard
+import com.example.notitia.ui.components.RecordButton
 import com.example.notitia.ui.components.ScreenHeader
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
@@ -152,7 +152,7 @@ private fun MeetingList(
 @Composable
 private fun MeetingsScreenPreview() = NotitiaTheme {
     MeetingsScreen(
-        meetings = sampleMeetings(Clock.System.now()),
+        meetings = sampleItems(Clock.System.now()),
         recording = false,
         onOpen = {},
         onRecord = {},

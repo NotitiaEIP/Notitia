@@ -22,7 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
-import com.example.notitia.ui.meetings.sampleMeetings
+import com.example.notitia.ui.meetings.sampleItems
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
 import kotlin.time.Clock
@@ -101,7 +101,7 @@ private fun NotitiaCardPreview() = NotitiaTheme {
         modifier = Modifier.background(NotitiaTheme.colors.background).padding(NotitiaTheme.spacing.l),
         verticalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.s),
     ) {
-        sampleMeetings(Clock.System.now()).take(2).forEach { meeting ->
+        sampleItems(Clock.System.now()).take(2).forEach { meeting ->
             NotitiaCard(onClick = {}) { CardTitle(meeting.title) }
         }
     }

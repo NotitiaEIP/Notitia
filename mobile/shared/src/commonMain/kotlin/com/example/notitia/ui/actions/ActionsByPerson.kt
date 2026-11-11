@@ -1,5 +1,6 @@
 package com.example.notitia.ui.actions
 
+import com.example.notitia.meeting.ActionId
 import kotlinx.datetime.LocalDate
 
 // The actions of one owner across every meeting. key and name are null for the actions nobody owns. name and speaker
