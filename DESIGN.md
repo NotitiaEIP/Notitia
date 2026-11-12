@@ -207,7 +207,7 @@ L'effet de sélection d'un onglet. Le contenu change tout de suite : seule l'ic�
 
 - La pilule grandit depuis le centre en 250 ms.
 - Chaque icône joue son geste en 800 ms, à la sélection seulement : l'onde de Réunions s'agite comme un égaliseur, le cercle d'Actions se trace puis la coche en sort par l'ouverture, la loupe de Recherche balaie (un balayage, pas un tour complet, pour ne pas ressembler à un chargement).
-- Toucher l'onglet déjà actif rejoue le geste.
+- Toucher l'onglet déjà actif ne rejoue rien, comme dans les barres d'onglets du système : il ramène à la racine de l'onglet.
 - À la désélection, l'icône revient au repos en 100 ms, sans animation. Pas de vibration.
 - « Réduire les animations » : seule la couleur change.
 
