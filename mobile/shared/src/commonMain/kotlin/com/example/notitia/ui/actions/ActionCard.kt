@@ -9,10 +9,6 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,6 +24,7 @@ import com.example.notitia.reminder.hasReminder
 import com.example.notitia.ui.components.ActionCheck
 import com.example.notitia.ui.components.ContextMenu
 import com.example.notitia.ui.components.ContextMenuItem
+import com.example.notitia.ui.components.rememberContextMenuState
 import com.example.notitia.ui.components.DetailsLine
 import com.example.notitia.ui.components.NotitiaCard
 import com.example.notitia.ui.components.SpeakerAvatar
@@ -79,20 +76,14 @@ fun ActionCard(
     val toggleLabel = stringResource(if (action.done) Res.string.action_mark_todo else Res.string.action_mark_done)
     val nudgeLabel = action.owner?.let { stringResource(Res.string.nudge_title, it) }
     val minutesLabel = stringResource(Res.string.action_menu_open_minutes)
-    var menu by remember { mutableStateOf(false) }
-    // Run once the menu has faded out, so it never vanishes with a card that leaves the list.
-    var afterMenu by remember { mutableStateOf<(() -> Unit)?>(null) }
-    fun choose(then: () -> Unit) {
-        afterMenu = then
-        menu = false
-    }
+    val menu = rememberContextMenuState()
     Box(modifier) {
         SwipeableAction(enabled = !action.done, onDone = onSwipedDone, onNudge = onNudge) {
             NotitiaCard(
                 onClick = onOpen,
                 onLongClick = {
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    menu = true
+                    menu.open()
                 },
                 longClickLabel = stringResource(Res.string.search_options),
                 modifier = Modifier.semantics {
@@ -116,19 +107,12 @@ fun ActionCard(
                 }
             }
         }
-        ContextMenu(
-            expanded = menu,
-            onDismissRequest = { menu = false },
-            onClosed = {
-                afterMenu?.invoke()
-                afterMenu = null
-            },
-        ) {
-            ContextMenuItem(Res.drawable.check, toggleLabel, colors.text) { choose(onToggle) }
+        ContextMenu(menu) {
+            ContextMenuItem(Res.drawable.check, toggleLabel, colors.text) { menu.choose(onToggle) }
             if (onNudge != null && nudgeLabel != null) {
-                ContextMenuItem(Res.drawable.chat_bubble, nudgeLabel, colors.text) { choose(onNudge) }
+                ContextMenuItem(Res.drawable.chat_bubble, nudgeLabel, colors.text) { menu.choose(onNudge) }
             }
-            ContextMenuItem(Res.drawable.description, minutesLabel, colors.text) { choose(onOpenMinutes) }
+            ContextMenuItem(Res.drawable.description, minutesLabel, colors.text) { menu.choose(onOpenMinutes) }
         }
     }
 }

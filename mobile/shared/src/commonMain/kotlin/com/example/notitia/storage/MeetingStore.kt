@@ -14,6 +14,7 @@ interface MeetingStore {
     fun device(): String
     fun loadAll(): List<Meeting>
     fun save(meeting: Meeting)
+    fun delete(id: String)
 }
 
 // For previews: nothing is read, nothing is kept.
@@ -21,6 +22,7 @@ object NoMeetingStore : MeetingStore {
     override fun device() = "preview"
     override fun loadAll() = emptyList<Meeting>()
     override fun save(meeting: Meeting) = Unit
+    override fun delete(id: String) = Unit
 }
 
 private const val EXTENSION = ".notitia"
@@ -45,14 +47,25 @@ class FileMeetingStore(
             files.list(directory).filter { it.name.endsWith(EXTENSION) }.mapNotNull { MeetingCodec.decode(read(it)) }
         }
 
-    override fun save(meeting: Meeting) = write(Path(directory, meeting.id + EXTENSION), MeetingCodec.encode(meeting))
+    override fun save(meeting: Meeting) = write(fileOf(meeting.id), MeetingCodec.encode(meeting))
+
+    // The draft too: an app killed mid-write leaves one, and it holds the meeting as well. US-81 deletes the audio here.
+    override fun delete(id: String) {
+        val file = fileOf(id)
+        files.delete(draftOf(file), mustExist = false)
+        files.delete(file, mustExist = false)
+    }
+
+    private fun fileOf(id: String) = Path(directory, id + EXTENSION)
+
+    private fun draftOf(file: Path) = Path(directory, file.name + ".tmp")
 
     private fun read(file: Path): ByteArray = files.source(file).buffered().use { it.readByteArray() }
 
     // Written aside then moved over: an app killed mid-write leaves the previous version, never half a file.
     private fun write(file: Path, bytes: ByteArray) {
         files.createDirectories(directory)
-        val draft = Path(directory, file.name + ".tmp")
+        val draft = draftOf(file)
         files.sink(draft).buffered().use { it.write(bytes) }
         files.atomicMove(draft, file)
     }

@@ -29,6 +29,10 @@ class MeetingsViewModel(
 
     fun setReminder(id: ActionId, on: Boolean) = repository.updateAction(id) { it.copy(reminder = on) }
 
+    fun rename(id: String, title: String) = repository.rename(id, title)
+
+    fun delete(id: String) = repository.delete(id)
+
     fun startRecording() = recorder.start()
 
     fun togglePause() = recorder.togglePause()

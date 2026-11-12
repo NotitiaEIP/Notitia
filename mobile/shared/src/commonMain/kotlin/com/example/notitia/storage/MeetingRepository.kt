@@ -4,6 +4,7 @@ import com.example.notitia.meeting.ActionId
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MinutesAction
 import com.example.notitia.meeting.MinutesState
+import com.example.notitia.meeting.renamed
 import com.example.notitia.meeting.withAction
 import kotlin.concurrent.Volatile
 import kotlin.time.Clock
@@ -32,6 +33,9 @@ class MeetingRepository(
     private val sampleIds = samples.map { it.id }.toSet()
     private val state = MutableStateFlow<List<Meeting>?>(null)
 
+    // Deleted while the app runs: a stopped meeting is saved until its minutes are written, and must not come back.
+    private val deleted = MutableStateFlow(emptySet<String>())
+
     // null until the files are read, so the list never flashes empty at launch.
     val meetings: StateFlow<List<Meeting>?> = state.asStateFlow()
 
@@ -47,23 +51,44 @@ class MeetingRepository(
                 store.loadAll().map { it.interrupted() }
             }.getOrDefault(emptyList())
             // A meeting saved while the files were being read wins over its older copy.
-            state.update { saved -> (saved.orEmpty() + stored + samples).distinctBy { it.id } }
+            state.update { saved ->
+                (saved.orEmpty() + stored + samples).distinctBy { it.id }.filterNot { it.id in deleted.value }
+            }
         }
     }
 
     fun save(meeting: Meeting) {
         state.update { meetings ->
             val others = meetings.orEmpty()
-            if (others.none { it.id == meeting.id }) listOf(meeting) + others
-            else others.map { if (it.id == meeting.id) meeting else it }
+            when {
+                meeting.id in deleted.value -> meetings
+                others.none { it.id == meeting.id } -> listOf(meeting) + others
+                else -> others.map { if (it.id == meeting.id) meeting else it }
+            }
         }
-        // A failed write, a full disk say, keeps the meeting on screen: its next change writes it again.
-        if (meeting.id !in sampleIds) writes.launch { runCatching { store.save(meeting) } }
+        // A failed write, a full disk say, keeps the meeting on screen: its next change writes it again. Checked again
+        // on the disk's turn, since a delete may have come in between.
+        if (meeting.id !in sampleIds) {
+            writes.launch { if (meeting.id !in deleted.value) runCatching { store.save(meeting) } }
+        }
     }
 
-    fun updateAction(id: ActionId, transform: (MinutesAction) -> MinutesAction) {
-        val meeting = state.value?.firstOrNull { it.id == id.meetingId } ?: return
-        save(meeting.withAction(id.index, transform).copy(modifiedAt = clock.now()))
+    fun updateAction(id: ActionId, transform: (MinutesAction) -> MinutesAction) =
+        update(id.meetingId) { it.withAction(id.index, transform) }
+
+    fun rename(id: String, title: String) = update(id) { meeting -> meeting.renamed(title).takeIf { it != meeting } }
+
+    // For good, samples included until the next launch. The reminders follow the list, so the meeting's go too.
+    fun delete(id: String) {
+        deleted.update { it + id }
+        state.update { meetings -> meetings?.filterNot { it.id == id } }
+        if (id !in sampleIds) writes.launch { runCatching { store.delete(id) } }
+    }
+
+    // A change made by the user is dated, so two devices can be reconciled later (E10). null leaves it as it was.
+    private fun update(id: String, change: (Meeting) -> Meeting?) {
+        val meeting = state.value?.firstOrNull { it.id == id } ?: return
+        change(meeting)?.let { save(it.copy(modifiedAt = clock.now())) }
     }
 }
 

@@ -1,6 +1,7 @@
 package com.example.notitia.ui.minutes
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,15 +21,19 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
@@ -38,11 +43,16 @@ import com.example.notitia.meeting.MinutesState
 import com.example.notitia.meeting.TranscriptLine
 import com.example.notitia.ui.components.ActionRow
 import com.example.notitia.ui.components.BackButton
+import com.example.notitia.ui.components.ContextMenu
+import com.example.notitia.ui.components.ContextMenuItem
+import com.example.notitia.ui.components.Destruction
+import com.example.notitia.ui.components.DestructiveConfirmation
 import com.example.notitia.ui.components.DetailsLine
 import com.example.notitia.ui.components.NotitiaButton
 import com.example.notitia.ui.components.NotitiaSegmentedControl
 import com.example.notitia.ui.components.SectionHeader
 import com.example.notitia.ui.components.SpeakerChip
+import com.example.notitia.ui.components.rememberContextMenuState
 import com.example.notitia.ui.meetings.MeetingListItem
 import com.example.notitia.ui.meetings.sampleMinutes
 import com.example.notitia.ui.meetings.lengthLabel
@@ -54,6 +64,13 @@ import com.example.notitia.ui.theme.shareIcon
 import kotlin.time.Clock
 import kotlin.time.Instant
 import notitia.shared.generated.resources.Res
+import notitia.shared.generated.resources.delete
+import notitia.shared.generated.resources.edit
+import notitia.shared.generated.resources.meeting_delete
+import notitia.shared.generated.resources.meeting_delete_confirm
+import notitia.shared.generated.resources.meeting_delete_message
+import notitia.shared.generated.resources.meeting_delete_title
+import notitia.shared.generated.resources.meeting_rename
 import notitia.shared.generated.resources.meetings_title
 import notitia.shared.generated.resources.minutes_actions
 import notitia.shared.generated.resources.minutes_back_description
@@ -83,6 +100,8 @@ fun MinutesRoute(
     meeting: Meeting,
     item: MeetingListItem,
     onSetDone: (ActionId, Boolean) -> Unit,
+    onRename: (String) -> Unit,
+    onDelete: () -> Unit,
     backLabel: String,
     backDescription: String,
     onBack: () -> Unit,
@@ -107,6 +126,8 @@ fun MinutesRoute(
         backDescription = backDescription,
         onBack = onBack,
         onToggleAction = { index -> onSetDone(ActionId(meeting.id, index), !minutes.actions[index].done) },
+        onRename = onRename,
+        onDelete = onDelete,
         transcript = meeting.transcript,
         modifier = modifier,
     )
@@ -121,6 +142,8 @@ fun MinutesScreen(
     backDescription: String,
     onBack: () -> Unit,
     onToggleAction: (Int) -> Unit,
+    onRename: (String) -> Unit,
+    onDelete: () -> Unit,
     notice: StringResource? = null,
     transcript: List<TranscriptLine> = emptyList(),
     modifier: Modifier = Modifier,
@@ -128,9 +151,22 @@ fun MinutesScreen(
     val spacing = NotitiaTheme.spacing
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val meeting = minutes.meeting
+    val focusManager = LocalFocusManager.current
+    var renameRequests by remember { mutableIntStateOf(0) }
+    var confirmingDelete by remember { mutableStateOf(false) }
+    // Where « … » sits: the iPhone's confirmation grows out of it.
+    var moreButton by remember { mutableStateOf<Rect?>(null) }
 
-    Column(modifier.fillMaxSize()) {
-        TopBar(backLabel, backDescription, onBack)
+    // A touch beside the title leaves it, and keeps what was typed.
+    Column(modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } }) {
+        TopBar(
+            backLabel = backLabel,
+            backDescription = backDescription,
+            onBack = onBack,
+            onRename = { renameRequests++ },
+            onDelete = { confirmingDelete = true },
+            onMorePlaced = { moreButton = it },
+        )
         Column(
             Modifier
                 .weight(1f)
@@ -138,13 +174,7 @@ fun MinutesScreen(
                 .padding(horizontal = spacing.l)
                 .padding(bottom = spacing.xl),
         ) {
-            Text(
-                text = meeting.title,
-                style = NotitiaTheme.typography.title1,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.semantics { heading() },
-            )
+            MeetingTitle(title = meeting.title, onRename = onRename, editRequests = renameRequests)
             DetailsLine(
                 parts = listOf(
                     meetingWhenLabel(meeting.startedAt, now),
@@ -185,24 +215,65 @@ fun MinutesScreen(
             modifier = Modifier.fillMaxWidth().padding(spacing.l),
         )
     }
+    DestructiveConfirmation(
+        destruction = if (confirmingDelete) {
+            Destruction(
+                title = stringResource(Res.string.meeting_delete_title, meeting.title),
+                message = stringResource(Res.string.meeting_delete_message),
+                confirm = stringResource(Res.string.meeting_delete_confirm),
+                shortConfirm = stringResource(Res.string.meeting_delete),
+            )
+        } else {
+            null
+        },
+        anchor = moreButton,
+        onConfirm = {
+            confirmingDelete = false
+            onDelete()
+        },
+        onDismiss = { confirmingDelete = false },
+    )
 }
 
+// The meeting's own actions, as in Notes: rename puts the cursor in the title, delete asks first, in red and last.
 @Composable
-private fun TopBar(backLabel: String, backDescription: String, onBack: () -> Unit) {
+private fun TopBar(
+    backLabel: String,
+    backDescription: String,
+    onBack: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+    onMorePlaced: (Rect) -> Unit,
+) {
     val colors = NotitiaTheme.colors
+    val menu = rememberContextMenuState()
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = NotitiaTheme.spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         BackButton(backLabel, backDescription, onBack)
         Box(Modifier.weight(1f))
-        // The menu (rename, delete) comes with US-16.
-        IconButton(onClick = {}, modifier = Modifier.size(NotitiaTheme.sizes.touchTarget)) {
-            Icon(
-                painter = painterResource(Res.drawable.more_horiz),
-                contentDescription = stringResource(Res.string.minutes_more),
-                tint = colors.text,
-            )
+        Box {
+            IconButton(
+                onClick = menu::open,
+                modifier = Modifier
+                    .size(NotitiaTheme.sizes.touchTarget)
+                    .onGloballyPositioned { onMorePlaced(it.boundsInWindow()) },
+            ) {
+                Icon(
+                    painter = painterResource(Res.drawable.more_horiz),
+                    contentDescription = stringResource(Res.string.minutes_more),
+                    tint = colors.text,
+                )
+            }
+            ContextMenu(menu) {
+                ContextMenuItem(Res.drawable.edit, stringResource(Res.string.meeting_rename), colors.text) {
+                    menu.choose(onRename)
+                }
+                ContextMenuItem(Res.drawable.delete, stringResource(Res.string.meeting_delete), colors.red) {
+                    menu.choose(onDelete)
+                }
+            }
         }
     }
 }
@@ -305,6 +376,8 @@ private fun MinutesScreenPreview() = NotitiaTheme {
         backDescription = stringResource(Res.string.minutes_back_description),
         onBack = {},
         onToggleAction = {},
+        onRename = {},
+        onDelete = {},
         modifier = Modifier.background(NotitiaTheme.colors.background),
     )
 }

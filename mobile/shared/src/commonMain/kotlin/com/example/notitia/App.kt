@@ -17,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -180,6 +181,12 @@ fun App(
                             meeting = openedMeeting.first,
                             item = openedMeeting.second,
                             onSetDone = meetingsModel::setDone,
+                            onRename = { meetingsModel.rename(openedMeeting.first.id, it) },
+                            onDelete = {
+                                val id = openedMeeting.first.id
+                                openedMeetingId = null
+                                scope.launch { deleteOnceShown { meetingsModel.delete(id) } }
+                            },
                             backLabel = stringResource(tab.title),
                             backDescription = stringResource(tab.backDescription),
                             onBack = { openedMeetingId = null },
@@ -260,4 +267,11 @@ fun App(
             )
         }
     }
+}
+
+// The list must be on screen before the meeting leaves it, or its card is already gone when it appears. Two frames:
+// one to show the list, one for the card to have been laid out.
+private suspend fun deleteOnceShown(delete: () -> Unit) {
+    repeat(2) { withFrameNanos {} }
+    delete()
 }
