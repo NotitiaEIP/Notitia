@@ -31,6 +31,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
@@ -70,6 +71,8 @@ fun SearchField(
     val spacing = NotitiaTheme.spacing
     val typography = NotitiaTheme.typography
     val shape = NotitiaTheme.shapes.searchBar
+    // The screen's one gradient, the record button's: the same signature on Meetings and on Search.
+    val outline = remember(colors) { Brush.horizontalGradient(colors.buttonGradient) }
     var focused by remember { mutableStateOf(false) }
     val label = stringResource(Res.string.search_field)
     // The icon and the button line up with the first and the last line when the field grows.
@@ -97,7 +100,7 @@ fun SearchField(
                     // It floats over the content: a shadow in light, as for the recording mini bar.
                     .shadow(if (colors.isDark) sizes.none else sizes.raisedShadow, shape, clip = true)
                     .background(colors.surfaceRaised)
-                    .then(if (focused) Modifier.border(sizes.focusRing, colors.focus, shape) else Modifier)
+                    .border(sizes.gradientStroke, outline, shape)
                     .padding(start = spacing.l, end = spacing.xs),
             ) {
                 Box(Modifier.height(lineBox), contentAlignment = Alignment.Center) {

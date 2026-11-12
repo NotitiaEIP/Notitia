@@ -63,7 +63,6 @@ L'app suit le réglage clair ou sombre du téléphone. Les deux thèmes sont des
 | `accent` | Fond des boutons principaux | `#882DCD` | `#882DCD` | texte blanc 6,4 |
 | `accentContent` | Liens, icônes actives, onglet actif | `#CB95F3` | `#882DCD` | 8,6 / 5,7 |
 | `accentSoft` | Sélection, puces, badges | violet à 22 % | violet à 10 % | texte 7,4 / 4,9 |
-| `focus` | Contour d'un champ actif | `#B66EED` | `#882DCD` | |
 | `dim` | Voile sous un panneau ou une feuille | noir à 50 % | noir à 25 % | |
 | `stack` | Derrière un écran qui recule sous une feuille (iPhone) | `#000000` | `#000000` | |
 | `popup` | Menus au-dessus d'une surface | `#2B2A35` | blanc, avec ombre | |
@@ -78,7 +77,7 @@ Le violet vient du logo (`#7929B6` au milieu du N), éclairci pour rester lisibl
 ### Le dégradé du logo, une seule fois par écran
 
 - Dégradé du logo : `#1592D8`, `#4B3BC6`, `#8E2BB0`, `#E0207F`, `#F6475F`. Pour l'icône de l'app, l'écran de démarrage et l'onde de la voix pendant l'enregistrement.
-- Dégradé des boutons, sa partie foncée : `#4B3BC6`, `#8E2BB0`, `#C21A7A`. Pour le bouton Enregistrer, qui garde un texte blanc lisible (5,6:1 au pire).
+- Dégradé des boutons, sa partie foncée : `#4B3BC6`, `#8E2BB0`, `#C21A7A`. Pour le bouton Enregistrer, qui garde un texte blanc lisible (5,6:1 au pire), et le contour de la barre de recherche.
 - Jamais en fond d'écran, derrière du texte long, ni sur plus d'un élément du même écran.
 
 ### Les locuteurs
@@ -195,8 +194,8 @@ Chaque composant n'existe qu'une fois dans le code (`NotitiaButton`, `RecordButt
 - **Carte « À compléter »** : en haut de l'onglet Actions, les actions sans responsable ou sans échéance, que personne ne peut encore suivre. Fond `surface` teinté d'`amberSoft`, icône `edit_note` et titre en `amber`. Une ligne par action, avec ce qui lui manque en ambre (« Qui ? », « Pour quand ? ») et un chevron ; la toucher ouvre la fiche. Une action complétée rejoint son groupe et la carte se resserre.
 - **Carte de personne** : dans l'onglet Actions, « Par personne » (le choix « Par échéance | Par personne » reste d'un onglet à l'autre). Une carte par responsable, regroupé sur le prénom écrit, sans tenir compte des majuscules ni des accents, jamais sur la voix ; elle prend l'orthographe et la couleur de sa dernière réunion. En tête : l'avatar de 32, le prénom, « 3 en cours · 1 en retard » (le retard en rouge), puis « 2/5 » et un anneau vert de ce qui est fait, sur une piste `ringTrack`, comme les anneaux d'activité d'Apple. L'anneau se remplit depuis midi quand il apparaît et suit chaque coche ; quand tout est fait, il se ferme, une coche se trace dedans et le téléphone vibre légèrement (seulement sous le doigt). Les personnes qui ont le plus de retards viennent d'abord, puis les plus chargées, puis l'ordre alphabétique ; « Sans responsable », avec une silhouette grise, ferme la liste. Toucher l'en-tête déplie la carte sur ses actions en cours, comme les groupes de Rappels : le rond à cocher sous l'avatar, le texte sous le prénom, l'échéance, le retard en rouge, ou « Pour quand ? » en ambre ; toucher la ligne ouvre la fiche. Sous la dernière ligne, un lien « Relancer Nathan » en `accentContent`, icône `chat_bubble` sous les ronds, comme « Nouveau rappel » au pied d'une liste de Rappels ; pas de lien pour « Sans responsable ». Pas de glissement dans une carte. Une action cochée reste 1,1 s à sa place, et la carte ne bouge pas avant. « Réduire les animations » : l'anneau et le dépliage sans mouvement.
 - **Badge** : 24 de haut, coins de 8, texte 13 en 600, icône de 16. Il dit l'état en mots, pas seulement en couleur (« Compte rendu prêt », « Transcription 64 % »).
-- **Champ** : 52 de haut, coins de 12. Le libellé est au-dessus, jamais remplacé par le texte d'exemple. Actif : contour `focus` de 2 dp. Une erreur dit ce qui ne va pas et comment corriger, avec une icône.
-- **Barre de recherche** : l'exception au champ, une seule, en bas de l'écran Recherche. 52 de haut au moins, coins de 26, qui restent les mêmes quand elle grandit jusqu'à 4 lignes. Pas de libellé au-dessus : son texte d'exemple (« Demander à Notitia ») dit ce qu'elle fait et sert de libellé aux lecteurs d'écran. Active : contour `focus` de 2 dp. Le clavier la fait monter ; la barre d'onglets reste dessous.
+- **Champ** : 52 de haut, coins de 12. Le libellé est au-dessus, jamais remplacé par le texte d'exemple. Actif : contour `accent` de 2 dp. Une erreur dit ce qui ne va pas et comment corriger, avec une icône.
+- **Barre de recherche** : l'exception au champ, une seule, en bas de l'écran Recherche. 52 de haut au moins, coins de 26, qui restent les mêmes quand elle grandit jusqu'à 4 lignes. Pas de libellé au-dessus : son texte d'exemple (« Demander à Notitia ») dit ce qu'elle fait et sert de libellé aux lecteurs d'écran. Son contour de 2 dp prend le dégradé du bouton Enregistrer, au repos comme active : la même signature sur Recherche que sur Réunions. Le clavier la fait monter ; la barre d'onglets reste dessous.
 
 ### Barre d'onglets et mini-barre
 

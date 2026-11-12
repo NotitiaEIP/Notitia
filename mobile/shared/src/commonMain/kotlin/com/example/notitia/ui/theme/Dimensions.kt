@@ -36,7 +36,7 @@ object NotitiaSizes {
     val button = 52.dp
     val buttonCompact = 40.dp
     val field = 52.dp
-    val focusRing = 2.dp
+    val gradientStroke = 2.dp
     val badge = 24.dp
     val citation = 20.dp
     val icon = 24.dp
