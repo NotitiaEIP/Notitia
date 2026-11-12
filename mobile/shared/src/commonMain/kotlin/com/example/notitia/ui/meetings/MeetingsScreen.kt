@@ -4,18 +4,13 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,17 +48,14 @@ import kotlinx.datetime.TimeZone
 import notitia.shared.generated.resources.Res
 import notitia.shared.generated.resources.check_circle
 import notitia.shared.generated.resources.delete
-import notitia.shared.generated.resources.lock
 import notitia.shared.generated.resources.meeting_delete
 import notitia.shared.generated.resources.meetings_empty
 import notitia.shared.generated.resources.meetings_on_device
-import notitia.shared.generated.resources.meetings_on_this_phone
 import notitia.shared.generated.resources.meetings_select
 import notitia.shared.generated.resources.meetings_title
 import notitia.shared.generated.resources.search_options
 import notitia.shared.generated.resources.settings
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
@@ -150,27 +142,6 @@ private fun Header(onSettings: () -> Unit, onSelect: (() -> Unit)? = null) {
 }
 
 @Composable
-private fun OnThisPhone(count: Int, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.s),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            painter = painterResource(Res.drawable.lock),
-            contentDescription = null,
-            tint = NotitiaTheme.colors.accentContent,
-            modifier = Modifier.size(NotitiaTheme.sizes.iconSmall),
-        )
-        Text(
-            text = pluralStringResource(Res.plurals.meetings_on_this_phone, count, count),
-            style = NotitiaTheme.typography.caption,
-            color = NotitiaTheme.colors.textSecondary,
-        )
-    }
-}
-
-@Composable
 private fun EmptyMeetings(onSettings: () -> Unit) {
     Column(Modifier.padding(horizontal = NotitiaTheme.spacing.l)) {
         Header(onSettings)
@@ -202,13 +173,10 @@ private fun MeetingList(
         ),
     ) {
         item(key = "header") {
-            Column(verticalArrangement = Arrangement.spacedBy(spacing.xs)) {
-                Header(
-                    onSettings = onSettings,
-                    onSelect = if (selectionStyle == SelectionStyle.Toolbar && chosen == null) ({ selection.start() }) else null,
-                )
-                OnThisPhone(meetings.size)
-            }
+            Header(
+                onSettings = onSettings,
+                onSelect = if (selectionStyle == SelectionStyle.Toolbar && chosen == null) ({ selection.start() }) else null,
+            )
         }
         groups.forEach { (group, inGroup) ->
             item(key = group.toString()) {

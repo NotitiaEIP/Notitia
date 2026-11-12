@@ -28,10 +28,6 @@
     <string name="settings_about">À propos</string>
     <string name="settings_about_notitia">À propos de Notitia</string>
     <string name="settings_licenses">Licences</string>
-    <plurals name="meetings_on_this_phone">
-        <item quantity="one">%1$d réunion, sur ce téléphone</item>
-        <item quantity="other">%1$d réunions, toutes sur ce téléphone</item>
-    </plurals>
     <string name="meetings_select">Sélectionner</string>
     <string name="meetings_select_none">Sélectionner des réunions</string>
     <plurals name="meetings_chosen">
