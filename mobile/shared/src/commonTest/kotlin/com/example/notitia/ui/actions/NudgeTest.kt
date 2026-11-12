@@ -26,8 +26,8 @@ class NudgeTest {
         title = title,
         startedAt = LocalDateTime(2026, 10, day, hour, 0).toInstant(paris),
         duration = 30.minutes,
-        participants = 2,
-        status = MeetingStatus.Ready(actions = 1),
+        speakers = emptyList(),
+        status = MeetingStatus.Ready(),
     )
 
     private fun tracked(

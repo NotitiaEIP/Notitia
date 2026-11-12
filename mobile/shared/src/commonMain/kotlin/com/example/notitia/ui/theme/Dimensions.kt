@@ -36,7 +36,7 @@ object NotitiaSizes {
     val button = 52.dp
     val buttonCompact = 40.dp
     val field = 52.dp
-    val focusRing = 2.dp
+    val gradientStroke = 2.dp
     val badge = 24.dp
     val citation = 20.dp
     val icon = 24.dp
@@ -72,6 +72,10 @@ object NotitiaSizes {
     val personAvatar = 32.dp
     val doneRing = 28.dp
     val doneRingStroke = 3.dp
+    // The faces of a meeting stand as tall as the ring of its actions, on the same line.
+    val stackAvatar = doneRing
+    val stackOverlap = 8.dp
+    val stackGap = 2.dp
 }
 
 // What can be touched is round, what is read has corners.
@@ -100,7 +104,7 @@ object NotitiaMotion {
     // The screen under an action's sheet steps back this much, as a card on a stack.
     const val STACK_SCALE = 0.94f
     // Long for a tab, but nobody waits for it: the screen has already switched.
-    const val TAB_ICON_MS = 800
+    const val TAB_ICON_MS = 600
     // The recording dot breathes slowly: it says "still on", not "look at me".
     const val PULSE_MS = 1200
     // A quick answer never flashes a loader.

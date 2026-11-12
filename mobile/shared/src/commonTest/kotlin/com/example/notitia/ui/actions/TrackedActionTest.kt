@@ -14,7 +14,7 @@ import kotlin.time.Instant
 class TrackedActionTest {
 
     private val meeting = MeetingListItem(
-        "m1", "Revue de sprint 1", Instant.parse("2026-10-23T08:30:00Z"), 65.minutes, 4, MeetingStatus.Ready(actions = 2),
+        "m1", "Revue de sprint 1", Instant.parse("2026-10-23T08:30:00Z"), 65.minutes, emptyList(), MeetingStatus.Ready(),
     )
 
     private val minutes = Minutes(

@@ -103,9 +103,10 @@ private fun TabItem(tab: Tab, selected: Boolean, onClick: () -> Unit, modifier: 
                 interactionSource = interactionSource,
                 indication = null,
                 role = Role.Tab,
-                // In onClick rather than on selection, so touching the selected tab replays the gesture.
+                // On a touch, not on any change of tab: a reminder that opens Actions plays nothing. The selected tab
+                // plays nothing either, as in the system's own tab bars.
                 onClick = {
-                    scope.launch {
+                    if (!selected) scope.launch {
                         if (coroutineContext[MotionDurationScale]?.scaleFactor == 0f) return@launch
                         gesture.snapTo(0f)
                         // Linear, since each icon shapes its own curves.

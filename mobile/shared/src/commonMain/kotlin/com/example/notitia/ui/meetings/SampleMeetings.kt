@@ -21,7 +21,14 @@ import kotlinx.datetime.toLocalDateTime
 fun sampleMeetings(now: Instant, timeZone: TimeZone = TimeZone.currentSystemDefault()): List<Meeting> {
     val today = now.toLocalDateTime(timeZone).date
     fun todayAt(hour: Int, minute: Int) = today.atTime(hour, minute).toInstant(timeZone)
-    fun sample(id: String, title: String, startedAt: Instant, duration: Duration, writing: Boolean = false): Meeting {
+    fun sample(
+        id: String,
+        title: String,
+        startedAt: Instant,
+        duration: Duration,
+        speakers: List<String>,
+        writing: Boolean = false,
+    ): Meeting {
         val written = sampleWrittenMinutes(id, today)
         return Meeting(
             id = id,
@@ -30,25 +37,39 @@ fun sampleMeetings(now: Instant, timeZone: TimeZone = TimeZone.currentSystemDefa
             modifiedAt = startedAt,
             device = "sample",
             title = title,
-            speakers = sampleSpeakers,
+            speakers = speakers,
             // The sentences the actions quote, so the transcript tab has something to show.
             transcript = written.actions.mapNotNull { it.source }.sortedBy { it.at }
                 .map { TranscriptLine(it.at, it.quote) },
             minutes = if (writing) MinutesState.Writing else MinutesState.Written(written),
         )
     }
+    val (lucas, clement, nathan) = sampleSpeakers
+    // Each meeting has its own people, in the order they first spoke, so the faces on the cards differ.
     return listOf(
-        sample("sample-1", "Point d’avancement Notitia", todayAt(14, 2), 42.minutes),
-        sample("sample-2", "Entretien utilisateur, CHU", todayAt(10, 30), 28.minutes, writing = true),
-        sample("sample-3", "Atelier sur l’écran d’accueil", todayAt(16, 0) - 1.days, 55.minutes),
-        sample("sample-4", "Revue de sprint 1", todayAt(9, 30) - 3.days, 1.hours + 5.minutes),
-        sample("sample-5", "Lancement du projet", todayAt(11, 0) - 40.days, 1.hours + 30.minutes),
+        sample("sample-1", "Point d’avancement Notitia", todayAt(14, 2), 42.minutes, sampleSpeakers),
+        sample(
+            "sample-2", "Entretien utilisateur, CHU", todayAt(10, 30), 28.minutes,
+            listOf("Sophie", clement), writing = true,
+        ),
+        sample(
+            "sample-3", "Atelier sur l’écran d’accueil", todayAt(16, 0) - 1.days, 55.minutes,
+            listOf(nathan, clement, "Alexandre"),
+        ),
+        sample("sample-4", "Revue de sprint 1", todayAt(9, 30) - 3.days, 1.hours + 5.minutes, sampleSpeakers + "Amine"),
+        sample(
+            "sample-5", "Lancement du projet", todayAt(11, 0) - 40.days, 1.hours + 30.minutes,
+            listOf(clement, lucas),
+        ),
     )
 }
 
 // For previews and tests, which show the samples without a repository.
 fun sampleItems(now: Instant, timeZone: TimeZone = TimeZone.currentSystemDefault()): List<MeetingListItem> =
-    sampleMeetings(now, timeZone).map { it.listItem(title = checkNotNull(it.title)) }
+    sampleMeetings(now, timeZone).map { it.sampleItem(now, timeZone) }
 
 fun sampleMinutes(now: Instant, timeZone: TimeZone = TimeZone.currentSystemDefault()): List<Minutes> =
-    sampleMeetings(now, timeZone).map { it.toMinutes(it.listItem(title = checkNotNull(it.title))) }
+    sampleMeetings(now, timeZone).map { it.toMinutes(it.sampleItem(now, timeZone)) }
+
+private fun Meeting.sampleItem(now: Instant, timeZone: TimeZone) =
+    listItem(checkNotNull(title), now.toLocalDateTime(timeZone).date)

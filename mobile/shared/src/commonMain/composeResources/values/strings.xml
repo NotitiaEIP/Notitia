@@ -28,10 +28,6 @@
     <string name="settings_about">À propos</string>
     <string name="settings_about_notitia">À propos de Notitia</string>
     <string name="settings_licenses">Licences</string>
-    <plurals name="meetings_on_this_phone">
-        <item quantity="one">%1$d réunion, sur ce téléphone</item>
-        <item quantity="other">%1$d réunions, toutes sur ce téléphone</item>
-    </plurals>
     <string name="meetings_select">Sélectionner</string>
     <string name="meetings_select_none">Sélectionner des réunions</string>
     <plurals name="meetings_chosen">
@@ -64,11 +60,7 @@
         <item quantity="one">%1$d&#160;participant</item>
         <item quantity="other">%1$d&#160;participants</item>
     </plurals>
-    <plurals name="actions">
-        <item quantity="one">%1$d&#160;action</item>
-        <item quantity="other">%1$d&#160;actions</item>
-    </plurals>
-    <string name="minutes_ready">Compte rendu prêt</string>
+    <string name="speakers_more">+%1$d</string>
     <string name="transcription_progress">Transcription %1$d&#160;%</string>
     <string name="transcription_remaining">environ %1$s</string>
     <string name="recording_collapse">Réduire</string>
@@ -136,7 +128,6 @@
         <item quantity="other">%1$d&#160;actions arrivent à échéance demain</item>
     </plurals>
     <string name="actions_empty">Aucune action pour l’instant.</string>
-    <string name="actions_empty_hint">Quand quelqu’un dit «&#160;je m’en occupe&#160;» en réunion, l’action arrive ici, avec son responsable et son échéance.</string>
     <string name="actions_back_description">Retour aux actions</string>
     <string name="group_late">En retard</string>
     <string name="group_tomorrow">Demain</string>
@@ -200,17 +191,12 @@
         <item quantity="other">%1$d&#160;réunions</item>
     </plurals>
     <string name="search_count">%1$s dans %2$s</string>
-    <plurals name="search_answer_note">
-        <item quantity="one">Réponse rédigée automatiquement à partir d’un passage. Vérifiez avec la source.</item>
-        <item quantity="other">Réponse rédigée automatiquement à partir de %1$d&#160;passages. Vérifiez avec les sources.</item>
-    </plurals>
+    <string name="search_answer_note">Vérifiez avec les sources.</string>
     <string name="search_sources">Sources</string>
     <string name="search_source">Source %1$d</string>
     <string name="search_quote">«&#160;%1$s&#160;»</string>
     <string name="search_no_word">Aucun passage ne contient «&#160;%1$s&#160;».</string>
-    <string name="search_no_word_hint">Vérifiez l’orthographe ou essayez un autre mot.</string>
     <string name="search_no_answer">Aucun passage ne répond à cette question.</string>
-    <string name="search_no_answer_hint">Essayez d’autres mots, ou le nom d’une réunion.</string>
     <string name="search_back_description">Retour à la recherche</string>
     <string name="search_history">Historique des recherches</string>
     <string name="search_history_title">Historique</string>

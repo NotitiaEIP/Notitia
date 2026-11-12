@@ -79,7 +79,7 @@ class MeetingTranscriptionTest {
             pieces = 3,
         )
         assertEquals(listOf("Bonjour.", null, "On continue."), transcription.lines.map { it.text })
-        assertEquals(MeetingStatus.Ready(actions = 0), transcription.status)
+        assertEquals(MeetingStatus.Ready(), transcription.status)
     }
 
     @Test
@@ -126,7 +126,7 @@ class MeetingTranscriptionTest {
         assertTrue(before.remaining > Duration.ZERO)
 
         runNow { transcription.transcribeAll() }
-        assertEquals(MeetingStatus.Ready(actions = 0), transcription.status)
+        assertEquals(MeetingStatus.Ready(), transcription.status)
     }
 
     // Writes one action per transcribed line, or throws failure.
@@ -158,7 +158,7 @@ class MeetingTranscriptionTest {
         assertEquals(LocalDate(1970, 1, 1), day)
         val written = assertIs<MinutesState.Written>(transcription.minutes)
         assertEquals("Résumé.", written.minutes.summary)
-        assertEquals(MeetingStatus.Ready(actions = 2), transcription.status)
+        assertEquals(MeetingStatus.Ready(summary = "Résumé."), transcription.status)
     }
 
     @Test
@@ -175,7 +175,7 @@ class MeetingTranscriptionTest {
         val transcription = transcribedWith(writer, FakeSpeech("Bonjour."), pieces = 1)
         assertEquals(MinutesState.Failed, transcription.minutes)
         assertEquals(listOf("Bonjour."), transcription.lines.map { it.text })
-        assertEquals(MeetingStatus.Ready(actions = 0), transcription.status)
+        assertEquals(MeetingStatus.Ready(), transcription.status)
     }
 
     @Test
@@ -200,7 +200,7 @@ class MeetingTranscriptionTest {
     fun withoutAWriterTheMinutesAreUnavailable() {
         val transcription = transcribed(FakeSpeech("Bonjour."), pieces = 1)
         assertEquals(MinutesState.Unavailable, transcription.minutes)
-        assertEquals(MeetingStatus.Ready(actions = 0), transcription.status)
+        assertEquals(MeetingStatus.Ready(), transcription.status)
     }
 
     @Test
@@ -211,6 +211,6 @@ class MeetingTranscriptionTest {
         transcription.finishListening()
         runNow { transcription.transcribeAll() }
         assertTrue(speech.wavs.isEmpty())
-        assertEquals(MeetingStatus.Ready(actions = 0), transcription.status)
+        assertEquals(MeetingStatus.Ready(), transcription.status)
     }
 }

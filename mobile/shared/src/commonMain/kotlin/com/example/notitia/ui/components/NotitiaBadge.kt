@@ -12,48 +12,29 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
-import com.example.notitia.ui.theme.NotitiaColors
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
 import notitia.shared.generated.resources.Res
-import notitia.shared.generated.resources.actions
-import notitia.shared.generated.resources.check
-import notitia.shared.generated.resources.minutes_ready
+import notitia.shared.generated.resources.lock
+import notitia.shared.generated.resources.minutes_writing
+import notitia.shared.generated.resources.on_device
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
-
-enum class BadgeTone {
-    Accent,
-    Success;
-
-    fun container(colors: NotitiaColors): Color = when (this) {
-        Accent -> colors.accentSoft
-        Success -> colors.greenSoft
-    }
-
-    fun content(colors: NotitiaColors): Color = when (this) {
-        Accent -> colors.accentContent
-        Success -> colors.green
-    }
-}
 
 // The badge says the state in words: its colour alone never carries the meaning.
 @Composable
 fun NotitiaBadge(
     text: String,
     modifier: Modifier = Modifier,
-    tone: BadgeTone = BadgeTone.Accent,
     icon: Painter? = null,
 ) {
     val colors = NotitiaTheme.colors
-    val content = tone.content(colors)
+    val content = colors.accentContent
     Row(
         modifier = modifier
             .heightIn(min = NotitiaTheme.sizes.badge)
-            .background(tone.container(colors), NotitiaTheme.shapes.badge)
+            .background(colors.accentSoft, NotitiaTheme.shapes.badge)
             .padding(horizontal = NotitiaTheme.spacing.s, vertical = NotitiaTheme.spacing.xxs),
         horizontalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
@@ -75,12 +56,8 @@ fun NotitiaBadge(
 private fun NotitiaBadgePreview() = NotitiaTheme {
     Box(Modifier.background(NotitiaTheme.colors.background).padding(NotitiaTheme.spacing.l)) {
         Row(horizontalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.s)) {
-            NotitiaBadge(text = pluralStringResource(Res.plurals.actions, 3, 3))
-            NotitiaBadge(
-                text = stringResource(Res.string.minutes_ready),
-                tone = BadgeTone.Success,
-                icon = painterResource(Res.drawable.check),
-            )
+            NotitiaBadge(text = stringResource(Res.string.on_device), icon = painterResource(Res.drawable.lock))
+            NotitiaBadge(text = stringResource(Res.string.minutes_writing))
         }
     }
 }

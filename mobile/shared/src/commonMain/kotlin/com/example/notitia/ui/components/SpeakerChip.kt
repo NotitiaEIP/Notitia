@@ -11,10 +11,19 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import com.example.notitia.ui.minutes.sampleSpeakers
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
+import notitia.shared.generated.resources.Res
+import notitia.shared.generated.resources.speakers_more
+import org.jetbrains.compose.resources.stringResource
 
 // "Clément" gives "C", "Marie Curie" gives "MC": the name next to it does the rest.
 fun initials(name: String): String =
@@ -60,6 +69,51 @@ fun SpeakerChip(name: String, index: Int, modifier: Modifier = Modifier) {
     }
 }
 
+private const val STACK_MAX = 3
+
+// The people of a meeting, overlapping as in Slack and Google Calendar, each in their speaker colour, then "+1". Each
+// face cuts a thin gap out of the one before it, so the card shows through, its chosen tint too, where a ring painted
+// in the card's colour would not.
+@Composable
+fun SpeakerStack(names: List<String>, modifier: Modifier = Modifier) {
+    val sizes = NotitiaTheme.sizes
+    val shown = names.take(STACK_MAX)
+    val more = names.size - shown.size
+    val description = spokenList(names)
+    Row(
+        modifier = modifier.clearAndSetSemantics { contentDescription = description },
+        horizontalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.s),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            modifier = Modifier.graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen },
+            horizontalArrangement = Arrangement.spacedBy(-sizes.stackOverlap),
+        ) {
+            shown.forEachIndexed { index, name ->
+                SpeakerAvatar(
+                    name = name,
+                    index = index,
+                    modifier = Modifier
+                        .size(sizes.stackAvatar)
+                        .drawBehind {
+                            if (index > 0) {
+                                val radius = size.minDimension / 2 + sizes.stackGap.toPx()
+                                drawCircle(Color.Black, radius, blendMode = BlendMode.Clear)
+                            }
+                        },
+                )
+            }
+        }
+        if (more > 0) {
+            Text(
+                text = stringResource(Res.string.speakers_more, more),
+                style = NotitiaTheme.typography.caption,
+                color = NotitiaTheme.colors.textSecondary,
+            )
+        }
+    }
+}
+
 @NotitiaPreviews
 @Composable
 private fun SpeakerChipPreview() = NotitiaTheme {
@@ -70,5 +124,7 @@ private fun SpeakerChipPreview() = NotitiaTheme {
     ) {
         sampleSpeakers.forEachIndexed { index, name -> SpeakerChip(name, index) }
         SpeakerDot(0, Modifier.align(Alignment.CenterVertically))
+        SpeakerStack(sampleSpeakers.take(2))
+        SpeakerStack(sampleSpeakers)
     }
 }
