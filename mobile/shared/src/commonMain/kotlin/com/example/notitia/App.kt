@@ -40,8 +40,10 @@ import com.example.notitia.ui.actions.trackedActions
 import com.example.notitia.ui.components.NotitiaTabBar
 import com.example.notitia.ui.components.offerUndo
 import com.example.notitia.ui.components.rememberMicrophoneAccess
+import com.example.notitia.ui.meetings.MeetingSelection
 import com.example.notitia.ui.meetings.MeetingsScreen
 import com.example.notitia.ui.meetings.MeetingsViewModel
+import com.example.notitia.ui.meetings.SelectionToolbar
 import com.example.notitia.ui.meetings.listItem
 import com.example.notitia.ui.minutes.MinutesRoute
 import com.example.notitia.ui.minutes.toMinutes
@@ -57,10 +59,12 @@ import com.example.notitia.ui.search.SearchState
 import com.example.notitia.ui.search.move
 import com.example.notitia.ui.settings.SettingsRoute
 import com.example.notitia.ui.theme.NotitiaTheme
+import com.example.notitia.ui.theme.SelectionStyle
 import com.example.notitia.ui.theme.SystemBarsFollow
 import com.example.notitia.ui.theme.ThemeChoice
 import com.example.notitia.ui.theme.isDark
 import com.example.notitia.ui.theme.reducedMotion
+import com.example.notitia.ui.theme.selectionStyle
 import kotlinx.coroutines.launch
 import notitia.shared.generated.resources.Res
 import notitia.shared.generated.resources.actions_done_message
@@ -105,6 +109,7 @@ fun App(
         val actionSheet = remember { SheetReveal() }
         val openedMeeting = stored.zip(meetings).firstOrNull { (meeting, _) -> meeting.id == openedMeetingId }
         var settingsOpen by rememberSaveable { mutableStateOf(false) }
+        val selection = rememberSaveable(saver = MeetingSelection.saver()) { MeetingSelection() }
         // A reminder opens its action's sheet, or the list by due date when several actions share its day.
         LaunchedEffect(reminderTap) {
             val keys = reminderTap?.actionKeys ?: return@LaunchedEffect
@@ -112,6 +117,7 @@ fun App(
             actionsView = ActionsView.ByDue
             openedMeetingId = null
             settingsOpen = false
+            selection.end()
             openedActionKey = keys.singleOrNull()
         }
         val search = rememberSaveable(saver = SearchState.saver(notitia.answerEngine)) { SearchState(notitia.answerEngine) }
@@ -164,15 +170,22 @@ fun App(
                         meetingsModel.togglePause()
                     },
                     tabBar = {
-                        NotitiaTabBar(
-                            selected = tab,
-                            onSelect = {
-                                tab = it
-                                openedMeetingId = null
-                                openedActionKey = null
-                                settingsOpen = false
-                            },
-                        )
+                        // The iPhone's selection toolbar takes the tab bar's place, as in Photos and Voice Memos.
+                        val chosen = selection.chosen
+                        if (chosen != null && selectionStyle == SelectionStyle.Toolbar) {
+                            SelectionToolbar(count = chosen.size, onDelete = selection::askToDelete)
+                        } else {
+                            NotitiaTabBar(
+                                selected = tab,
+                                onSelect = {
+                                    tab = it
+                                    openedMeetingId = null
+                                    openedActionKey = null
+                                    settingsOpen = false
+                                    selection.end()
+                                },
+                            )
+                        }
                     },
                 ) { padding ->
                     val screenModifier = Modifier.padding(padding).consumeWindowInsets(padding)
@@ -185,7 +198,7 @@ fun App(
                             onDelete = {
                                 val id = openedMeeting.first.id
                                 openedMeetingId = null
-                                scope.launch { deleteOnceShown { meetingsModel.delete(id) } }
+                                scope.launch { deleteOnceShown { meetingsModel.delete(setOf(id)) } }
                             },
                             backLabel = stringResource(tab.title),
                             backDescription = stringResource(tab.backDescription),
@@ -204,9 +217,11 @@ fun App(
                             Tab.Meetings -> MeetingsScreen(
                                 meetings = meetings,
                                 recording = recording != null,
+                                selection = selection,
                                 onOpen = { openedMeetingId = it.id },
                                 onRecord = ::startRecording,
                                 onSettings = { settingsOpen = true },
+                                onDelete = meetingsModel::delete,
                                 modifier = screenModifier,
                             )
                             Tab.Actions -> {

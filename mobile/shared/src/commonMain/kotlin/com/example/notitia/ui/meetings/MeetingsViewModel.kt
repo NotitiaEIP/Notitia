@@ -31,7 +31,7 @@ class MeetingsViewModel(
 
     fun rename(id: String, title: String) = repository.rename(id, title)
 
-    fun delete(id: String) = repository.delete(id)
+    fun delete(ids: Set<String>) = repository.delete(ids)
 
     fun startRecording() = recorder.start()
 

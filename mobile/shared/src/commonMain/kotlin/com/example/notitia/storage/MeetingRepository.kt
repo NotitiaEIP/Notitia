@@ -78,11 +78,13 @@ class MeetingRepository(
 
     fun rename(id: String, title: String) = update(id) { meeting -> meeting.renamed(title).takeIf { it != meeting } }
 
-    // For good, samples included until the next launch. The reminders follow the list, so the meeting's go too.
-    fun delete(id: String) {
-        deleted.update { it + id }
-        state.update { meetings -> meetings?.filterNot { it.id == id } }
-        if (id !in sampleIds) writes.launch { runCatching { store.delete(id) } }
+    // For good, samples included until the next launch. One change for all of them, so the list closes up once;
+    // the reminders follow the list, so the meetings' go too.
+    fun delete(ids: Set<String>) {
+        deleted.update { it + ids }
+        state.update { meetings -> meetings?.filterNot { it.id in ids } }
+        val written = ids - sampleIds
+        if (written.isNotEmpty()) writes.launch { written.forEach { runCatching { store.delete(it) } } }
     }
 
     // A change made by the user is dated, so two devices can be reconciled later (E10). null leaves it as it was.

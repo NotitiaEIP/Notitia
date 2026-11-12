@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
 import com.example.notitia.ui.theme.NotitiaPreviews
@@ -28,7 +29,16 @@ private val DiscCheck = CheckShape(Offset(7.9f, 12.2f), Offset(10.6f, 14.9f), Of
 // Ticked, the disc fills in green from 40 % of its size, then the check traces itself in it, a beat later, so
 // the eye follows one then the other. Unticking is immediate. Callers give it its target and its meaning.
 @Composable
-fun ActionCheck(done: Boolean, modifier: Modifier = Modifier) {
+fun ActionCheck(done: Boolean, modifier: Modifier = Modifier) =
+    TickCircle(done, NotitiaTheme.colors.green, NotitiaTheme.colors.onGreen, modifier)
+
+// The same circle in violet, which means chosen (DESIGN.md), as the circles of Mail and Gmail's selection.
+@Composable
+fun SelectionCheck(selected: Boolean, modifier: Modifier = Modifier) =
+    TickCircle(selected, NotitiaTheme.colors.accent, NotitiaTheme.colors.onAccent, modifier)
+
+@Composable
+private fun TickCircle(done: Boolean, disc: Color, mark: Color, modifier: Modifier) {
     val colors = NotitiaTheme.colors
     val motion = NotitiaTheme.motion
     val animate = done && !reducedMotion()
@@ -47,9 +57,9 @@ fun ActionCheck(done: Boolean, modifier: Modifier = Modifier) {
             if (fill < 1f) drawCircle(colors.textSecondary, RING_RADIUS, SymbolCenter, style = Stroke(STROKE))
             if (fill > 0f) {
                 val grown = motion.CHECK_START_SCALE + (1f - motion.CHECK_START_SCALE) * fill
-                drawCircle(colors.green, DISC_RADIUS * grown, SymbolCenter, alpha = fill)
+                drawCircle(disc, DISC_RADIUS * grown, SymbolCenter, alpha = fill)
             }
-            drawTracedCheck(DiscCheck, colors.onGreen, STROKE, traced)
+            drawTracedCheck(DiscCheck, mark, STROKE, traced)
         }
     }
 }
@@ -63,5 +73,6 @@ private fun ActionCheckPreview() = NotitiaTheme {
     ) {
         ActionCheck(done = false)
         ActionCheck(done = true)
+        SelectionCheck(selected = true)
     }
 }
