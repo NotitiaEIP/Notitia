@@ -60,6 +60,7 @@
         <item quantity="one">%1$d&#160;participant</item>
         <item quantity="other">%1$d&#160;participants</item>
     </plurals>
+    <string name="speakers_more">+%1$d</string>
     <plurals name="actions">
         <item quantity="one">%1$d&#160;action</item>
         <item quantity="other">%1$d&#160;actions</item>

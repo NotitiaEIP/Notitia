@@ -72,6 +72,10 @@ object NotitiaSizes {
     val personAvatar = 32.dp
     val doneRing = 28.dp
     val doneRingStroke = 3.dp
+    // The faces of a meeting stand as tall as the ring of its actions, on the same line.
+    val stackAvatar = doneRing
+    val stackOverlap = 8.dp
+    val stackGap = 2.dp
 }
 
 // What can be touched is round, what is read has corners.
