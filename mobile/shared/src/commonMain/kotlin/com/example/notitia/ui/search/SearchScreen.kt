@@ -12,11 +12,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -29,8 +27,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,6 +51,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import com.example.notitia.ui.components.FocusFollowsKeyboard
 import com.example.notitia.ui.components.GroupTitle
 import com.example.notitia.ui.components.HeaderAction
 import com.example.notitia.ui.components.ScreenHeader
@@ -105,12 +102,7 @@ fun SearchScreen(
     val fieldFocus = remember { FocusRequester() }
     val now = remember(meetings) { Clock.System.now() }
 
-    // Closed by back or a gesture, the keyboard takes the focus with it: no outline or send button without it.
-    // Derived, so the screen recomposes when the keyboard shows or hides, not on each frame of its slide.
-    val density = LocalDensity.current
-    val ime = WindowInsets.ime
-    val imeVisible by remember(ime, density) { derivedStateOf { ime.getBottom(density) > 0 } }
-    LaunchedEffect(imeVisible) { if (!imeVisible) focusManager.clearFocus() }
+    FocusFollowsKeyboard()
     // Keyed on the question, not on the step, which changes between the two phases.
     val asking = (state.step as? SearchStep.Asking)?.question
     LaunchedEffect(asking) { if (asking != null) state.answer(asking) }

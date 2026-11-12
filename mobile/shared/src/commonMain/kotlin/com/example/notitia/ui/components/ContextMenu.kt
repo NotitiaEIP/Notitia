@@ -18,10 +18,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
@@ -38,6 +40,40 @@ import com.example.notitia.ui.theme.NotitiaTheme
 import com.example.notitia.ui.theme.reducedMotion
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
+
+// Open or closed, and the item chosen. The choice runs once the menu has faded out: a card that leaves the list
+// never takes the menu with it, and a field can take the focus once the menu's popup is gone.
+@Stable
+class ContextMenuState {
+    var expanded by mutableStateOf(false)
+        private set
+    private var chosen: (() -> Unit)? = null
+
+    fun open() {
+        expanded = true
+    }
+
+    fun dismiss() {
+        expanded = false
+    }
+
+    fun choose(action: () -> Unit) {
+        chosen = action
+        expanded = false
+    }
+
+    internal fun closed() {
+        chosen?.invoke()
+        chosen = null
+    }
+}
+
+@Composable
+fun rememberContextMenuState(): ContextMenuState = remember { ContextMenuState() }
+
+@Composable
+fun ContextMenu(state: ContextMenuState, content: @Composable ColumnScope.() -> Unit) =
+    ContextMenu(expanded = state.expanded, onDismissRequest = state::dismiss, onClosed = state::closed, content = content)
 
 // The actions of what was long pressed, under it on its end side, or over it when the screen ends too soon.
 // Material's DropdownMenu always starts on the left of its anchor, hence this one. onClosed comes once the menu

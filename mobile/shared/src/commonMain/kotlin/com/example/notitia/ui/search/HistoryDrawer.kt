@@ -68,6 +68,7 @@ import com.example.notitia.ui.components.ContextMenu
 import com.example.notitia.ui.components.ContextMenuItem
 import com.example.notitia.ui.components.GroupTitle
 import com.example.notitia.ui.components.offerUndo
+import com.example.notitia.ui.components.rememberContextMenuState
 import com.example.notitia.ui.meetings.label
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
@@ -313,13 +314,7 @@ private fun HistoryRow(
 ) {
     val colors = NotitiaTheme.colors
     val haptics = LocalHapticFeedback.current
-    var menu by remember { mutableStateOf(false) }
-    // Run once the menu has faded out.
-    var afterMenu by remember { mutableStateOf<(() -> Unit)?>(null) }
-    fun choose(action: () -> Unit) {
-        afterMenu = action
-        menu = false
-    }
+    val menu = rememberContextMenuState()
     val pinLabel = stringResource(if (entry.pinned) Res.string.search_unpin else Res.string.search_pin)
     val renameLabel = stringResource(Res.string.search_rename)
     val deleteLabel = stringResource(Res.string.search_delete)
@@ -334,7 +329,7 @@ private fun HistoryRow(
             onClick = onOpen,
             onLongClick = {
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                menu = true
+                menu.open()
             },
             longClickLabel = stringResource(Res.string.search_options),
             actions = listOf(
@@ -344,18 +339,11 @@ private fun HistoryRow(
             ),
             highlighted = shown,
         )
-        ContextMenu(
-            expanded = menu,
-            onDismissRequest = { menu = false },
-            onClosed = {
-                afterMenu?.invoke()
-                afterMenu = null
-            },
-        ) {
+        ContextMenu(menu) {
             val pinIcon = if (entry.pinned) Res.drawable.keep_off else Res.drawable.keep
-            ContextMenuItem(pinIcon, pinLabel, colors.text) { choose(onPin) }
-            ContextMenuItem(Res.drawable.edit, renameLabel, colors.text) { choose(onRename) }
-            ContextMenuItem(Res.drawable.delete, deleteLabel, colors.red) { choose(onDelete) }
+            ContextMenuItem(pinIcon, pinLabel, colors.text) { menu.choose(onPin) }
+            ContextMenuItem(Res.drawable.edit, renameLabel, colors.text) { menu.choose(onRename) }
+            ContextMenuItem(Res.drawable.delete, deleteLabel, colors.red) { menu.choose(onDelete) }
         }
     }
 }

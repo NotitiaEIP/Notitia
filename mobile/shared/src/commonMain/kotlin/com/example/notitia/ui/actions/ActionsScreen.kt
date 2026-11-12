@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Icon
@@ -52,6 +51,7 @@ import com.example.notitia.ui.components.EmptyState
 import com.example.notitia.ui.components.GroupTitle
 import com.example.notitia.ui.components.NotitiaSegmentedControl
 import com.example.notitia.ui.components.ScreenHeader
+import com.example.notitia.ui.components.listMotion
 import com.example.notitia.ui.meetings.sampleMinutes
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
@@ -293,25 +293,25 @@ private fun ActionList(
                     onToggle = onToggle,
                     onOpen = onOpen,
                     onNudge = personNudgeOf(person),
-                    modifier = listMotion().padding(top = if (index == 0) spacing.l else spacing.s),
+                    modifier = listMotion(swipedOff = true).padding(top = if (index == 0) spacing.l else spacing.s),
                 )
             }
             return@LazyColumn
         }
         if (board.toComplete.isNotEmpty()) {
             item(key = "to-complete") {
-                ToCompleteCard(board.toComplete, onOpen, listMotion().padding(top = spacing.l))
+                ToCompleteCard(board.toComplete, onOpen, listMotion(swipedOff = true).padding(top = spacing.l))
             }
         }
         board.groups.forEach { (group, inGroup) ->
             item(key = group.name) {
                 GroupTitle(
                     text = stringResource(group.title),
-                    modifier = listMotion().padding(top = spacing.xl, bottom = spacing.s),
+                    modifier = listMotion(swipedOff = true).padding(top = spacing.xl, bottom = spacing.s),
                     color = if (group == DueGroup.Late) colors.red else colors.textTertiary,
                 )
             }
-            items(inGroup, key = { it.id.key }) { Card(it, listMotion()) }
+            items(inGroup, key = { it.id.key }) { Card(it, listMotion(swipedOff = true)) }
         }
         if (board.done.isNotEmpty()) {
             item(key = "done") {
@@ -319,7 +319,7 @@ private fun ActionList(
                     count = board.done.size,
                     expanded = showDone,
                     onExpandedChange = onShowDoneChange,
-                    modifier = listMotion().padding(top = spacing.xl, bottom = spacing.s),
+                    modifier = listMotion(swipedOff = true).padding(top = spacing.xl, bottom = spacing.s),
                 )
             }
             // One block that unfolds and folds back as a whole, so the list follows its height instead of jumping.
@@ -327,7 +327,7 @@ private fun ActionList(
             item(key = "done-list") {
                 AnimatedVisibility(
                     visible = showDone,
-                    modifier = listMotion(),
+                    modifier = listMotion(swipedOff = true),
                     enter = foldEnter(reducedMotion()),
                     exit = foldExit(reducedMotion()),
                 ) {
@@ -353,17 +353,6 @@ internal fun foldExit(reduced: Boolean): ExitTransition {
     val motion = NotitiaTheme.motion
     val fade = fadeOut(motion.quick())
     return if (reduced) fade else fade + shrinkVertically(motion.standard(), shrinkTowards = Alignment.Top)
-}
-
-// Cards fade in and out and the others slide into place; with reduced motion, only the fades.
-@Composable
-private fun LazyItemScope.listMotion(): Modifier {
-    val motion = NotitiaTheme.motion
-    return Modifier.animateItem(
-        fadeInSpec = motion.quick(),
-        placementSpec = if (reducedMotion()) null else motion.standard(),
-        fadeOutSpec = motion.instant(),
-    )
 }
 
 // "7 en cours · 2 en retard": what is left, and what is late in red.
