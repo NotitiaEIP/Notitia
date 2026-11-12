@@ -1,5 +1,6 @@
 package com.example.notitia.ui.components
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -30,15 +31,23 @@ import notitia.shared.generated.resources.Res
 import notitia.shared.generated.resources.chevron_right
 import org.jetbrains.compose.resources.painterResource
 
-// onLongClick opens the card's context menu; longClickLabel says so to screen readers.
+// onLongClick opens the card's context menu, or starts choosing; longClickLabel says so to screen readers. A chosen
+// card takes the accent's soft tint, as a selected row in Gmail or Mail.
 @Composable
 fun NotitiaCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
     longClickLabel: String? = null,
+    selected: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val colors = NotitiaTheme.colors
+    val background by animateColorAsState(
+        targetValue = if (selected) colors.accentSoft else colors.surface,
+        animationSpec = NotitiaTheme.motion.quick(),
+        label = "selected",
+    )
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -55,7 +64,7 @@ fun NotitiaCard(
                 scaleY = scale
             }
             .cardShadow(NotitiaTheme.shapes.card)
-            .background(NotitiaTheme.colors.surface)
+            .background(background)
             .combinedClickable(
                 interactionSource = interactionSource,
                 indication = ripple(),
@@ -69,8 +78,9 @@ fun NotitiaCard(
     )
 }
 
+// Without the chevron while choosing: a touch then ticks the card instead of opening it.
 @Composable
-fun CardTitle(text: String, modifier: Modifier = Modifier) {
+fun CardTitle(text: String, modifier: Modifier = Modifier, opens: Boolean = true) {
     Row(modifier) {
         Text(
             text = text,
@@ -79,7 +89,7 @@ fun CardTitle(text: String, modifier: Modifier = Modifier) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).padding(end = NotitiaTheme.spacing.s),
         )
-        CardChevron()
+        if (opens) CardChevron()
     }
 }
 
