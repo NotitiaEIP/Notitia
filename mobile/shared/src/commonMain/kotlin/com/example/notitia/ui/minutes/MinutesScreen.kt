@@ -45,7 +45,6 @@ import com.example.notitia.ui.components.ActionRow
 import com.example.notitia.ui.components.BackButton
 import com.example.notitia.ui.components.ContextMenu
 import com.example.notitia.ui.components.ContextMenuItem
-import com.example.notitia.ui.components.Destruction
 import com.example.notitia.ui.components.DestructiveConfirmation
 import com.example.notitia.ui.components.DetailsLine
 import com.example.notitia.ui.components.NotitiaButton
@@ -56,6 +55,7 @@ import com.example.notitia.ui.components.rememberContextMenuState
 import com.example.notitia.ui.meetings.MeetingListItem
 import com.example.notitia.ui.meetings.sampleMinutes
 import com.example.notitia.ui.meetings.lengthLabel
+import com.example.notitia.ui.meetings.meetingDeletion
 import com.example.notitia.ui.meetings.meetingWhenLabel
 import com.example.notitia.ui.recording.timerText
 import com.example.notitia.ui.theme.NotitiaPreviews
@@ -67,9 +67,6 @@ import notitia.shared.generated.resources.Res
 import notitia.shared.generated.resources.delete
 import notitia.shared.generated.resources.edit
 import notitia.shared.generated.resources.meeting_delete
-import notitia.shared.generated.resources.meeting_delete_confirm
-import notitia.shared.generated.resources.meeting_delete_message
-import notitia.shared.generated.resources.meeting_delete_title
 import notitia.shared.generated.resources.meeting_rename
 import notitia.shared.generated.resources.meetings_title
 import notitia.shared.generated.resources.minutes_actions
@@ -216,16 +213,7 @@ fun MinutesScreen(
         )
     }
     DestructiveConfirmation(
-        destruction = if (confirmingDelete) {
-            Destruction(
-                title = stringResource(Res.string.meeting_delete_title, meeting.title),
-                message = stringResource(Res.string.meeting_delete_message),
-                confirm = stringResource(Res.string.meeting_delete_confirm),
-                shortConfirm = stringResource(Res.string.meeting_delete),
-            )
-        } else {
-            null
-        },
+        destruction = if (confirmingDelete) meetingDeletion(meeting.title) else null,
         anchor = moreButton,
         onConfirm = {
             confirmingDelete = false

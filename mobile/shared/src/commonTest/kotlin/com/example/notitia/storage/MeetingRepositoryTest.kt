@@ -113,7 +113,7 @@ class MeetingRepositoryTest {
     fun aDeletedMeetingLeavesTheListAndTheDisk() {
         val store = MemoryStore(meeting("recorded-1"), meeting("recorded-2"))
         val repository = repository(store)
-        repository.delete("recorded-1")
+        repository.delete(setOf("recorded-1"))
         assertEquals(listOf("recorded-2"), repository.meetings.value?.map { it.id })
         assertEquals(listOf("recorded-1"), store.deleted)
     }
@@ -122,7 +122,7 @@ class MeetingRepositoryTest {
     fun aMeetingStillTranscribedDoesNotComeBackOnceDeleted() {
         val store = MemoryStore(meeting("recorded-1"))
         val repository = repository(store)
-        repository.delete("recorded-1")
+        repository.delete(setOf("recorded-1"))
         repository.save(meeting("recorded-1", written("Préparer la démo", "Envoyer le compte rendu")))
         assertEquals(emptyList(), repository.meetings.value)
         assertNull(store.saved["recorded-1"])
@@ -132,8 +132,17 @@ class MeetingRepositoryTest {
     fun aDeletedSampleTouchesNothingOnDisk() {
         val store = MemoryStore()
         val repository = repository(store, samples = listOf(meeting("sample-1")))
-        repository.delete("sample-1")
+        repository.delete(setOf("sample-1"))
         assertEquals(emptyList(), repository.meetings.value)
         assertTrue(store.deleted.isEmpty())
+    }
+
+    @Test
+    fun severalMeetingsAreDeletedTogether() {
+        val store = MemoryStore(meeting("recorded-1"), meeting("recorded-2"), meeting("recorded-3"))
+        val repository = repository(store, samples = listOf(meeting("sample-1")))
+        repository.delete(setOf("recorded-1", "recorded-3", "sample-1"))
+        assertEquals(listOf("recorded-2"), repository.meetings.value?.map { it.id })
+        assertEquals(listOf("recorded-1", "recorded-3"), store.deleted.sorted())
     }
 }
