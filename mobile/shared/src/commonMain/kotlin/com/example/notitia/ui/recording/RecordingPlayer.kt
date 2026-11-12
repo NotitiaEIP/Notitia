@@ -42,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.keepScreenOn
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
@@ -60,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import com.example.notitia.recording.RecorderState
 import com.example.notitia.ui.theme.NotitiaTheme
 import com.example.notitia.ui.theme.reducedMotion
 import kotlin.math.roundToInt
@@ -144,9 +146,10 @@ class RecordingPlayerState(initialValue: PlayerPosition, openOnStart: Boolean) {
 // tab bar, and the tab bar slides away as the sheet opens over it.
 @Composable
 fun RecordingPlayerHost(
-    recording: FakeRecording?,
+    recording: RecorderState.Active?,
     state: RecordingPlayerState,
     onStop: () -> Unit,
+    onTogglePause: () -> Unit,
     tabBar: @Composable () -> Unit,
     content: @Composable (PaddingValues) -> Unit,
 ) {
@@ -155,7 +158,10 @@ fun RecordingPlayerHost(
     val gap = NotitiaTheme.spacing.s
     var tabBarHeight by remember { mutableIntStateOf(0) }
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(NotitiaTheme.colors.background)) {
+    // Until the foreground service of US-11, a phone that goes to sleep stops the microphone. Only while it listens:
+    // a paused meeting lets the screen sleep.
+    val awake = if (recording is RecorderState.Recording) Modifier.keepScreenOn() else Modifier
+    BoxWithConstraints(Modifier.fillMaxSize().background(NotitiaTheme.colors.background).then(awake)) {
         val tabBarDp = with(density) { tabBarHeight.toDp() }
         val top = WindowInsets.safeDrawing.only(WindowInsetsSides.Top).asPaddingValues().calculateTopPadding()
         val miniBarRoom = if (recording != null) sizes.miniBar + gap * 2 else 0.dp
@@ -172,6 +178,7 @@ fun RecordingPlayerHost(
                 fullWidth = constraints.maxWidth,
                 fullHeight = constraints.maxHeight,
                 onStop = onStop,
+                onTogglePause = onTogglePause,
             )
         }
 
@@ -188,11 +195,12 @@ fun RecordingPlayerHost(
 
 @Composable
 private fun RecordingPlayer(
-    recording: FakeRecording,
+    recording: RecorderState.Active,
     state: RecordingPlayerState,
     fullWidth: Int,
     fullHeight: Int,
     onStop: () -> Unit,
+    onTogglePause: () -> Unit,
 ) {
     val colors = NotitiaTheme.colors
     val sizes = NotitiaTheme.sizes
@@ -259,6 +267,7 @@ private fun RecordingPlayer(
             state = state,
             visible = expanded,
             onStop = onStop,
+            onTogglePause = onTogglePause,
             modifier = Modifier
                 .layout { measurable, constraints ->
                     // Always the size of the screen, so the content is laid out once, not on every frame.
@@ -275,6 +284,7 @@ private fun RecordingPlayer(
             RecordingMiniBar(
                 recording = recording,
                 onStop = onStop,
+                onResume = onTogglePause,
                 modifier = Modifier
                     .graphicsLayer { alpha = (1f - state.progress / MINI_FADE_END).coerceIn(0f, 1f) }
                     .clickable(onClickLabel = expandLabel, role = Role.Button, onClick = state::expand),
@@ -285,23 +295,22 @@ private fun RecordingPlayer(
 
 @Composable
 private fun FullScreen(
-    recording: FakeRecording,
+    recording: RecorderState.Active,
     state: RecordingPlayerState,
     visible: Boolean,
     onStop: () -> Unit,
+    onTogglePause: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Hidden from screen readers while it is folded away under the mini bar.
     Column(if (visible) modifier else modifier.clearAndSetSemantics {}) {
         Handle(state, Modifier.statusBarsPadding())
         RecordingScreen(
-            startedAt = recording.startedAt,
-            elapsed = recording.elapsed,
-            paused = recording.paused,
+            recording = recording,
             onCollapse = state::collapse,
             onMark = {},
             onStop = onStop,
-            onTogglePause = recording::togglePause,
+            onTogglePause = onTogglePause,
             visible = visible,
             modifier = Modifier.weight(1f).navigationBarsPadding(),
         )

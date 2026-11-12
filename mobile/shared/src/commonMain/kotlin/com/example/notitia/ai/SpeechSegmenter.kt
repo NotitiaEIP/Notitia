@@ -1,13 +1,14 @@
 package com.example.notitia.ai
 
+import com.example.notitia.recording.BYTES_PER_MS
+import com.example.notitia.recording.BYTES_PER_SAMPLE
+import com.example.notitia.recording.SAMPLE_RATE
+import com.example.notitia.recording.pcmDuration
+import com.example.notitia.recording.rms
 import kotlin.math.max
-import kotlin.math.sqrt
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
-private const val SAMPLE_RATE = 16_000
-private const val BYTES_PER_SAMPLE = 2
-private const val BYTES_PER_MS = SAMPLE_RATE * BYTES_PER_SAMPLE / 1000
 private const val FRAME_MS = 30
 private const val FRAME_BYTES = FRAME_MS * BYTES_PER_MS
 private const val MIN_SEGMENT_MS = 2_500
@@ -20,7 +21,7 @@ private const val NOISE_SMOOTHING = 0.95
 private const val WAV_HEADER_BYTES = 44
 
 class SpeechSegment(val start: Duration, val pcm: ByteArray) {
-    val length: Duration get() = (pcm.size / BYTES_PER_MS).milliseconds
+    val length: Duration get() = pcmDuration(pcm.size)
 }
 
 // Whisper takes files, not a stream. Cutting on pauses keeps the words whole, and a piece without speech is dropped:
@@ -53,7 +54,7 @@ class SpeechSegmenter {
     }
 
     private fun addFrame(data: ByteArray, offset: Int): SpeechSegment? {
-        val level = rms(data, offset)
+        val level = rms(data, offset, offset + FRAME_BYTES)
         val isSpeech = level >= max(MIN_SPEECH_RMS, noiseFloor * NOISE_MARGIN)
         // The background noise follows the room slowly, quiet or loud.
         if (!isSpeech) {
@@ -86,15 +87,6 @@ class SpeechSegmenter {
         speechMs = 0
         trailingSilenceMs = 0
         return found
-    }
-
-    private fun rms(data: ByteArray, offset: Int): Double {
-        var sum = 0.0
-        for (index in offset until offset + FRAME_BYTES step BYTES_PER_SAMPLE) {
-            val sample = (data[index + 1].toInt() shl 8) or (data[index].toInt() and 0xFF)
-            sum += sample.toDouble() * sample
-        }
-        return sqrt(sum / (FRAME_BYTES / BYTES_PER_SAMPLE))
     }
 }
 

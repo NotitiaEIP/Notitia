@@ -9,6 +9,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import platform.Foundation.NSURL
 import platform.UIKit.UIApplication
 import platform.UIKit.UIApplicationOpenNotificationSettingsURLString
+import platform.UIKit.UIApplicationOpenSettingsURLString
 import platform.UserNotifications.UNAuthorizationOptionAlert
 import platform.UserNotifications.UNAuthorizationOptionSound
 import platform.UserNotifications.UNAuthorizationStatusAuthorized
@@ -19,7 +20,7 @@ import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
 
 @Composable
-actual fun rememberNotificationAccess(): NotificationAccess {
+actual fun rememberNotificationAccess(): PermissionAccess {
     val access = remember { IosNotificationAccess() }
     LifecycleResumeEffect(access) {
         access.refresh()
@@ -28,7 +29,7 @@ actual fun rememberNotificationAccess(): NotificationAccess {
     return access
 }
 
-private class IosNotificationAccess : NotificationAccess {
+private class IosNotificationAccess : PermissionAccess {
     private val center = UNUserNotificationCenter.currentNotificationCenter()
 
     // iOS answers later: taken as given until then, so no warning flashes on a sheet as it opens.
@@ -56,6 +57,21 @@ private class IosNotificationAccess : NotificationAccess {
 
     override fun openSettings() {
         val settings = NSURL.URLWithString(UIApplicationOpenNotificationSettingsURLString) ?: return
+        UIApplication.sharedApplication.openURL(settings, options = emptyMap<Any?, Any>(), completionHandler = null)
+    }
+}
+
+// AVAudioSession asks for the microphone itself with US-12: until then iOS has no microphone to ask for.
+@Composable
+actual fun rememberMicrophoneAccess(): PermissionAccess = IosMicrophoneAccess
+
+private object IosMicrophoneAccess : PermissionAccess {
+    override val granted = true
+
+    override fun request(onResult: (granted: Boolean) -> Unit) = onResult(true)
+
+    override fun openSettings() {
+        val settings = NSURL.URLWithString(UIApplicationOpenSettingsURLString) ?: return
         UIApplication.sharedApplication.openURL(settings, options = emptyMap<Any?, Any>(), completionHandler = null)
     }
 }
