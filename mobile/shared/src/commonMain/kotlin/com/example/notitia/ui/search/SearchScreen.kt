@@ -72,9 +72,7 @@ import notitia.shared.generated.resources.search_count
 import notitia.shared.generated.resources.search_history
 import notitia.shared.generated.resources.search_meetings
 import notitia.shared.generated.resources.search_no_answer
-import notitia.shared.generated.resources.search_no_answer_hint
 import notitia.shared.generated.resources.search_no_word
-import notitia.shared.generated.resources.search_no_word_hint
 import notitia.shared.generated.resources.search_off
 import notitia.shared.generated.resources.search_passages
 import notitia.shared.generated.resources.search_source
@@ -183,7 +181,6 @@ private fun SearchLayout(
                 shown is SearchStep.Words -> WordsFound(shown, meetings, now, onOpenMeeting)
                 shown is SearchStep.NothingFound && shown.kind == QueryKind.Words -> NothingFound(
                     sentence = stringResource(Res.string.search_no_word, shown.query),
-                    hint = stringResource(Res.string.search_no_word_hint),
                     modifier = Modifier.fillMaxSize().padding(spacing.l),
                 )
                 else -> QuestionFound(shown, meetings, now, revealing, onRevealed, onLaunch, onOpenMeeting)
@@ -312,7 +309,6 @@ private fun QuestionFound(
             } else {
                 NothingFound(
                     sentence = stringResource(Res.string.search_no_answer),
-                    hint = stringResource(Res.string.search_no_answer_hint),
                     modifier = Modifier.fillMaxWidth().padding(spacing.l).reveal(0, animate),
                 )
             }
@@ -437,7 +433,7 @@ private fun citationId(source: Int) = "source-$source"
 
 // No button: the field right under it is where to try again.
 @Composable
-private fun NothingFound(sentence: String, hint: String, modifier: Modifier = Modifier) {
+private fun NothingFound(sentence: String, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.Center,
@@ -456,13 +452,6 @@ private fun NothingFound(sentence: String, hint: String, modifier: Modifier = Mo
             modifier = Modifier
                 .padding(top = NotitiaTheme.spacing.s)
                 .semantics { liveRegion = LiveRegionMode.Polite },
-        )
-        Text(
-            text = hint,
-            style = NotitiaTheme.typography.callout,
-            color = NotitiaTheme.colors.textSecondary,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = NotitiaTheme.spacing.xs),
         )
     }
 }

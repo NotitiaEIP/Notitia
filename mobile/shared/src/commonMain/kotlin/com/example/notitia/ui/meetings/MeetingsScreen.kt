@@ -50,7 +50,6 @@ import notitia.shared.generated.resources.check_circle
 import notitia.shared.generated.resources.delete
 import notitia.shared.generated.resources.meeting_delete
 import notitia.shared.generated.resources.meetings_empty
-import notitia.shared.generated.resources.meetings_on_device
 import notitia.shared.generated.resources.meetings_select
 import notitia.shared.generated.resources.meetings_title
 import notitia.shared.generated.resources.search_options
@@ -147,7 +146,6 @@ private fun EmptyMeetings(onSettings: () -> Unit) {
         Header(onSettings)
         EmptyState(
             message = stringResource(Res.string.meetings_empty),
-            hint = stringResource(Res.string.meetings_on_device),
             modifier = Modifier.padding(top = NotitiaTheme.spacing.xxxl),
         )
     }

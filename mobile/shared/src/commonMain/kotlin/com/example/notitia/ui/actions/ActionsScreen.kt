@@ -67,7 +67,6 @@ import notitia.shared.generated.resources.actions_by_due
 import notitia.shared.generated.resources.actions_by_person
 import notitia.shared.generated.resources.actions_done
 import notitia.shared.generated.resources.actions_empty
-import notitia.shared.generated.resources.actions_empty_hint
 import notitia.shared.generated.resources.actions_late
 import notitia.shared.generated.resources.actions_nothing_open
 import notitia.shared.generated.resources.actions_open
@@ -278,7 +277,6 @@ private fun ActionList(
             item(key = "empty") {
                 EmptyState(
                     message = stringResource(Res.string.actions_empty),
-                    hint = stringResource(Res.string.actions_empty_hint),
                     modifier = Modifier.padding(top = spacing.xxxl),
                 )
             }

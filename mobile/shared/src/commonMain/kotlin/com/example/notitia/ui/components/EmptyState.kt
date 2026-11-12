@@ -1,8 +1,6 @@
 package com.example.notitia.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -11,16 +9,12 @@ import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
 import notitia.shared.generated.resources.Res
 import notitia.shared.generated.resources.actions_empty
-import notitia.shared.generated.resources.actions_empty_hint
 import org.jetbrains.compose.resources.stringResource
 
-// What is missing in one sentence, then where it will come from.
+// One sentence, nothing more: what fills the screen is already in sight (the record button, the search bar).
 @Composable
-fun EmptyState(message: String, hint: String, modifier: Modifier = Modifier) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.s)) {
-        Text(text = message, style = NotitiaTheme.typography.body)
-        Text(text = hint, style = NotitiaTheme.typography.callout, color = NotitiaTheme.colors.textSecondary)
-    }
+fun EmptyState(message: String, modifier: Modifier = Modifier) {
+    Text(text = message, style = NotitiaTheme.typography.body, modifier = modifier)
 }
 
 @NotitiaPreviews
@@ -28,7 +22,6 @@ fun EmptyState(message: String, hint: String, modifier: Modifier = Modifier) {
 private fun EmptyStatePreview() = NotitiaTheme {
     EmptyState(
         message = stringResource(Res.string.actions_empty),
-        hint = stringResource(Res.string.actions_empty_hint),
         modifier = Modifier.background(NotitiaTheme.colors.background).padding(NotitiaTheme.spacing.l),
     )
 }

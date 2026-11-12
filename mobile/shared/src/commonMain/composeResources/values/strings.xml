@@ -132,7 +132,6 @@
         <item quantity="other">%1$d&#160;actions arrivent à échéance demain</item>
     </plurals>
     <string name="actions_empty">Aucune action pour l’instant.</string>
-    <string name="actions_empty_hint">Quand quelqu’un dit «&#160;je m’en occupe&#160;» en réunion, l’action arrive ici, avec son responsable et son échéance.</string>
     <string name="actions_back_description">Retour aux actions</string>
     <string name="group_late">En retard</string>
     <string name="group_tomorrow">Demain</string>
@@ -204,9 +203,7 @@
     <string name="search_source">Source %1$d</string>
     <string name="search_quote">«&#160;%1$s&#160;»</string>
     <string name="search_no_word">Aucun passage ne contient «&#160;%1$s&#160;».</string>
-    <string name="search_no_word_hint">Vérifiez l’orthographe ou essayez un autre mot.</string>
     <string name="search_no_answer">Aucun passage ne répond à cette question.</string>
-    <string name="search_no_answer_hint">Essayez d’autres mots, ou le nom d’une réunion.</string>
     <string name="search_back_description">Retour à la recherche</string>
     <string name="search_history">Historique des recherches</string>
     <string name="search_history_title">Historique</string>
