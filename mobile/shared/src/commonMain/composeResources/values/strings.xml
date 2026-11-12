@@ -195,10 +195,7 @@
         <item quantity="other">%1$d&#160;réunions</item>
     </plurals>
     <string name="search_count">%1$s dans %2$s</string>
-    <plurals name="search_answer_note">
-        <item quantity="one">Réponse rédigée automatiquement à partir d’un passage. Vérifiez avec la source.</item>
-        <item quantity="other">Réponse rédigée automatiquement à partir de %1$d&#160;passages. Vérifiez avec les sources.</item>
-    </plurals>
+    <string name="search_answer_note">Vérifiez avec les sources.</string>
     <string name="search_sources">Sources</string>
     <string name="search_source">Source %1$d</string>
     <string name="search_quote">«&#160;%1$s&#160;»</string>

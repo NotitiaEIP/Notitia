@@ -373,7 +373,7 @@ private fun AnswerFound(
     Column(modifier) {
         AnswerText(answer, Modifier.reveal(0, animate))
         Text(
-            text = pluralStringResource(Res.plurals.search_answer_note, sources, sources),
+            text = stringResource(Res.string.search_answer_note),
             style = NotitiaTheme.typography.caption,
             color = NotitiaTheme.colors.textSecondary,
             modifier = Modifier
