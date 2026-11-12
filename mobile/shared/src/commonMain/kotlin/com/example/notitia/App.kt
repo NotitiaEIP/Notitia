@@ -25,14 +25,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.notitia.ai.SpeechEngine
 import com.example.notitia.meeting.Meeting
-import com.example.notitia.reminder.NoReminderScheduler
-import com.example.notitia.reminder.ReminderScheduler
 import com.example.notitia.reminder.ReminderTap
-import com.example.notitia.storage.MeetingRepository
-import com.example.notitia.storage.MeetingStore
-import com.example.notitia.storage.NoMeetingStore
 import com.example.notitia.ui.actions.ActionsScreen
 import com.example.notitia.ui.actions.ActionsView
 import com.example.notitia.ui.actions.RecedesUnderSheet
@@ -44,17 +38,13 @@ import com.example.notitia.ui.components.offerUndo
 import com.example.notitia.ui.meetings.MeetingsScreen
 import com.example.notitia.ui.meetings.MeetingsViewModel
 import com.example.notitia.ui.meetings.listItem
-import com.example.notitia.ui.meetings.sampleMeetings
 import com.example.notitia.ui.minutes.MinutesRoute
-import com.example.notitia.ui.minutes.MinutesWriter
 import com.example.notitia.ui.minutes.toMinutes
 import com.example.notitia.ui.navigation.Tab
 import com.example.notitia.ui.recording.FakeRecording
 import com.example.notitia.ui.recording.PlayerPosition
 import com.example.notitia.ui.recording.RecordingPlayerHost
 import com.example.notitia.ui.recording.RecordingPlayerState
-import com.example.notitia.ui.search.AnswerEngine
-import com.example.notitia.ui.search.SampleAnswerEngine
 import com.example.notitia.ui.search.SearchHistoryDrawer
 import com.example.notitia.ui.search.SearchScreen
 import com.example.notitia.ui.search.SearchState
@@ -78,11 +68,7 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 @Preview
 fun App(
-    answerEngine: AnswerEngine = SampleAnswerEngine,
-    speechEngine: SpeechEngine? = null,
-    minutesWriter: MinutesWriter? = null,
-    meetingStore: MeetingStore = NoMeetingStore,
-    reminderScheduler: ReminderScheduler = NoReminderScheduler,
+    notitia: Notitia = remember { Notitia() },
     recordRequests: Int = 0,
     reminderTap: ReminderTap? = null,
     // Android holds its splash screen until then, so the list never opens empty for a frame.
@@ -95,9 +81,7 @@ fun App(
     NotitiaTheme(darkTheme = darkTheme) {
         var tab by rememberSaveable { mutableStateOf(Tab.Meetings) }
         val meetingsModel = viewModel {
-            // Made-up meetings beside the user's, so the app has something to show before a first recording.
-            val samples = sampleMeetings(Clock.System.now())
-            MeetingsViewModel(MeetingRepository(meetingStore, samples), speechEngine, minutesWriter, reminderScheduler)
+            MeetingsViewModel(notitia.repository, notitia.speechEngine, notitia.minutesWriter)
         }
         val stored = meetingsModel.meetings.collectAsStateWithLifecycle().value ?: return@NotitiaTheme
         LaunchedEffect(Unit) { onLoaded() }
@@ -119,7 +103,7 @@ fun App(
             settingsOpen = false
             openedActionKey = keys.singleOrNull()
         }
-        val search = rememberSaveable(saver = SearchState.saver(answerEngine)) { SearchState(answerEngine) }
+        val search = rememberSaveable(saver = SearchState.saver(notitia.answerEngine)) { SearchState(notitia.answerEngine) }
         val historyDrawer = rememberDrawerState(DrawerValue.Closed)
         val scope = rememberCoroutineScope()
         val reduced = reducedMotion()
