@@ -1,8 +1,7 @@
 package com.example.notitia
 
-import android.os.Bundle
-import androidx.activity.ComponentActivity
+import android.content.Context
 import com.example.notitia.ai.SpeechEngine
 
 @Suppress("UNUSED_PARAMETER")
-fun speechEngineForBuild(activity: ComponentActivity, savedInstanceState: Bundle?): SpeechEngine? = null
+fun speechEngineForBuild(context: Context): SpeechEngine? = null
