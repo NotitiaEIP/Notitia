@@ -51,6 +51,8 @@
     <string name="recording_collapse">Réduire</string>
     <string name="recording_in_progress">Enregistrement</string>
     <string name="recording_paused">En pause</string>
+    <string name="recording_interrupted">Interrompu</string>
+    <string name="recording_interrupted_hint">Un appel ou une autre app a coupé le micro. Touchez Reprendre pour continuer.</string>
     <string name="recording_expand">Agrandir</string>
     <string name="recording_handle">Poignée de l’enregistrement</string>
     <string name="recording_stop_description">Arrêter l’enregistrement</string>
@@ -59,6 +61,14 @@
     <string name="recording_stop">Arrêter</string>
     <string name="recording_pause">Pause</string>
     <string name="recording_resume">Reprendre</string>
+    <string name="recording_denied_title">Accès au micro désactivé</string>
+    <string name="recording_denied_message">Autorisez le micro dans les réglages pour enregistrer vos réunions.</string>
+    <string name="recording_open_settings">Ouvrir les réglages</string>
+    <string name="recording_busy_title">Micro indisponible</string>
+    <string name="recording_busy_message">Un appel ou une autre app utilise le micro. Réessayez une fois qu’il est libre.</string>
+    <string name="recording_unavailable_title">Enregistrement indisponible</string>
+    <string name="recording_unavailable_message">Cet appareil ne peut pas encore enregistrer.</string>
+    <string name="ok">OK</string>
     <string name="on_device">Sur l’appareil</string>
     <string name="minutes_back_description">Retour aux réunions</string>
     <string name="minutes_more">Plus d’options</string>

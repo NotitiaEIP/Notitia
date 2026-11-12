@@ -1,5 +1,7 @@
 package com.example.notitia.ui.recording
 
+import com.example.notitia.ai.audio
+import com.example.notitia.recording.loudness
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -26,12 +28,19 @@ class RecordingFormatTest {
     }
 
     @Test
-    fun waveStaysBetweenRestAndFullHeight() {
-        for (phase in listOf(0f, 0.4f, 1.7f, 12.3f)) {
-            repeat(WAVE_BARS) { index ->
-                val level = waveLevel(index, phase)
-                assertTrue(level in WAVE_REST_LEVEL..1f, "bar $index at $phase: $level")
-            }
-        }
+    fun aBarStaysBetweenRestAndFullHeight() {
+        assertEquals(WAVE_REST_LEVEL, waveBarLevel(0f))
+        assertEquals(1f, waveBarLevel(1f))
+        assertEquals(1f, waveBarLevel(3f))
+        assertTrue(waveBarLevel(0.5f) in WAVE_REST_LEVEL..1f)
+    }
+
+    @Test
+    fun aShoutStandsWellAboveAVoice() {
+        // About -20 dBFS for a voice at arm's length, -8 dBFS for a shout.
+        val voice = waveBarLevel(loudness(audio(100, level = 3_300)))
+        val shout = waveBarLevel(loudness(audio(100, level = 13_000)))
+        assertTrue(shout > voice * 1.4f, "voice: $voice, shout: $shout")
+        assertTrue(voice in 0.5f..0.7f, "voice: $voice")
     }
 }

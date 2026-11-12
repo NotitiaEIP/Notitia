@@ -19,6 +19,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.Lifecycle
@@ -26,6 +28,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.notitia.meeting.Meeting
+import com.example.notitia.recording.RecorderState
 import com.example.notitia.reminder.ReminderTap
 import com.example.notitia.ui.actions.ActionsScreen
 import com.example.notitia.ui.actions.ActionsView
@@ -35,16 +38,18 @@ import com.example.notitia.ui.actions.ownerChoices
 import com.example.notitia.ui.actions.trackedActions
 import com.example.notitia.ui.components.NotitiaTabBar
 import com.example.notitia.ui.components.offerUndo
+import com.example.notitia.ui.components.rememberMicrophoneAccess
 import com.example.notitia.ui.meetings.MeetingsScreen
 import com.example.notitia.ui.meetings.MeetingsViewModel
 import com.example.notitia.ui.meetings.listItem
 import com.example.notitia.ui.minutes.MinutesRoute
 import com.example.notitia.ui.minutes.toMinutes
 import com.example.notitia.ui.navigation.Tab
-import com.example.notitia.ui.recording.FakeRecording
 import com.example.notitia.ui.recording.PlayerPosition
+import com.example.notitia.ui.recording.RecordingFailedAlert
 import com.example.notitia.ui.recording.RecordingPlayerHost
 import com.example.notitia.ui.recording.RecordingPlayerState
+import com.example.notitia.ui.recording.recordedMeetingId
 import com.example.notitia.ui.search.SearchHistoryDrawer
 import com.example.notitia.ui.search.SearchScreen
 import com.example.notitia.ui.search.SearchState
@@ -55,7 +60,6 @@ import com.example.notitia.ui.theme.SystemBarsFollow
 import com.example.notitia.ui.theme.ThemeChoice
 import com.example.notitia.ui.theme.isDark
 import com.example.notitia.ui.theme.reducedMotion
-import kotlin.time.Clock
 import kotlinx.coroutines.launch
 import notitia.shared.generated.resources.Res
 import notitia.shared.generated.resources.actions_done_message
@@ -81,9 +85,15 @@ fun App(
     NotitiaTheme(darkTheme = darkTheme) {
         var tab by rememberSaveable { mutableStateOf(Tab.Meetings) }
         val meetingsModel = viewModel {
-            MeetingsViewModel(notitia.repository, notitia.speechEngine, notitia.minutesWriter)
+            MeetingsViewModel(notitia.repository, notitia.recorder)
         }
-        val stored = meetingsModel.meetings.collectAsStateWithLifecycle().value ?: return@NotitiaTheme
+        val recorder by meetingsModel.recording.collectAsStateWithLifecycle()
+        val recording = recorder as? RecorderState.Active
+        // The meeting being recorded is the mini bar's: it joins the list once stopped.
+        val recordingId = recording?.let { recordedMeetingId(it.startedAt) }
+        val stored = meetingsModel.meetings.collectAsStateWithLifecycle().value
+            ?.filterNot { it.id == recordingId }
+            ?: return@NotitiaTheme
         LaunchedEffect(Unit) { onLoaded() }
         val meetings = stored.map { it.listItem(meetingsModel.progress(it.id)) }
         var actionsView by rememberSaveable { mutableStateOf(ActionsView.ByDue) }
@@ -111,13 +121,12 @@ fun App(
         LifecycleEventEffect(Lifecycle.Event.ON_START) {
             if (search.comeBack()) scope.launch { historyDrawer.snapTo(DrawerValue.Closed) }
         }
-        var recording by rememberSaveable(stateSaver = FakeRecording.Saver) { mutableStateOf(null) }
-        recording?.let { current -> LaunchedEffect(current) { current.run() } }
-        LaunchedEffect(recording?.paused) { meetingsModel.setPaused(recording?.paused == true) }
-        fun startRecording() {
-            val started = FakeRecording(startedAt = Clock.System.now())
-            recording = started
-            meetingsModel.start(started.startedAt)
+        val microphone = rememberMicrophoneAccess()
+        val haptics = LocalHapticFeedback.current
+        // Asked on the first recording, not at launch. A refusal still starts: the recorder then says why it cannot.
+        fun startRecording() = microphone.request {
+            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+            meetingsModel.startRecording()
         }
         // Each touch on the home screen widget starts a recording, unless one already runs.
         LaunchedEffect(recordRequests) {
@@ -145,8 +154,13 @@ fun App(
                     recording = recording,
                     state = player,
                     onStop = {
-                        recording?.let { meetingsModel.stop(it.elapsed) }
-                        recording = null
+                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                        meetingsModel.stopRecording()
+                    },
+                    onTogglePause = {
+                        val pausing = recording is RecorderState.Recording
+                        haptics.performHapticFeedback(if (pausing) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn)
+                        meetingsModel.togglePause()
                     },
                     tabBar = {
                         NotitiaTabBar(
@@ -237,6 +251,13 @@ fun App(
                     )
                 }
             }
+        }
+        (recorder as? RecorderState.Failed)?.let { failed ->
+            RecordingFailedAlert(
+                problem = failed.problem,
+                onOpenSettings = microphone::openSettings,
+                onDismiss = meetingsModel::dismissFailure,
+            )
         }
     }
 }
