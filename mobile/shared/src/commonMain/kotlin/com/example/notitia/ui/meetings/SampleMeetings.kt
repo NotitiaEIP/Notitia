@@ -48,7 +48,10 @@ fun sampleMeetings(now: Instant, timeZone: TimeZone = TimeZone.currentSystemDefa
 
 // For previews and tests, which show the samples without a repository.
 fun sampleItems(now: Instant, timeZone: TimeZone = TimeZone.currentSystemDefault()): List<MeetingListItem> =
-    sampleMeetings(now, timeZone).map { it.listItem(title = checkNotNull(it.title)) }
+    sampleMeetings(now, timeZone).map { it.sampleItem(now, timeZone) }
 
 fun sampleMinutes(now: Instant, timeZone: TimeZone = TimeZone.currentSystemDefault()): List<Minutes> =
-    sampleMeetings(now, timeZone).map { it.toMinutes(it.listItem(title = checkNotNull(it.title))) }
+    sampleMeetings(now, timeZone).map { it.toMinutes(it.sampleItem(now, timeZone)) }
+
+private fun Meeting.sampleItem(now: Instant, timeZone: TimeZone) =
+    listItem(checkNotNull(title), now.toLocalDateTime(timeZone).date)

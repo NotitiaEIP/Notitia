@@ -9,12 +9,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,6 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import com.example.notitia.ui.meetings.MeetingDay
 import com.example.notitia.ui.meetings.MeetingListItem
 import com.example.notitia.ui.meetings.MeetingStatus
@@ -38,18 +39,15 @@ import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import notitia.shared.generated.resources.Res
-import notitia.shared.generated.resources.actions
-import notitia.shared.generated.resources.check
-import notitia.shared.generated.resources.minutes_ready
+import notitia.shared.generated.resources.actions_late
 import notitia.shared.generated.resources.minutes_writing
-import notitia.shared.generated.resources.participants
 import notitia.shared.generated.resources.transcription_progress
 import notitia.shared.generated.resources.transcription_remaining
 import notitia.shared.generated.resources.weekdays
-import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringArrayResource
 import org.jetbrains.compose.resources.stringResource
+
+private const val SUMMARY_LINES = 2
 
 // selected is null while the list is not choosing; then the circle slides in on the left, as in Mail, and a touch
 // ticks the card instead of opening it.
@@ -68,8 +66,8 @@ fun MeetingCard(
     val details = listOf(
         dayLabel(meetingDay(meeting.startedAt, now, TimeZone.currentSystemDefault())),
         lengthLabel(meeting.duration),
-        pluralStringResource(Res.plurals.participants, meeting.participants, meeting.participants),
     )
+    val late = (meeting.status as? MeetingStatus.Ready)?.late?.takeIf { it > 0 }
 
     NotitiaCard(
         onClick = onClick,
@@ -88,9 +86,13 @@ fun MeetingCard(
             }
             Column(Modifier.weight(1f)) {
                 CardTitle(meeting.title, opens = selected == null)
-                DetailsLine(details, Modifier.padding(top = spacing.xs))
+                DetailsLine(
+                    parts = details,
+                    modifier = Modifier.padding(top = spacing.xs),
+                    alert = late?.let { stringResource(Res.string.actions_late, it) },
+                )
                 when (val status = meeting.status) {
-                    is MeetingStatus.Ready -> ReadyBadges(status, Modifier.padding(top = spacing.m))
+                    is MeetingStatus.Ready -> ReadyContent(meeting.speakers, status.summary)
                     is MeetingStatus.Transcribing -> TranscriptionProgress(status, Modifier.padding(top = spacing.m))
                     MeetingStatus.WritingMinutes -> NotitiaBadge(
                         text = stringResource(Res.string.minutes_writing),
@@ -102,22 +104,23 @@ fun MeetingCard(
     }
 }
 
+// Being ready is the normal state, so it gets no badge. A meeting is told apart by what was said, as a note in Granola
+// or a mail in Gmail, and its colour comes from who said it, as each row of Trade Republic from its own logo. Its
+// actions stay in their tab.
 @Composable
-private fun ReadyBadges(status: MeetingStatus.Ready, modifier: Modifier = Modifier) {
-    FlowRow(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.s),
-        verticalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.s),
-    ) {
-        if (status.actions > 0) {
-            NotitiaBadge(text = pluralStringResource(Res.plurals.actions, status.actions, status.actions))
-        }
-        NotitiaBadge(
-            text = stringResource(Res.string.minutes_ready),
-            tone = BadgeTone.Success,
-            icon = painterResource(Res.drawable.check),
+private fun ReadyContent(speakers: List<String>, summary: String?) {
+    val spacing = NotitiaTheme.spacing
+    if (summary != null) {
+        Text(
+            text = summary,
+            style = NotitiaTheme.typography.callout,
+            color = NotitiaTheme.colors.textSecondary,
+            maxLines = SUMMARY_LINES,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = spacing.s),
         )
     }
+    if (speakers.isNotEmpty()) SpeakerStack(speakers, Modifier.padding(top = spacing.m))
 }
 
 @Composable

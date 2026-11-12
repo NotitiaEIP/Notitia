@@ -36,7 +36,7 @@ class ActionScheduleTest {
         meetingAt: Instant = at(20, 10),
         index: Int = 0,
     ): TrackedAction {
-        val meeting = MeetingListItem(text, text, meetingAt, 30.minutes, 2, MeetingStatus.Ready(actions = 1))
+        val meeting = MeetingListItem(text, text, meetingAt, 30.minutes, emptyList(), MeetingStatus.Ready())
         return TrackedAction(ActionId(meeting.id, index), MinutesAction(text, owner, due, done), meeting, speaker = null)
     }
 

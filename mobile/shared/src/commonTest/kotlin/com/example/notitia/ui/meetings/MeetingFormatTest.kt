@@ -1,5 +1,8 @@
 package com.example.notitia.ui.meetings
 
+import com.example.notitia.meeting.MinutesAction
+import com.example.notitia.meeting.MinutesState
+import com.example.notitia.meeting.WrittenMinutes
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.hours
@@ -25,7 +28,7 @@ class MeetingFormatTest {
         LocalDateTime(year, month, day, hour, minute).toInstant(paris)
 
     private fun meeting(id: String, startedAt: Instant) =
-        MeetingListItem(id, id, startedAt, 30.minutes, 2, MeetingStatus.Ready(actions = 0))
+        MeetingListItem(id, id, startedAt, 30.minutes, emptyList(), MeetingStatus.Ready())
 
     @Test
     fun sameDayIsTodayWithItsTime() {
@@ -112,5 +115,16 @@ class MeetingFormatTest {
     fun clockTimeKeepsTwoDigits() {
         assertEquals("09:05", clockTime(LocalTime(9, 5)))
         assertEquals("14:30", clockTime(LocalTime(14, 30)))
+    }
+
+    // Late as in the Actions tab: due before today and not done. Due today is not late yet.
+    @Test
+    fun aReadyMeetingGivesItsSummaryAndWhatIsLate() {
+        val today = LocalDate(2026, 10, 26)
+        val yesterday = LocalDate(2026, 10, 25)
+        fun action(due: LocalDate?, done: Boolean = false) = MinutesAction("Relire", owner = null, due = due, done = done)
+        val actions = listOf(action(yesterday), action(yesterday, done = true), action(today), action(null))
+        val minutes = MinutesState.Written(WrittenMinutes("Démo validée.", decisions = emptyList(), actions = actions))
+        assertEquals(MeetingStatus.Ready(summary = "Démo validée.", late = 1), minutes.status(today))
     }
 }

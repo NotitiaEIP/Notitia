@@ -61,11 +61,6 @@
         <item quantity="other">%1$d&#160;participants</item>
     </plurals>
     <string name="speakers_more">+%1$d</string>
-    <plurals name="actions">
-        <item quantity="one">%1$d&#160;action</item>
-        <item quantity="other">%1$d&#160;actions</item>
-    </plurals>
-    <string name="minutes_ready">Compte rendu prêt</string>
     <string name="transcription_progress">Transcription %1$d&#160;%</string>
     <string name="transcription_remaining">environ %1$s</string>
     <string name="recording_collapse">Réduire</string>
