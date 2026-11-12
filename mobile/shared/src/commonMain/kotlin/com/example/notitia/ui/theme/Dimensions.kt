@@ -100,7 +100,7 @@ object NotitiaMotion {
     // The screen under an action's sheet steps back this much, as a card on a stack.
     const val STACK_SCALE = 0.94f
     // Long for a tab, but nobody waits for it: the screen has already switched.
-    const val TAB_ICON_MS = 800
+    const val TAB_ICON_MS = 600
     // The recording dot breathes slowly: it says "still on", not "look at me".
     const val PULSE_MS = 1200
     // A quick answer never flashes a loader.
