@@ -62,6 +62,7 @@ object NotitiaSizes {
     val bullet = 6.dp
     val progressBar = 4.dp
     val tabBar = 64.dp
+    val selectionBar = 64.dp
     val tabPillWidth = 64.dp
     val tabPillHeight = 32.dp
     val sidePanel = 320.dp

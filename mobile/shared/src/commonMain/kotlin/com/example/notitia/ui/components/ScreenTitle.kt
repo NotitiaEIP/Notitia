@@ -9,9 +9,11 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,6 +75,18 @@ fun HeaderAction(icon: Painter, description: String, onClick: () -> Unit) {
             tint = NotitiaTheme.colors.text,
             modifier = Modifier.size(sizes.icon),
         )
+    }
+}
+
+// A word in place of an icon, as the iPhone's navigation bars have: « Sélectionner », « OK ».
+@Composable
+fun HeaderTextAction(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    TextButton(
+        onClick = onClick,
+        colors = ButtonDefaults.textButtonColors(contentColor = NotitiaTheme.colors.accentContent),
+        modifier = modifier,
+    ) {
+        Text(text, style = NotitiaTheme.typography.label)
     }
 }
 

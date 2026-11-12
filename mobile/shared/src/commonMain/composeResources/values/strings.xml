@@ -32,6 +32,29 @@
         <item quantity="one">%1$d réunion, sur ce téléphone</item>
         <item quantity="other">%1$d réunions, toutes sur ce téléphone</item>
     </plurals>
+    <string name="meetings_select">Sélectionner</string>
+    <string name="meetings_select_none">Sélectionner des réunions</string>
+    <plurals name="meetings_chosen">
+        <item quantity="one">%1$d&#160;sélectionnée</item>
+        <item quantity="other">%1$d&#160;sélectionnées</item>
+    </plurals>
+    <string name="meetings_select_all">Tout sélectionner</string>
+    <string name="meetings_unselect_all">Tout désélectionner</string>
+    <string name="meetings_all">Tout</string>
+    <string name="meetings_selection_done">OK</string>
+    <string name="meetings_selection_close">Quitter la sélection</string>
+    <plurals name="meetings_delete_title">
+        <item quantity="one">Supprimer %1$d&#160;réunion&#160;?</item>
+        <item quantity="other">Supprimer %1$d&#160;réunions&#160;?</item>
+    </plurals>
+    <plurals name="meetings_delete_message">
+        <item quantity="one">Sa transcription, son compte rendu et ses actions seront effacés de ce téléphone.</item>
+        <item quantity="other">Leurs transcriptions, leurs comptes rendus et leurs actions seront effacés de ce téléphone.</item>
+    </plurals>
+    <plurals name="meetings_delete_confirm">
+        <item quantity="one">Supprimer la réunion</item>
+        <item quantity="other">Supprimer %1$d&#160;réunions</item>
+    </plurals>
     <string name="group_today">Aujourd’hui</string>
     <string name="group_yesterday">Hier</string>
     <string name="group_this_week">Cette semaine</string>
