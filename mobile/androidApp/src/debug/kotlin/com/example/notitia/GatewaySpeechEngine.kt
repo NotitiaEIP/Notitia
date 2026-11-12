@@ -1,23 +1,12 @@
 package com.example.notitia
 
-import android.Manifest
-import android.annotation.SuppressLint
-import android.content.Context
-import android.content.pm.PackageManager
-import android.media.AudioFormat
-import android.media.AudioRecord
-import android.media.MediaRecorder
-import android.media.audiofx.AutomaticGainControl
-import android.media.audiofx.NoiseSuppressor
 import android.util.Log
 import com.example.notitia.ai.SpeechEngine
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
-import kotlin.math.max
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import org.json.JSONException
 import org.json.JSONObject
@@ -25,9 +14,6 @@ import org.json.JSONObject
 private const val TAG = "NotitiaGateway"
 private const val TRANSCRIBE_MODEL = "notitia-transcribe"
 private const val LANGUAGE = "fr"
-private const val SAMPLE_RATE = 16_000
-private const val READ_BYTES = 3_200
-private const val PAUSE_CHECK_MS = 100L
 private const val MAX_ATTEMPTS = 3
 private const val RETRY_DELAY_MS = 2_000L
 private const val CONNECT_TIMEOUT_MS = 15_000
@@ -35,48 +21,9 @@ private const val READ_TIMEOUT_MS = 60_000
 private const val TOO_MANY_REQUESTS = 429
 
 class GatewaySpeechEngine(
-    private val context: Context,
     private val baseUrl: String,
     private val key: String,
 ) : SpeechEngine {
-
-    override fun canListen(): Boolean =
-        context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-
-    // canListen is checked by the caller before listening.
-    @SuppressLint("MissingPermission")
-    override suspend fun listen(isPaused: () -> Boolean, onAudio: (ByteArray) -> Unit) = withContext(Dispatchers.IO) {
-        val encoding = AudioFormat.ENCODING_PCM_16BIT
-        val channel = AudioFormat.CHANNEL_IN_MONO
-        val bufferBytes = max(AudioRecord.getMinBufferSize(SAMPLE_RATE, channel, encoding), READ_BYTES * 2)
-        val recorder = AudioRecord(MediaRecorder.AudioSource.MIC, SAMPLE_RATE, channel, encoding, bufferBytes)
-        if (recorder.state != AudioRecord.STATE_INITIALIZED) {
-            Log.w(TAG, "microphone unavailable")
-            recorder.release()
-            return@withContext
-        }
-        val gain = if (AutomaticGainControl.isAvailable()) AutomaticGainControl.create(recorder.audioSessionId) else null
-        val noise = if (NoiseSuppressor.isAvailable()) NoiseSuppressor.create(recorder.audioSessionId) else null
-        gain?.enabled = true
-        noise?.enabled = true
-        val buffer = ByteArray(READ_BYTES)
-        try {
-            while (isActive) {
-                if (isPaused()) {
-                    if (recorder.recordingState == AudioRecord.RECORDSTATE_RECORDING) recorder.stop()
-                    delay(PAUSE_CHECK_MS)
-                } else {
-                    if (recorder.recordingState != AudioRecord.RECORDSTATE_RECORDING) recorder.startRecording()
-                    val read = recorder.read(buffer, 0, buffer.size)
-                    if (read > 0) onAudio(buffer.copyOf(read))
-                }
-            }
-        } finally {
-            gain?.release()
-            noise?.release()
-            recorder.release()
-        }
-    }
 
     override suspend fun transcribe(wav: ByteArray, previousText: String): String = withContext(Dispatchers.IO) {
         repeat(MAX_ATTEMPTS - 1) { attempt ->

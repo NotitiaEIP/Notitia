@@ -24,13 +24,17 @@ fun rms(pcm: ByteArray, from: Int = 0, to: Int = pcm.size): Double {
     return sqrt(sum / samples)
 }
 
-// The ear hears decibels, not amplitude: -50 dBFS (a quiet room) shows flat, 0 dBFS fills the bar.
+// The ear hears decibels, not amplitude: -50 dBFS (a quiet room) gives 0, -6 dBFS (a shout close to the phone) gives 1.
 private const val FLOOR_DB = -50.0
+private const val LOUD_DB = -6.0
 private const val FULL_SCALE = 32_768.0
 
+// The loudest syllable of a read, not its average: a word stands out from the short pauses around it.
+private const val PEAK_WINDOW_BYTES = 20 * BYTES_PER_MS
+
 fun loudness(pcm: ByteArray): Float {
-    val level = rms(pcm)
-    if (level <= 0.0) return 0f
+    val level = (pcm.indices step PEAK_WINDOW_BYTES).maxOfOrNull { rms(pcm, it, minOf(it + PEAK_WINDOW_BYTES, pcm.size)) }
+    if (level == null || level <= 0.0) return 0f
     val db = 20 * log10(level / FULL_SCALE)
-    return ((db - FLOOR_DB) / -FLOOR_DB).toFloat().coerceIn(0f, 1f)
+    return ((db - FLOOR_DB) / (LOUD_DB - FLOOR_DB)).toFloat().coerceIn(0f, 1f)
 }

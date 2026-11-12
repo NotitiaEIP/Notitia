@@ -2,7 +2,6 @@ package com.example.notitia.recording
 
 import kotlin.concurrent.Volatile
 import kotlin.coroutines.cancellation.CancellationException
-import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Instant
 import kotlinx.coroutines.CoroutineScope
@@ -39,11 +38,7 @@ sealed interface RecorderState {
 
 // The one truth about a recording: the screen, and later the recording service, only read it. microphone is null
 // on a platform that cannot record yet.
-class AudioRecorder(
-    private val microphone: Microphone?,
-    private val scope: CoroutineScope,
-    private val clock: Clock = Clock.System,
-) {
+class AudioRecorder(private val microphone: Microphone?, private val scope: CoroutineScope) {
     private val mutableState = MutableStateFlow<RecorderState>(RecorderState.Idle)
     val state: StateFlow<RecorderState> = mutableState.asStateFlow()
 
@@ -54,14 +49,13 @@ class AudioRecorder(
     private var onAudio: (ByteArray) -> Unit = {}
 
     // onAudio gets each read on the microphone's thread. The timer only moves with heard audio, so a microphone
-    // that never opens leaves it at zero until it fails.
-    fun start(onAudio: (ByteArray) -> Unit): Instant? {
-        if (state.value is RecorderState.Active) return null
-        val startedAt = clock.now()
+    // that never opens leaves it at zero until it fails. False when a recording already runs.
+    fun start(startedAt: Instant, onAudio: (ByteArray) -> Unit): Boolean {
+        if (state.value is RecorderState.Active) return false
         this.onAudio = onAudio
         mutableState.value = RecorderState.Recording(startedAt, Duration.ZERO, level = 0f)
         listen()
-        return startedAt
+        return true
     }
 
     fun togglePause() {

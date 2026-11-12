@@ -31,10 +31,6 @@ class MeetingTranscriptionTest {
         val previousTexts = mutableListOf<String>()
         val wavs = mutableListOf<ByteArray>()
 
-        override fun canListen() = true
-
-        override suspend fun listen(isPaused: () -> Boolean, onAudio: (ByteArray) -> Unit) = Unit
-
         override suspend fun transcribe(wav: ByteArray, previousText: String): String {
             wavs += wav
             previousTexts += previousText

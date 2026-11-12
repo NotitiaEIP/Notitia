@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Debug builds only, for the team's tests through the gateway (T-30, T-31). Release builds stay off the network and the microphone waits for US-11. -->
+    <!-- Debug builds only, for the team's tests through the gateway (T-30, T-31). Release builds stay off the network. -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
 </manifest>

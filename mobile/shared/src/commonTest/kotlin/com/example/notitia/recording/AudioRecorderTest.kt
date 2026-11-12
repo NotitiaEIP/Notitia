@@ -4,10 +4,10 @@ import com.example.notitia.ai.audio
 import com.example.notitia.ui.search.runNow
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
@@ -17,18 +17,15 @@ import kotlinx.coroutines.Dispatchers
 class AudioRecorderTest {
 
     private val now = Instant.fromEpochMilliseconds(1_000)
-    private val clock = object : Clock {
-        override fun now() = this@AudioRecorderTest.now
-    }
 
     // Unconfined runs the microphone at once, so each heard piece shows in the state before the next line.
-    private fun recorder(microphone: Microphone?) = AudioRecorder(microphone, CoroutineScope(Dispatchers.Unconfined), clock)
+    private fun recorder(microphone: Microphone?) = AudioRecorder(microphone, CoroutineScope(Dispatchers.Unconfined))
 
     @Test
     fun theDurationIsTheAudioHeardNotTheTimeSpent() {
         val microphone = FakeMicrophone()
         val recorder = recorder(microphone)
-        assertEquals(now, recorder.start {})
+        assertTrue(recorder.start(now) {})
         assertEquals(RecorderState.Recording(now, 0.seconds, level = 0f), recorder.state.value)
         microphone.hear(audio(1_000))
         microphone.hear(audio(500))
@@ -41,7 +38,7 @@ class AudioRecorderTest {
     fun aPauseReleasesTheMicrophoneAndAddsNothing() {
         val microphone = FakeMicrophone()
         val recorder = recorder(microphone)
-        recorder.start {}
+        recorder.start(now) {}
         microphone.hear(audio(1_000))
         recorder.togglePause()
         assertTrue(microphone.paused)
@@ -56,7 +53,7 @@ class AudioRecorderTest {
     fun theLevelFollowsTheLoudness() {
         val microphone = FakeMicrophone()
         val recorder = recorder(microphone)
-        recorder.start {}
+        recorder.start(now) {}
         fun levelOf(pcm: ByteArray): Float {
             microphone.hear(pcm)
             return (recorder.state.value as RecorderState.Recording).level
@@ -71,7 +68,7 @@ class AudioRecorderTest {
     fun eachPieceHeardIsHandedOn() {
         val microphone = FakeMicrophone()
         val handed = mutableListOf<ByteArray>()
-        recorder(microphone).start { handed += it }
+        recorder(microphone).start(now) { handed += it }
         val piece = audio(100)
         microphone.hear(piece)
         assertEquals(listOf(piece), handed)
@@ -80,7 +77,7 @@ class AudioRecorderTest {
     @Test
     fun aRefusedMicrophoneFailsWithoutATimer() {
         val recorder = recorder(FakeMicrophone(refusal = MicrophoneProblem.Denied))
-        recorder.start {}
+        recorder.start(now) {}
         assertEquals(RecorderState.Failed(MicrophoneProblem.Denied), recorder.state.value)
         assertNull(runNow { recorder.stop() })
         recorder.dismissFailure()
@@ -90,7 +87,7 @@ class AudioRecorderTest {
     @Test
     fun withoutAMicrophoneTheRecordingIsUnavailable() {
         val recorder = recorder(microphone = null)
-        recorder.start {}
+        recorder.start(now) {}
         assertEquals(RecorderState.Failed(MicrophoneProblem.Unavailable), recorder.state.value)
     }
 
@@ -98,7 +95,7 @@ class AudioRecorderTest {
     fun aMicrophoneTakenAwayKeepsWhatWasHeardAndCanResume() {
         val microphone = FakeMicrophone()
         val recorder = recorder(microphone)
-        recorder.start {}
+        recorder.start(now) {}
         microphone.hear(audio(1_000))
         microphone.cutOff(MicrophoneProblem.Busy)
         assertEquals(RecorderState.Interrupted(now, 1.seconds), recorder.state.value)
@@ -113,9 +110,9 @@ class AudioRecorderTest {
     fun aSecondStartLeavesTheRecordingAlone() {
         val microphone = FakeMicrophone()
         val recorder = recorder(microphone)
-        recorder.start {}
+        recorder.start(now) {}
         microphone.hear(audio(1_000))
-        assertNull(recorder.start {})
+        assertFalse(recorder.start(now) {})
         assertEquals(1, microphone.listens)
         assertEquals(1.seconds, (recorder.state.value as RecorderState.Active).recorded)
     }

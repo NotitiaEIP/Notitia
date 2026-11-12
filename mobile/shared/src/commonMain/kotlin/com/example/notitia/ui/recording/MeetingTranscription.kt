@@ -40,15 +40,18 @@ internal fun cleanTranscript(text: String): String {
     return if (madeUpSentences.any { it.containsMatchIn(cleaned) }) "" else cleaned
 }
 
-// Lives while the meeting is heard and transcribed: MeetingsViewModel keeps a copy of it at each change.
+fun recordedMeetingId(startedAt: Instant) = "recorded-${startedAt.toEpochMilliseconds()}"
+
+// Lives while the meeting is heard and transcribed: MeetingRecorder keeps a copy of it at each change. Without speech,
+// this build cannot transcribe: the meeting keeps its duration and no text.
 @Stable
 class MeetingTranscription(
     val startedAt: Instant,
-    private val speech: SpeechEngine,
+    private val speech: SpeechEngine?,
     private val writer: MinutesWriter? = null,
     private val timeZone: TimeZone = TimeZone.currentSystemDefault(),
 ) {
-    val id = "recorded-${startedAt.toEpochMilliseconds()}"
+    val id = recordedMeetingId(startedAt)
 
     var duration by mutableStateOf(Duration.ZERO)
     var lines by mutableStateOf(emptyList<TranscriptLine>())
@@ -81,33 +84,41 @@ class MeetingTranscription(
         minutes = minutes,
     )
 
-    fun addAudio(pcm: ByteArray) = segmenter.add(pcm).forEach(::enqueue)
+    // Nothing is held for an engine that is not there.
+    fun addAudio(pcm: ByteArray) {
+        if (speech != null) segmenter.add(pcm).forEach(::enqueue)
+    }
 
     fun finishListening() {
         segmenter.flush()?.let(::enqueue)
         queue.close()
     }
 
-    // One piece at a time, so the text stays in the order it was said.
+    // One piece at a time, so the text stays in the order it was said. Without an engine it still waits for the end
+    // of the listening, so the minutes are not settled while the meeting goes on.
     suspend fun transcribeAll() {
-        for (segment in queue) {
-            val line = try {
-                cleanTranscript(speech.transcribe(pcmToWav(segment.pcm), previousText()))
-                    .takeIf { it.isNotEmpty() }
-                    ?.let { TranscriptLine(segment.start, it) }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                TranscriptLine(segment.start, text = null)
-            }
-            line?.let { lines = lines + it }
-            transcribed += segment.length
-        }
+        for (segment in queue) transcribe(segment)
         finished = true
         minutes = writeMinutes()
     }
 
+    private suspend fun transcribe(segment: SpeechSegment) {
+        val speech = speech ?: return
+        val line = try {
+            cleanTranscript(speech.transcribe(pcmToWav(segment.pcm), previousText()))
+                .takeIf { it.isNotEmpty() }
+                ?.let { TranscriptLine(segment.start, it) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            TranscriptLine(segment.start, text = null)
+        }
+        line?.let { lines = lines + it }
+        transcribed += segment.length
+    }
+
     private suspend fun writeMinutes(): MinutesState {
+        if (speech == null) return MinutesState.Unavailable
         val writer = writer ?: return MinutesState.Unavailable
         if (lines.none { it.text != null }) return MinutesState.Written(WrittenMinutes("", emptyList(), emptyList()))
         return try {

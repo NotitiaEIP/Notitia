@@ -1,6 +1,8 @@
 package com.example.notitia
 
 import com.example.notitia.ai.SpeechEngine
+import com.example.notitia.recording.MeetingRecorder
+import com.example.notitia.recording.Microphone
 import com.example.notitia.reminder.NoReminderScheduler
 import com.example.notitia.reminder.ReminderScheduler
 import com.example.notitia.reminder.ReminderSync
@@ -26,12 +28,13 @@ import notitia.shared.generated.resources.Res
 import notitia.shared.generated.resources.reminder_message
 import org.jetbrains.compose.resources.getPluralString
 
-// Built once per process, by the platform: screens come and go, the meetings and what works on them stay. speechEngine
-// is null when this build cannot record: the kept meetings still show.
+// Built once per process, by the platform: screens come and go, the meetings and what works on them stay. microphone
+// is null on a platform that cannot record yet, speechEngine when this build cannot transcribe.
 class Notitia(
     meetingStore: MeetingStore = NoMeetingStore,
-    val speechEngine: SpeechEngine? = null,
-    val minutesWriter: MinutesWriter? = null,
+    microphone: Microphone? = null,
+    speechEngine: SpeechEngine? = null,
+    minutesWriter: MinutesWriter? = null,
     val answerEngine: AnswerEngine = SampleAnswerEngine,
     reminderScheduler: ReminderScheduler = NoReminderScheduler,
     private val clock: Clock = Clock.System,
@@ -41,6 +44,8 @@ class Notitia(
 
     // Made-up meetings beside the user's, so the app has something to show before a first recording.
     val repository = MeetingRepository(meetingStore, sampleMeetings(clock.now()), clock)
+
+    val recorder = MeetingRecorder(microphone, speechEngine, minutesWriter, repository, scope, clock)
 
     // The reminders follow the meetings: ticking, moving or removing an action moves its notification too. A new line
     // of a transcription changes no reminder, so it schedules nothing.
