@@ -72,6 +72,12 @@
     <string name="on_device">Sur l’appareil</string>
     <string name="minutes_back_description">Retour aux réunions</string>
     <string name="minutes_more">Plus d’options</string>
+    <string name="meeting_title_label">Titre de la réunion</string>
+    <string name="meeting_rename">Renommer</string>
+    <string name="meeting_delete">Supprimer</string>
+    <string name="meeting_delete_title">Supprimer «&#160;%1$s&#160;»&#160;?</string>
+    <string name="meeting_delete_message">Sa transcription, son compte rendu et ses actions seront effacés de ce téléphone.</string>
+    <string name="meeting_delete_confirm">Supprimer la réunion</string>
     <string name="minutes_when">%1$s, %2$s</string>
     <string name="minutes_tab_minutes">Compte rendu</string>
     <string name="minutes_tab_transcript">Transcription</string>

@@ -23,6 +23,7 @@ import com.example.notitia.ui.components.HeaderAction
 import com.example.notitia.ui.components.MeetingCard
 import com.example.notitia.ui.components.RecordButton
 import com.example.notitia.ui.components.ScreenHeader
+import com.example.notitia.ui.components.listMotion
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
 import kotlin.time.Clock
@@ -134,14 +135,14 @@ private fun MeetingList(
         }
         groups.forEach { (group, inGroup) ->
             item(key = group.toString()) {
-                GroupTitle(group.label(), Modifier.padding(top = spacing.xl, bottom = spacing.s))
+                GroupTitle(group.label(), listMotion().padding(top = spacing.xl, bottom = spacing.s))
             }
             items(inGroup, key = { it.id }) { meeting ->
                 MeetingCard(
                     meeting = meeting,
                     now = now,
                     onClick = { onOpen(meeting) },
-                    modifier = Modifier.padding(bottom = spacing.s),
+                    modifier = listMotion().padding(bottom = spacing.s),
                 )
             }
         }
