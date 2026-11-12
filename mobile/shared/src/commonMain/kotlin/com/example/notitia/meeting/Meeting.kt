@@ -80,6 +80,9 @@ data class MinutesAction(
     val reminder: Boolean = false,
 )
 
+// A title typed with spaces around it keeps only its words; a blank one names nothing, so the meeting keeps its own.
+fun Meeting.renamed(title: String): Meeting = title.trim().takeIf { it.isNotEmpty() }?.let { copy(title = it) } ?: this
+
 // A name typed with spaces around it, or left blank, is no owner.
 fun MinutesAction.ownedBy(name: String?): MinutesAction = copy(owner = name?.trim()?.takeIf { it.isNotEmpty() })
 

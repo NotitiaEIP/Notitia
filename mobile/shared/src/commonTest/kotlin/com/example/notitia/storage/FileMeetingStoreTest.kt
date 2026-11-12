@@ -4,6 +4,7 @@ import kotlin.random.Random
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.io.buffered
 import kotlinx.io.files.Path
@@ -54,5 +55,28 @@ class FileMeetingStoreTest {
     @Test
     fun theDeviceKeepsTheSameIdentifier() {
         assertEquals(store.device(), FileMeetingStore(directory).device())
+    }
+
+    @Test
+    fun aDeletedMeetingIsNotReadBack() {
+        store.save(meeting("recorded-1"))
+        store.save(meeting("recorded-2"))
+        store.delete("recorded-1")
+        assertEquals(listOf(meeting("recorded-2")), FileMeetingStore(directory).loadAll())
+    }
+
+    @Test
+    fun deletingAMeetingAlsoDeletesADraftLeftByAKilledApp() {
+        store.save(meeting("recorded-1"))
+        val draft = Path(directory, "recorded-1.notitia.tmp")
+        SystemFileSystem.sink(draft).buffered().use { it.writeString("{\"version\":") }
+        store.delete("recorded-1")
+        assertFalse(SystemFileSystem.exists(draft))
+    }
+
+    @Test
+    fun deletingAMeetingThatIsNotThereIsFine() {
+        store.delete("recorded-1")
+        assertEquals(emptyList(), store.loadAll())
     }
 }
