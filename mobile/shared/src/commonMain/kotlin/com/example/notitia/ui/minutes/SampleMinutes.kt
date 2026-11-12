@@ -13,15 +13,28 @@ import kotlinx.datetime.plus
 
 val sampleSpeakers = listOf("Lucas", "Clément", "Nathan", "Adam")
 
-// The same made-up decisions and summary for every made-up meeting. The actions differ, so the Actions tab has
-// something to sort.
+// The same made-up decisions for every made-up meeting. The summaries and actions differ, so the list of meetings
+// can be told apart and the Actions tab has something to sort.
 fun sampleWrittenMinutes(meetingId: String, today: LocalDate): WrittenMinutes = WrittenMinutes(
-    summary = "L’équipe a validé la nouvelle identité : une interface sobre, un seul accent violet repris du logo.",
+    summary = sampleSummaries.getValue(meetingId),
     decisions = listOf(
         "La démo à Epitech a lieu le 15 novembre.",
         "On garde le violet du logo comme accent.",
     ),
     actions = sampleActions(meetingId, today),
+)
+
+private val sampleSummaries = mapOf(
+    "sample-1" to "Le prototype enregistre et transcrit sur le téléphone. La démo de la transcription est " +
+        "prête pour lundi ; il reste le registre RGPD à rédiger.",
+    "sample-2" to "Sophie, cadre de santé, veut relire le compte rendu avant de le partager, et que l’audio " +
+        "ne quitte jamais le téléphone.",
+    "sample-3" to "L’accueil garde un seul bouton Enregistrer, en bas de l’écran. Nathan teste l’enregistrement " +
+        "écran verrouillé avant de figer le parcours.",
+    "sample-4" to "Sprint 1 bouclé avec deux jours de retard sur les badges. Le compte rendu part au mentor et " +
+        "la revue du sprint 2 reste à fixer.",
+    "sample-5" to "Notitia enregistre, transcrit et résume les réunions sans rien envoyer hors du téléphone. " +
+        "Premier jalon : une réunion d’une heure, écran verrouillé.",
 )
 
 // Due around today so that every group shows, and two to complete. One has no sentence, as when the model gives
