@@ -63,6 +63,7 @@ import com.example.notitia.ui.theme.SelectionStyle
 import com.example.notitia.ui.theme.SystemBarsFollow
 import com.example.notitia.ui.theme.ThemeChoice
 import com.example.notitia.ui.theme.isDark
+import com.example.notitia.ui.theme.personColors
 import com.example.notitia.ui.theme.reducedMotion
 import com.example.notitia.ui.theme.selectionStyle
 import kotlinx.coroutines.launch
@@ -87,18 +88,18 @@ fun App(
     var theme by rememberSaveable { mutableStateOf(ThemeChoice.System) }
     val darkTheme = theme.isDark()
     SystemBarsFollow(darkTheme)
-    NotitiaTheme(darkTheme = darkTheme) {
+    val meetingsModel = viewModel {
+        MeetingsViewModel(notitia.repository, notitia.recorder)
+    }
+    val kept = meetingsModel.meetings.collectAsStateWithLifecycle().value
+    val people = remember(kept) { personColors(kept.orEmpty()) }
+    NotitiaTheme(darkTheme = darkTheme, people = people) {
         var tab by rememberSaveable { mutableStateOf(Tab.Meetings) }
-        val meetingsModel = viewModel {
-            MeetingsViewModel(notitia.repository, notitia.recorder)
-        }
         val recorder by meetingsModel.recording.collectAsStateWithLifecycle()
         val recording = recorder as? RecorderState.Active
         // The meeting being recorded is the mini bar's: it joins the list once stopped.
         val recordingId = recording?.let { recordedMeetingId(it.startedAt) }
-        val stored = meetingsModel.meetings.collectAsStateWithLifecycle().value
-            ?.filterNot { it.id == recordingId }
-            ?: return@NotitiaTheme
+        val stored = kept?.filterNot { it.id == recordingId } ?: return@NotitiaTheme
         LaunchedEffect(Unit) { onLoaded() }
         val meetings = stored.map { it.listItem(meetingsModel.progress(it.id)) }
         var actionsView by rememberSaveable { mutableStateOf(ActionsView.ByDue) }
