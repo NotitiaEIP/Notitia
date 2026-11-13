@@ -28,9 +28,9 @@ class NotitiaColorsTest {
     }
 
     @Test
-    fun speakerColorsStartAgainAfterSix() {
-        assertEquals(DarkColors.speaker(0), DarkColors.speaker(6))
-        assertEquals(LightColors.speaker(5), LightColors.speaker(11))
+    fun speakerColorsStartAgainAfterNine() {
+        assertEquals(DarkColors.speaker(0), DarkColors.speaker(9))
+        assertEquals(LightColors.speaker(8), LightColors.speaker(17))
     }
 
     private fun assertContrast(foreground: Color, background: Color, minimum: Float) {

@@ -83,14 +83,14 @@ Le violet vient du logo (`#7929B6` au milieu du N), éclairci pour rester lisibl
 
 ### Les locuteurs
 
-Six couleurs, données dans l'ordre où les personnes prennent la parole, toujours avec le nom ou les initiales. Au-delà de six, on recommence la liste : les initiales font la différence.
+Neuf couleurs, données dans l'ordre où les personnes prennent la parole, toujours avec le nom ou les initiales. Au-delà de neuf, on recommence la liste : les initiales font la différence.
 
-| | 1 | 2 | 3 | 4 | 5 | 6 | Texte posé dessus |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Sombre | `#5AA9FF` | `#2CC7B5` | `#F5B83D` | `#FF7AB6` | `#9BD84A` | `#FF8A4C` | `#0B0A0F` |
-| Clair | `#1E6CCC` | `#0E7C70` | `#966100` | `#C2266F` | `#4D7A12` | `#B4501A` | `#FFFFFF` |
+| | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | Texte posé dessus |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Sombre | `#5AA9FF` | `#2CC7B5` | `#F5B83D` | `#FF7AB6` | `#9BD84A` | `#FF8A4C` | `#8C8FFE` | `#04C5F8` | `#F9EA02` | `#0B0A0F` |
+| Clair | `#1E6CCC` | `#0E7C70` | `#966100` | `#C2266F` | `#4D7A12` | `#B4501A` | `#635CE4` | `#047898` | `#78710D` | `#FFFFFF` |
 
-Elles restent lisibles en texte : 7:1 au moins en sombre, 4,5:1 au moins en clair.
+Elles restent lisibles en texte : 7:1 au moins en sombre, 4,5:1 au moins en clair. Neuf, pas plus : une dixième n'était qu'un second rose, confondu avec le premier ; au-delà, deux couleurs ne se distinguent plus sur un avatar de 28 dp, dans les deux thèmes, à côté du rouge, du vert, de l'ambre et du violet de l'app, dont on se tient à l'écart.
 
 ## Police
 
