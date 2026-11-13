@@ -1,9 +1,12 @@
 package com.example.notitia.ui.minutes
 
+import androidx.compose.runtime.Composable
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MinutesAction
 import com.example.notitia.meeting.MinutesState
 import com.example.notitia.ui.meetings.MeetingListItem
+import com.example.notitia.ui.theme.NotitiaTheme
+import com.example.notitia.ui.theme.PersonColors
 
 // What the minutes screen shows, not the stored minutes: those live in Meeting.
 data class Minutes(
@@ -15,8 +18,9 @@ data class Minutes(
     val summary: String,
 )
 
-// The owner has a colour only when they are one of the meeting's speakers.
-fun Minutes.speakerOf(action: MinutesAction): Int? = speakers.indexOf(action.owner).takeIf { it >= 0 }
+// The colours of this meeting: an owner who did not speak keeps their own.
+val Minutes.people: PersonColors
+    @Composable get() = NotitiaTheme.people.inMeeting(speakers)
 
 // Minutes not written yet are empty: the screen shows a notice in their place.
 fun Meeting.toMinutes(item: MeetingListItem): Minutes {

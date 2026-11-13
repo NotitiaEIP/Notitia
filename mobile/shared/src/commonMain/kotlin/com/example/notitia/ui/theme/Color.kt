@@ -44,8 +44,8 @@ data class NotitiaColors(
     val logoGradient: List<Color>,
     val buttonGradient: List<Color>,
 ) {
-    // index is the order in which the speaker first talked.
-    fun speaker(index: Int): Color = speakers[index.mod(speakers.size)]
+    // slot is the person's place in PersonColors.
+    fun speaker(slot: Int): Color = speakers[slot.mod(speakers.size)]
 
     companion object {
         const val DISABLED_ALPHA = 0.38f
@@ -90,6 +90,7 @@ internal val DarkColors = NotitiaColors(
     speakers = listOf(
         Color(0xFF5AA9FF), Color(0xFF2CC7B5), Color(0xFFF5B83D),
         Color(0xFFFF7AB6), Color(0xFF9BD84A), Color(0xFFFF8A4C),
+        Color(0xFF8C8FFE), Color(0xFF04C5F8), Color(0xFFF9EA02),
     ),
     onSpeaker = Color(0xFF0B0A0F),
     logoGradient = LogoGradient,
@@ -127,6 +128,7 @@ internal val LightColors = NotitiaColors(
     speakers = listOf(
         Color(0xFF1E6CCC), Color(0xFF0E7C70), Color(0xFF966100),
         Color(0xFFC2266F), Color(0xFF4D7A12), Color(0xFFB4501A),
+        Color(0xFF635CE4), Color(0xFF047898), Color(0xFF78710D),
     ),
     onSpeaker = Color.White,
     logoGradient = LogoGradient,

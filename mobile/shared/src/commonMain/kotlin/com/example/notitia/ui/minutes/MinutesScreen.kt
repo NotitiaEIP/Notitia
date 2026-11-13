@@ -186,7 +186,8 @@ fun MinutesScreen(
                     horizontalArrangement = Arrangement.spacedBy(spacing.s),
                     verticalArrangement = Arrangement.spacedBy(spacing.s),
                 ) {
-                    minutes.speakers.forEachIndexed { index, name -> SpeakerChip(name, index) }
+                    val people = minutes.people
+                    minutes.speakers.forEach { name -> SpeakerChip(name, people.of(name)) }
                 }
             }
             NotitiaSegmentedControl(
@@ -285,8 +286,13 @@ private fun MinutesContent(minutes: Minutes, onToggleAction: (Int) -> Unit) {
         modifier = Modifier.padding(top = spacing.xxl, bottom = spacing.xs),
     )
     if (minutes.actions.isEmpty()) Notice(stringResource(Res.string.minutes_no_actions))
+    val people = minutes.people
     minutes.actions.forEachIndexed { index, action ->
-        ActionRow(action = action, onToggle = { onToggleAction(index) }, speaker = minutes.speakerOf(action))
+        ActionRow(
+            action = action,
+            onToggle = { onToggleAction(index) },
+            speaker = action.owner?.let(people::of),
+        )
     }
 
     SectionHeader(

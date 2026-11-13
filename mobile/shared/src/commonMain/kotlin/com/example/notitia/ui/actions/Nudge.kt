@@ -18,9 +18,8 @@ import notitia.shared.generated.resources.nudge_thanks
 import org.jetbrains.compose.resources.stringArrayResource
 import org.jetbrains.compose.resources.stringResource
 
-// What a nudge reminds someone of: their open actions, under the meeting each was agreed in. speaker is the person's
-// colour, as on their cards.
-data class Nudge(val name: String, val speaker: Int?, val meetings: List<NudgeMeeting>)
+// What a nudge reminds someone of: their open actions, under the meeting each was agreed in.
+data class Nudge(val name: String, val meetings: List<NudgeMeeting>)
 
 data class NudgeMeeting(val title: String, val day: LocalDate, val lines: List<NudgeLine>)
 
@@ -30,7 +29,7 @@ data class NudgeLine(val text: String, val due: LocalDate?)
 fun nudgeFor(tracked: TrackedAction, timeZone: TimeZone): Nudge? {
     val owner = tracked.action.owner ?: return null
     if (tracked.action.done) return null
-    return nudge(owner, tracked.speaker, listOf(tracked), timeZone)
+    return nudge(owner, listOf(tracked), timeZone)
 }
 
 // A just-ticked action lingers in open a moment: it is done, so it is left out.
@@ -38,11 +37,11 @@ fun nudgeFor(person: PersonActions, timeZone: TimeZone): Nudge? {
     val name = person.name ?: return null
     val open = person.open.filter { !it.action.done }
     if (open.isEmpty()) return null
-    return nudge(name, person.speaker, open, timeZone)
+    return nudge(name, open, timeZone)
 }
 
 // The meeting with the most pressing action comes first. The actions keep the order they were given in.
-private fun nudge(name: String, speaker: Int?, actions: List<TrackedAction>, timeZone: TimeZone): Nudge {
+private fun nudge(name: String, actions: List<TrackedAction>, timeZone: TimeZone): Nudge {
     val meetings = actions
         .groupBy { it.meeting.id }
         .values
@@ -59,7 +58,7 @@ private fun nudge(name: String, speaker: Int?, actions: List<TrackedAction>, tim
                 lines = inMeeting.map { NudgeLine(it.action.text, it.action.due) },
             )
         }
-    return Nudge(name, speaker, meetings)
+    return Nudge(name, meetings)
 }
 
 private fun List<TrackedAction>.firstDue(): LocalDate? = mapNotNull { it.action.due }.minOrNull()

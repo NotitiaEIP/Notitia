@@ -390,7 +390,7 @@ private fun OwnerRow(
             if (owner == null) {
                 Text(stringResource(Res.string.action_nobody), style = NotitiaTheme.typography.body, color = NotitiaTheme.colors.textTertiary)
             } else {
-                SpeakerAvatar(owner, tracked.speaker)
+                SpeakerAvatar(owner)
                 Text(owner, style = NotitiaTheme.typography.body, color = NotitiaTheme.colors.textSecondary)
             }
         },

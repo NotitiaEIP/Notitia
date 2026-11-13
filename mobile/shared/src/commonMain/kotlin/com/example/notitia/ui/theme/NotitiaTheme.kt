@@ -19,11 +19,16 @@ private val LocalNotitiaColors = staticCompositionLocalOf { LightColors }
 private val LocalNotitiaTypography = staticCompositionLocalOf<NotitiaTypography> {
     error("Wrap the screen in NotitiaTheme")
 }
+private val LocalPersonColors = staticCompositionLocalOf { PersonColors() }
 
 // Material 3 gets the same values, so the components we use as they are (sheets, dialogs, snackbars)
-// look like Notitia too.
+// look like Notitia too. people gives each person their colour, wherever their face or their dot shows.
 @Composable
-fun NotitiaTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
+fun NotitiaTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    people: PersonColors = PersonColors(),
+    content: @Composable () -> Unit,
+) {
     val colors = if (darkTheme) DarkColors else LightColors
     val typography = notitiaTypography()
     val materialColors = remember(darkTheme) {
@@ -33,6 +38,7 @@ fun NotitiaTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composabl
     CompositionLocalProvider(
         LocalNotitiaColors provides colors,
         LocalNotitiaTypography provides typography,
+        LocalPersonColors provides people,
     ) {
         MaterialTheme(colorScheme = materialColors, typography = materialTypography, shapes = MaterialShapes) {
             CompositionLocalProvider(LocalContentColor provides colors.text, content = content)
@@ -45,6 +51,8 @@ object NotitiaTheme {
         @Composable @ReadOnlyComposable get() = LocalNotitiaColors.current
     val typography: NotitiaTypography
         @Composable @ReadOnlyComposable get() = LocalNotitiaTypography.current
+    val people: PersonColors
+        @Composable @ReadOnlyComposable get() = LocalPersonColors.current
     val spacing = NotitiaSpacing
     val sizes = NotitiaSizes
     val shapes = NotitiaShapes

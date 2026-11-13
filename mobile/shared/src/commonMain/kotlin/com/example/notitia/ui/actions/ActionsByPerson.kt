@@ -3,13 +3,12 @@ package com.example.notitia.ui.actions
 import com.example.notitia.meeting.ActionId
 import kotlinx.datetime.LocalDate
 
-// The actions of one owner across every meeting. key and name are null for the actions nobody owns. name and speaker
-// come from the most recent meeting: the latest spelling the user wrote or kept, and the colour the person had there.
-// done and total feed the ring, open what the card unfolds on, late what the card says in red.
+// The actions of one owner across every meeting. key and name are null for the actions nobody owns. name comes from
+// the most recent meeting: the latest spelling the user wrote or kept. done and total feed the ring, open what the
+// card unfolds on, late what the card says in red.
 data class PersonActions(
     val key: String?,
     val name: String?,
-    val speaker: Int?,
     val open: List<TrackedAction>,
     val late: Int,
     val done: Int,
@@ -82,7 +81,6 @@ private fun personActions(
     return PersonActions(
         key = key,
         name = latest.action.owner,
-        speaker = latest.speaker,
         open = open,
         late = open.count { it.action.due?.let { due -> dueGroup(due, today) } == DueGroup.Late },
         done = actions.count { it.action.done },

@@ -9,7 +9,6 @@ enum class QueryKind { Words, Question }
 data class Passage(
     val meetingId: String,
     val at: Duration,
-    val speaker: Int,
     // Named by the user in this meeting only: no voiceprint links speakers across meetings (product rule 4).
     val name: String,
     val text: String,

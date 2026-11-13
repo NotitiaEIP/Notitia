@@ -13,7 +13,7 @@ val SAMPLE_WRITING_TIME = 1300.milliseconds
 private val speakers = sampleSpeakers + "Alexandre"
 
 private fun passage(meetingId: String, minutes: Int, seconds: Int, speaker: Int, text: String) =
-    Passage(meetingId, minutes.minutes + seconds.seconds, speaker, speakers[speaker], text)
+    Passage(meetingId, minutes.minutes + seconds.seconds, speakers[speaker], text)
 
 private val serverBudget = passage("sample-1", 8, 12, 0, "Sans budget serveur, tout tourne sur le téléphone.")
 private val demoDate = passage("sample-1", 12, 24, 0, "On garde le 15 novembre pour la démo.")

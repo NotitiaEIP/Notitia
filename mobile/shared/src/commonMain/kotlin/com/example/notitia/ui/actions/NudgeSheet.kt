@@ -84,7 +84,7 @@ fun NudgeSheet(nudge: Nudge, reveal: SheetReveal, onDismiss: () -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(spacing.m),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                SpeakerAvatar(nudge.name, nudge.speaker, Modifier.size(NotitiaTheme.sizes.personAvatar))
+                SpeakerAvatar(nudge.name, Modifier.size(NotitiaTheme.sizes.personAvatar))
                 Text(
                     text = nudge.name,
                     style = NotitiaTheme.typography.title3,
@@ -171,7 +171,6 @@ private fun SendButton(description: String, enabled: Boolean, onClick: () -> Uni
 private fun NudgeSheetContentPreview() = NotitiaTheme {
     val nudge = Nudge(
         name = "Nathan",
-        speaker = 1,
         meetings = listOf(
             NudgeMeeting(
                 title = "Point produit",
@@ -189,7 +188,7 @@ private fun NudgeSheetContentPreview() = NotitiaTheme {
             horizontalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.m),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            SpeakerAvatar(nudge.name, nudge.speaker, Modifier.size(NotitiaTheme.sizes.personAvatar))
+            SpeakerAvatar(nudge.name, Modifier.size(NotitiaTheme.sizes.personAvatar))
             Text(nudge.name, style = NotitiaTheme.typography.title3, modifier = Modifier.weight(1f))
             SendButton(description = "", enabled = true) {}
         }
