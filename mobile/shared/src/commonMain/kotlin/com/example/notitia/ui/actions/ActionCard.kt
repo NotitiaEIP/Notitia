@@ -165,7 +165,7 @@ private fun OwnerAndDue(tracked: TrackedAction, today: LocalDate) {
         horizontalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.s),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        action.owner?.let { SpeakerAvatar(it, tracked.speaker) }
+        action.owner?.let { SpeakerAvatar(it) }
         DetailsLine(
             parts = listOfNotNull(action.owner ?: stringResource(Res.string.action_no_owner), due),
             style = NotitiaTheme.typography.caption,

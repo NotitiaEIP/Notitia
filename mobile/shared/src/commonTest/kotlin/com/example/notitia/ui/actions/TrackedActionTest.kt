@@ -29,18 +29,10 @@ class TrackedActionTest {
     )
 
     @Test
-    fun eachActionKnowsItsMeetingAndItsOwnersColour() {
+    fun eachActionKnowsItsMeeting() {
         val tracked = trackedActions(listOf(minutes))
         assertEquals(listOf(ActionId("m1", 0), ActionId("m1", 1)), tracked.map { it.id })
         assertEquals(listOf(meeting, meeting), tracked.map { it.meeting })
-        // Adam did not speak: no colour of his own.
-        assertEquals(listOf(1, null), tracked.map { it.speaker })
-    }
-
-    @Test
-    fun aNewOwnerWhoSpokeTakesTheirColour() {
-        val changed = minutes.copy(actions = minutes.actions.map { it.ownedBy("Lucas") })
-        assertEquals(listOf(0, 0), trackedActions(listOf(changed)).map { it.speaker })
     }
 
     @Test

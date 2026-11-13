@@ -83,7 +83,7 @@ Le violet vient du logo (`#7929B6` au milieu du N), éclairci pour rester lisibl
 
 ### Les locuteurs
 
-Neuf couleurs, données dans l'ordre où les personnes prennent la parole, toujours avec le nom ou les initiales. Au-delà de neuf, on recommence la liste : les initiales font la différence.
+Neuf couleurs, toujours avec le nom ou les initiales. Chaque personne prend la suivante dans l'ordre où son prénom apparaît dans les réunions, de la plus ancienne à la plus récente : les neuf premières ont neuf couleurs différentes, et chacune garde la sienne partout, dans chaque réunion, compte rendu, action et recherche. On suit le prénom écrit, sans tenir compte des majuscules ni des accents, jamais la voix (règle produit 4), et rien n'est stocké : les couleurs se recalculent depuis les réunions. Dans une même réunion, deux personnes n'ont jamais la même couleur : la seconde à prendre la parole prend la suivante libre, dans cette réunion seulement. Au-delà de neuf, les initiales font la différence.
 
 | | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | Texte posé dessus |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

@@ -31,22 +31,22 @@ fun initials(name: String): String =
 
 // The colour is never alone: a dot always sits next to the speaker's name.
 @Composable
-fun SpeakerDot(index: Int, modifier: Modifier = Modifier) {
+fun SpeakerDot(slot: Int, modifier: Modifier = Modifier) {
     Box(
         modifier
             .size(NotitiaTheme.sizes.speakerDot)
-            .background(NotitiaTheme.colors.speaker(index), NotitiaTheme.shapes.full),
+            .background(NotitiaTheme.colors.speaker(slot), NotitiaTheme.shapes.full),
     )
 }
 
-// Decorative: the name always sits next to it. index is null for someone who is not one of the speakers.
+// Decorative: the name always sits next to it. The person's own colour, unless a meeting gave them another one.
 @Composable
-fun SpeakerAvatar(name: String, index: Int?, modifier: Modifier = Modifier) {
+fun SpeakerAvatar(name: String, modifier: Modifier = Modifier, slot: Int = NotitiaTheme.people.of(name)) {
     val colors = NotitiaTheme.colors
     Box(
         modifier = modifier
             .size(NotitiaTheme.sizes.speakerAvatar)
-            .background(index?.let(colors::speaker) ?: colors.textTertiary, NotitiaTheme.shapes.full)
+            .background(colors.speaker(slot), NotitiaTheme.shapes.full)
             .clearAndSetSemantics {},
         contentAlignment = Alignment.Center,
     ) {
@@ -55,7 +55,7 @@ fun SpeakerAvatar(name: String, index: Int?, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun SpeakerChip(name: String, index: Int, modifier: Modifier = Modifier) {
+fun SpeakerChip(name: String, slot: Int, modifier: Modifier = Modifier) {
     val spacing = NotitiaTheme.spacing
     Row(
         modifier = modifier
@@ -64,7 +64,7 @@ fun SpeakerChip(name: String, index: Int, modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(spacing.s),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SpeakerAvatar(name, index)
+        SpeakerAvatar(name, slot = slot)
         Text(text = name, style = NotitiaTheme.typography.labelSmall)
     }
 }
@@ -79,6 +79,7 @@ fun SpeakerStack(names: List<String>, modifier: Modifier = Modifier) {
     val sizes = NotitiaTheme.sizes
     val shown = names.take(STACK_MAX)
     val more = names.size - shown.size
+    val people = NotitiaTheme.people.inMeeting(names)
     val description = spokenList(names)
     Row(
         modifier = modifier.clearAndSetSemantics { contentDescription = description },
@@ -92,7 +93,7 @@ fun SpeakerStack(names: List<String>, modifier: Modifier = Modifier) {
             shown.forEachIndexed { index, name ->
                 SpeakerAvatar(
                     name = name,
-                    index = index,
+                    slot = people.of(name),
                     modifier = Modifier
                         .size(sizes.stackAvatar)
                         .drawBehind {
@@ -122,7 +123,7 @@ private fun SpeakerChipPreview() = NotitiaTheme {
         horizontalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.s),
         verticalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.s),
     ) {
-        sampleSpeakers.forEachIndexed { index, name -> SpeakerChip(name, index) }
+        sampleSpeakers.forEach { name -> SpeakerChip(name, NotitiaTheme.people.of(name)) }
         SpeakerDot(0, Modifier.align(Alignment.CenterVertically))
         SpeakerStack(sampleSpeakers.take(2))
         SpeakerStack(sampleSpeakers)

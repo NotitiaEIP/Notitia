@@ -15,7 +15,7 @@ import androidx.compose.ui.semantics.Role
 import com.example.notitia.meeting.MinutesAction
 import com.example.notitia.ui.meetings.sampleMinutes
 import com.example.notitia.ui.meetings.shortDateLabel
-import com.example.notitia.ui.minutes.speakerOf
+import com.example.notitia.ui.minutes.people
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
 import kotlin.time.Clock
@@ -26,7 +26,7 @@ import org.jetbrains.compose.resources.stringResource
 
 // An action of the minutes. The whole row checks it, so the target is large and screen readers read it in one go:
 // "Préparer la démo, Clément, avant le 8 nov., case à cocher, non cochée".
-// speaker is the owner's colour, when the owner is one of the meeting's speakers.
+// speaker is the owner's colour in the meeting.
 @Composable
 fun ActionRow(action: MinutesAction, onToggle: () -> Unit, modifier: Modifier = Modifier, speaker: Int? = null) {
     val spacing = NotitiaTheme.spacing
@@ -62,8 +62,9 @@ private fun ActionRowPreview() = NotitiaTheme {
     val now = Clock.System.now()
     val minutes = sampleMinutes(now).first()
     Column(Modifier.background(NotitiaTheme.colors.background).padding(NotitiaTheme.spacing.l)) {
+        val people = minutes.people
         minutes.actions.forEach { action ->
-            ActionRow(action = action, onToggle = {}, speaker = minutes.speakerOf(action))
+            ActionRow(action = action, onToggle = {}, speaker = action.owner?.let(people::of))
         }
     }
 }

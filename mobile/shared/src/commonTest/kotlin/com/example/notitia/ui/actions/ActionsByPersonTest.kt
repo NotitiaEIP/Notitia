@@ -32,10 +32,9 @@ class ActionsByPersonTest {
         due: LocalDate? = inDays(3),
         done: Boolean = false,
         meetingAt: Instant = at(20),
-        speaker: Int? = null,
     ): TrackedAction {
         val meeting = MeetingListItem(text, text, meetingAt, 30.minutes, emptyList(), MeetingStatus.Ready())
-        return TrackedAction(ActionId(meeting.id, 0), MinutesAction(text, owner, due, done), meeting, speaker)
+        return TrackedAction(ActionId(meeting.id, 0), MinutesAction(text, owner, due, done), meeting)
     }
 
     private fun List<PersonActions>.names() = map { it.name }
@@ -49,18 +48,17 @@ class ActionsByPersonTest {
     }
 
     @Test
-    fun aPersonIsShownWithTheSpellingAndColourOfTheLatestMeeting() {
+    fun aPersonIsShownWithTheSpellingOfTheLatestMeeting() {
         val people = actionsByPerson(
             listOf(
-                tracked("a", "clement", meetingAt = at(19), speaker = 0),
-                tracked("b", "Clément", meetingAt = at(23), speaker = 2),
-                tracked("c", "CLEMENT", meetingAt = at(21), speaker = 1),
+                tracked("a", "clement", meetingAt = at(19)),
+                tracked("b", "Clément", meetingAt = at(23)),
+                tracked("c", "CLEMENT", meetingAt = at(21)),
             ),
             today,
         )
         assertEquals(1, people.size)
         assertEquals("Clément", people.single().name)
-        assertEquals(2, people.single().speaker)
         assertEquals(3, people.single().total)
     }
 
@@ -69,9 +67,9 @@ class ActionsByPersonTest {
     fun peopleAreGroupedByNameNeverBySpeaker() {
         val people = actionsByPerson(
             listOf(
-                tracked("a", "Nathan", speaker = 0),
-                tracked("b", "Adam", speaker = 0),
-                tracked("c", "Nathan", speaker = 3),
+                tracked("a", "Nathan"),
+                tracked("b", "Adam"),
+                tracked("c", "Nathan"),
             ),
             today,
         )

@@ -147,7 +147,9 @@ private fun PassageLine(passage: Passage, text: AnnotatedString, modifier: Modif
             color = NotitiaTheme.colors.textTertiary,
             modifier = Modifier.alignByBaseline(),
         )
-        Box(Modifier.height(firstLine), contentAlignment = Alignment.Center) { SpeakerDot(passage.speaker) }
+        Box(Modifier.height(firstLine), contentAlignment = Alignment.Center) {
+            SpeakerDot(NotitiaTheme.people.of(passage.name))
+        }
         Text(
             text = buildAnnotatedString {
                 withStyle(SpanStyle(fontWeight = typography.bodyStrong.fontWeight)) { append(passage.name) }

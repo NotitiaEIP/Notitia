@@ -172,13 +172,13 @@ private fun PersonHeader(person: PersonActions, expanded: Boolean, onExpandedCha
     }
 }
 
-// The person's colour from their latest meeting, with their initials; a plain silhouette for the actions nobody owns.
+// The person's colour, with their initials; a plain silhouette for the actions nobody owns.
 @Composable
 private fun PersonAvatar(person: PersonActions) {
     val sizes = NotitiaTheme.sizes
     val name = person.name
     if (name != null) {
-        SpeakerAvatar(name, person.speaker, Modifier.size(sizes.personAvatar))
+        SpeakerAvatar(name, Modifier.size(sizes.personAvatar))
     } else {
         Box(
             modifier = Modifier.size(sizes.personAvatar).background(NotitiaTheme.colors.track, NotitiaTheme.shapes.full),

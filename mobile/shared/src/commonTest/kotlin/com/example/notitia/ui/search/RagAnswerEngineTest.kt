@@ -10,8 +10,8 @@ import kotlin.time.Duration.Companion.minutes
 
 class RagAnswerEngineTest {
 
-    private val demo = Passage("sample-1", 12.minutes, 0, "Lucas", "On garde le 15 novembre.")
-    private val rehearsal = Passage("sample-1", 13.minutes, 1, "Clément", "Je prépare la répétition.")
+    private val demo = Passage("sample-1", 12.minutes, "Lucas", "On garde le 15 novembre.")
+    private val rehearsal = Passage("sample-1", 13.minutes, "Clément", "Je prépare la répétition.")
     private val sources = listOf(demo, rehearsal)
 
     @Test
@@ -77,7 +77,7 @@ class RagAnswerEngineTest {
 
     @Test
     fun theClosestPassagesComeFirstAndTheirNumberIsLimited() {
-        val others = List(5) { Passage("sample-2", it.minutes, 0, "Adam", "Autre $it") to listOf(0.0, 1.0) }
+        val others = List(5) { Passage("sample-2", it.minutes, "Adam", "Autre $it") to listOf(0.0, 1.0) }
         val found = closestPassages(listOf(1.0, 0.0), others + (demo to listOf(2.0, 0.0)))
         assertEquals(demo, found.first())
         assertEquals(4, found.size)
