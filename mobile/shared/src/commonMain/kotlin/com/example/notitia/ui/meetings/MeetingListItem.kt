@@ -5,7 +5,6 @@ import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MinutesState
 import com.example.notitia.ui.actions.DueGroup
 import com.example.notitia.ui.actions.dueGroup
-import com.example.notitia.ui.actions.today
 import kotlin.time.Duration
 import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
@@ -59,8 +58,8 @@ fun Meeting.listItem(title: String, today: LocalDate, progress: MeetingStatus? =
 
 // A meeting the user has not named is called after the moment it was recorded.
 @Composable
-fun Meeting.listItem(progress: MeetingStatus? = null): MeetingListItem {
+fun Meeting.listItem(today: LocalDate, progress: MeetingStatus? = null): MeetingListItem {
     val start = startedAt.toLocalDateTime(TimeZone.currentSystemDefault())
     val shown = title ?: stringResource(Res.string.recording_title, shortDateLabel(start.date), clockTime(start.time))
-    return listItem(shown, today(), progress)
+    return listItem(shown, today, progress)
 }

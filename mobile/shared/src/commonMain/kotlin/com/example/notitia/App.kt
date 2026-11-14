@@ -39,6 +39,7 @@ import com.example.notitia.ui.actions.ownerChoices
 import com.example.notitia.ui.actions.trackedActions
 import com.example.notitia.ui.components.NotitiaTabBar
 import com.example.notitia.ui.components.offerUndo
+import com.example.notitia.ui.components.rememberToday
 import com.example.notitia.ui.components.rememberMicrophoneAccess
 import com.example.notitia.ui.meetings.MeetingSelection
 import com.example.notitia.ui.meetings.MeetingsScreen
@@ -101,7 +102,8 @@ fun App(
         val recordingId = recording?.let { recordedMeetingId(it.startedAt) }
         val stored = kept?.filterNot { it.id == recordingId } ?: return@NotitiaTheme
         LaunchedEffect(Unit) { onLoaded() }
-        val meetings = stored.map { it.listItem(meetingsModel.progress(it.id)) }
+        val today = rememberToday()
+        val meetings = stored.map { it.listItem(today, meetingsModel.progress(it.id)) }
         var actionsView by rememberSaveable { mutableStateOf(ActionsView.ByDue) }
         val snackbars = remember { SnackbarHostState() }
         var openedMeetingId by rememberSaveable { mutableStateOf<String?>(null) }

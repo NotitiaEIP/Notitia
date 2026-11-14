@@ -52,6 +52,8 @@ import com.example.notitia.ui.components.GroupTitle
 import com.example.notitia.ui.components.NotitiaSegmentedControl
 import com.example.notitia.ui.components.ScreenHeader
 import com.example.notitia.ui.components.listMotion
+import com.example.notitia.ui.components.rememberToday
+import com.example.notitia.ui.components.today
 import com.example.notitia.ui.meetings.sampleMinutes
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
@@ -61,7 +63,6 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import notitia.shared.generated.resources.Res
 import notitia.shared.generated.resources.actions_by_due
 import notitia.shared.generated.resources.actions_by_person
@@ -109,7 +110,7 @@ fun ActionsScreen(
     modifier: Modifier = Modifier,
 ) {
     val motion = NotitiaTheme.motion
-    val today = remember { today() }
+    val today = rememberToday()
     var lingering by remember { mutableStateOf(emptySet<ActionId>()) }
     var showDone by rememberSaveable { mutableStateOf(false) }
     var expanded by rememberSaveable(stateSaver = ExpandedSaver) { mutableStateOf(emptySet<String>()) }
@@ -212,8 +213,6 @@ private val NudgeTargetSaver = Saver<NudgeTarget?, ArrayList<String>>(
         if (saved.size == 2) NudgeTarget.Action(ActionId(saved[0], saved[1].toInt())) else NudgeTarget.Person(saved[0])
     },
 )
-
-internal fun today(): LocalDate = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
 
 // An Android Bundle keeps a list of strings, not a set.
 private val ExpandedSaver = Saver<Set<String>, ArrayList<String>>(save = { ArrayList(it) }, restore = { it.toSet() })

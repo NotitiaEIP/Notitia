@@ -54,6 +54,7 @@ import com.example.notitia.ui.components.NotitiaSegmentedControl
 import com.example.notitia.ui.components.SectionHeader
 import com.example.notitia.ui.components.SpeakerChip
 import com.example.notitia.ui.components.rememberContextMenuState
+import com.example.notitia.ui.components.rememberToday
 import com.example.notitia.ui.meetings.MeetingListItem
 import com.example.notitia.ui.meetings.sampleMinutes
 import com.example.notitia.ui.meetings.lengthLabel
@@ -106,7 +107,8 @@ fun MinutesRoute(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val now = remember { Clock.System.now() }
+    val today = rememberToday()
+    val now = remember(today) { Clock.System.now() }
     val minutes = meeting.toMinutes(item)
     NavigationBackHandler(
         state = rememberNavigationEventState(NavigationEventInfo.None),
