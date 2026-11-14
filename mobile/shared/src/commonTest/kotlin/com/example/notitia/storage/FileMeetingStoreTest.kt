@@ -75,6 +75,15 @@ class FileMeetingStoreTest {
     }
 
     @Test
+    fun aDraftLeftByAKilledAppIsDeletedWhenTheMeetingsAreRead() {
+        store.save(meeting("recorded-1"))
+        val draft = Path(directory, "recorded-1.notitia.tmp")
+        SystemFileSystem.sink(draft).buffered().use { it.writeString("{\"version\":") }
+        assertEquals(listOf(meeting("recorded-1")), FileMeetingStore(directory).loadAll())
+        assertFalse(SystemFileSystem.exists(draft))
+    }
+
+    @Test
     fun deletingAMeetingThatIsNotThereIsFine() {
         store.delete("recorded-1")
         assertEquals(emptyList(), store.loadAll())
