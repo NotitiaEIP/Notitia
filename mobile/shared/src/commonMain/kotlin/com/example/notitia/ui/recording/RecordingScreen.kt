@@ -43,8 +43,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import com.example.notitia.ui.components.NotitiaBadge
-import com.example.notitia.ui.meetings.clockTime
-import com.example.notitia.ui.meetings.shortDateLabel
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.recording.RecorderState
 import com.example.notitia.ui.theme.NotitiaTheme
@@ -52,12 +50,8 @@ import com.example.notitia.ui.theme.reducedMotion
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.Instant
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import notitia.shared.generated.resources.Res
 import notitia.shared.generated.resources.bookmark
-import notitia.shared.generated.resources.edit
 import notitia.shared.generated.resources.keyboard_arrow_down
 import notitia.shared.generated.resources.lock
 import notitia.shared.generated.resources.on_device
@@ -72,7 +66,6 @@ import notitia.shared.generated.resources.recording_pause
 import notitia.shared.generated.resources.recording_paused
 import notitia.shared.generated.resources.recording_resume
 import notitia.shared.generated.resources.recording_stop
-import notitia.shared.generated.resources.recording_title
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -93,7 +86,6 @@ fun RecordingScreen(
     ) {
         TopBar(recording, onCollapse)
         Spacer(Modifier.weight(1f))
-        MeetingTitle(recording.startedAt)
         BasicText(
             text = timerText(recording.recorded),
             style = NotitiaTheme.typography.timer.copy(
@@ -103,7 +95,7 @@ fun RecordingScreen(
             maxLines = 1,
             // At 200 % text, the hours would no longer fit on a small phone.
             autoSize = TextAutoSize.StepBased(maxFontSize = NotitiaTheme.typography.timer.fontSize),
-            modifier = Modifier.fillMaxWidth().padding(top = spacing.s),
+            modifier = Modifier.fillMaxWidth(),
         )
         RecordingWave(recording, moving = visible, modifier = Modifier.padding(top = spacing.xl))
         // The user did not stop it: say why it stopped and what brings it back.
@@ -187,28 +179,6 @@ fun RecordingDot(paused: Boolean) {
             .graphicsLayer { alpha = pulse?.value ?: 1f }
             .background(if (paused) colors.amber else colors.red, NotitiaTheme.shapes.full),
     )
-}
-
-@Composable
-private fun MeetingTitle(startedAt: Instant) {
-    val start = remember(startedAt) { startedAt.toLocalDateTime(TimeZone.currentSystemDefault()) }
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = stringResource(Res.string.recording_title, shortDateLabel(start.date), clockTime(start.time)),
-            style = NotitiaTheme.typography.callout,
-            color = NotitiaTheme.colors.textSecondary,
-        )
-        // Renaming comes with a later task: the pencil already says the title can change.
-        Icon(
-            painter = painterResource(Res.drawable.edit),
-            contentDescription = null,
-            tint = NotitiaTheme.colors.textSecondary,
-            modifier = Modifier.size(NotitiaTheme.sizes.iconSmall),
-        )
-    }
 }
 
 @Composable
