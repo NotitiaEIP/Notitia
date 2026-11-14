@@ -30,9 +30,17 @@ private const val THREAD = "reminders"
 class NotificationReminderScheduler : ReminderScheduler {
     private val center = UNUserNotificationCenter.currentNotificationCenter()
 
-    override suspend fun pending(): Set<String> = suspendCoroutine { done ->
+    override suspend fun pending(): Set<String> = scheduled() + delivered()
+
+    private suspend fun scheduled(): Set<String> = suspendCoroutine { done ->
         center.getPendingNotificationRequestsWithCompletionHandler { requests ->
             done.resume(requests.orEmpty().filterIsInstance<UNNotificationRequest>().map { it.identifier }.toSet())
+        }
+    }
+
+    private suspend fun delivered(): Set<String> = suspendCoroutine { done ->
+        center.getDeliveredNotificationsWithCompletionHandler { notifications ->
+            done.resume(notifications.orEmpty().filterIsInstance<UNNotification>().map { it.request.identifier }.toSet())
         }
     }
 

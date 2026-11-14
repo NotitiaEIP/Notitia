@@ -12,7 +12,7 @@ import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MinutesState
 import com.example.notitia.meeting.TranscriptLine
 import com.example.notitia.meeting.WrittenMinutes
-import com.example.notitia.ui.actions.today
+import com.example.notitia.ui.components.today
 import com.example.notitia.ui.meetings.MeetingStatus
 import com.example.notitia.ui.meetings.status
 import com.example.notitia.ui.minutes.MinutesWriter

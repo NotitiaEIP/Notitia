@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.example.notitia.ui.components.DetailsLine
 import com.example.notitia.ui.components.DoneRing
 import com.example.notitia.ui.components.SpeakerAvatar
+import com.example.notitia.ui.components.today
 import com.example.notitia.ui.components.StrikeText
 import com.example.notitia.ui.components.cardShadow
 import com.example.notitia.ui.meetings.sampleMinutes

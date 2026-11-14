@@ -38,6 +38,7 @@ import com.example.notitia.ui.components.RecordButton
 import com.example.notitia.ui.components.ScreenHeader
 import com.example.notitia.ui.components.listMotion
 import com.example.notitia.ui.components.rememberContextMenuState
+import com.example.notitia.ui.components.rememberToday
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
 import com.example.notitia.ui.theme.SelectionStyle
@@ -159,7 +160,8 @@ private fun MeetingList(
     onSettings: () -> Unit,
 ) {
     val chosen = selection.chosen
-    val now = remember(meetings) { Clock.System.now() }
+    val today = rememberToday()
+    val now = remember(meetings, today) { Clock.System.now() }
     val groups = remember(meetings, now) { groupByDay(meetings, now, TimeZone.currentSystemDefault()) }
     val spacing = NotitiaTheme.spacing
     LazyColumn(

@@ -21,11 +21,12 @@
             android:exported="false" />
         <!-- Not exported: only the system sends these, and it reaches receivers that are not. -->
         <receiver
-            android:name="com.example.notitia.reminder.RebootReceiver"
+            android:name="com.example.notitia.reminder.RescheduleReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
             </intent-filter>
         </receiver>
     </application>

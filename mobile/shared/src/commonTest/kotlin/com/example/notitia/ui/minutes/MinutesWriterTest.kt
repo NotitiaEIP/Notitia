@@ -97,6 +97,16 @@ class MinutesWriterTest {
     }
 
     @Test
+    fun aBarInTheTaskKeepsTheFieldsInPlace() {
+        val lines = listOf(TranscriptLine(12.seconds, "On choisit entre A et B, Paul tranche."))
+        val action = parseMinutes("ACTION: Choisir A | B | Paul | 2026-11-20 | 00:12", lines).actions.single()
+        assertEquals("Choisir A | B", action.text)
+        assertEquals("Paul", action.owner)
+        assertEquals(LocalDate(2026, 11, 20), action.due)
+        assertEquals(12.seconds, action.source?.at)
+    }
+
+    @Test
     fun aDateInAnotherFormatIsDroppedButNotItsAction() {
         val action = parseMinutes("ACTION: Envoyer le devis | Adam | vendredi prochain").actions.single()
         assertEquals("Adam", action.owner)

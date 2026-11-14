@@ -6,14 +6,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -52,6 +54,7 @@ import com.example.notitia.ui.components.NotitiaSegmentedControl
 import com.example.notitia.ui.components.SectionHeader
 import com.example.notitia.ui.components.SpeakerChip
 import com.example.notitia.ui.components.rememberContextMenuState
+import com.example.notitia.ui.components.rememberToday
 import com.example.notitia.ui.meetings.MeetingListItem
 import com.example.notitia.ui.meetings.sampleMinutes
 import com.example.notitia.ui.meetings.lengthLabel
@@ -104,7 +107,8 @@ fun MinutesRoute(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val now = remember { Clock.System.now() }
+    val today = rememberToday()
+    val now = remember(today) { Clock.System.now() }
     val minutes = meeting.toMinutes(item)
     NavigationBackHandler(
         state = rememberNavigationEventState(NavigationEventInfo.None),
@@ -164,45 +168,47 @@ fun MinutesScreen(
             onDelete = { confirmingDelete = true },
             onMorePlaced = { moreButton = it },
         )
-        Column(
-            Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = spacing.l)
-                .padding(bottom = spacing.xl),
+        // Lazy for the transcript: an hour of meeting is hundreds of lines, and only those on screen are laid out.
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(start = spacing.l, end = spacing.l, bottom = spacing.xl),
         ) {
-            MeetingTitle(title = meeting.title, onRename = onRename, editRequests = renameRequests)
-            DetailsLine(
-                parts = listOf(
-                    meetingWhenLabel(meeting.startedAt, now),
-                    lengthLabel(meeting.duration),
-                    pluralStringResource(Res.plurals.participants, meeting.participants, meeting.participants),
-                ),
-                modifier = Modifier.padding(top = spacing.xs),
-            )
-            if (minutes.speakers.isNotEmpty()) {
-                FlowRow(
-                    modifier = Modifier.padding(top = spacing.l),
-                    horizontalArrangement = Arrangement.spacedBy(spacing.s),
-                    verticalArrangement = Arrangement.spacedBy(spacing.s),
-                ) {
-                    val people = minutes.people
-                    minutes.speakers.forEach { name -> SpeakerChip(name, people.of(name)) }
+            item {
+                Column {
+                    MeetingTitle(title = meeting.title, onRename = onRename, editRequests = renameRequests)
+                    DetailsLine(
+                        parts = listOf(
+                            meetingWhenLabel(meeting.startedAt, now),
+                            lengthLabel(meeting.duration),
+                            pluralStringResource(Res.plurals.participants, meeting.participants, meeting.participants),
+                        ),
+                        modifier = Modifier.padding(top = spacing.xs),
+                    )
+                    if (minutes.speakers.isNotEmpty()) {
+                        FlowRow(
+                            modifier = Modifier.padding(top = spacing.l),
+                            horizontalArrangement = Arrangement.spacedBy(spacing.s),
+                            verticalArrangement = Arrangement.spacedBy(spacing.s),
+                        ) {
+                            val people = minutes.people
+                            minutes.speakers.forEach { name -> SpeakerChip(name, people.of(name)) }
+                        }
+                    }
+                    NotitiaSegmentedControl(
+                        options = listOf(
+                            stringResource(Res.string.minutes_tab_minutes),
+                            stringResource(Res.string.minutes_tab_transcript),
+                        ),
+                        selected = tab,
+                        onSelect = { tab = it },
+                        modifier = Modifier.padding(top = spacing.xl),
+                    )
                 }
             }
-            NotitiaSegmentedControl(
-                options = listOf(
-                    stringResource(Res.string.minutes_tab_minutes),
-                    stringResource(Res.string.minutes_tab_transcript),
-                ),
-                selected = tab,
-                onSelect = { tab = it },
-                modifier = Modifier.padding(top = spacing.xl),
-            )
             when {
-                tab != 0 -> TranscriptContent(transcript)
-                notice != null -> Notice(stringResource(notice), Modifier.padding(top = spacing.xxl))
-                else -> MinutesContent(minutes, onToggleAction)
+                tab != 0 -> transcriptItems(transcript)
+                notice != null -> item { Notice(stringResource(notice), Modifier.padding(top = spacing.xxl)) }
+                else -> item { Column { MinutesContent(minutes, onToggleAction) } }
             }
         }
         HorizontalDivider(color = NotitiaTheme.colors.divider)
@@ -316,29 +322,30 @@ private fun Notice(text: String, modifier: Modifier = Modifier) {
     )
 }
 
+private fun LazyListScope.transcriptItems(lines: List<TranscriptLine>) {
+    if (lines.isEmpty()) {
+        item { Notice(stringResource(Res.string.transcript_empty), Modifier.padding(top = NotitiaTheme.spacing.xl)) }
+    }
+    itemsIndexed(lines) { index, line ->
+        val spacing = NotitiaTheme.spacing
+        TranscriptLineItem(line, Modifier.padding(top = if (index == 0) spacing.xl else spacing.m))
+    }
+}
+
 @Composable
-private fun TranscriptContent(lines: List<TranscriptLine>) {
+private fun TranscriptLineItem(line: TranscriptLine, modifier: Modifier = Modifier) {
     val colors = NotitiaTheme.colors
-    val spacing = NotitiaTheme.spacing
     val typography = NotitiaTheme.typography
     Column(
-        modifier = Modifier.padding(top = spacing.xl),
-        verticalArrangement = Arrangement.spacedBy(spacing.m),
+        modifier = modifier.semantics(mergeDescendants = true) {},
+        verticalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.xxs),
     ) {
-        if (lines.isEmpty()) Notice(stringResource(Res.string.transcript_empty))
-        lines.forEach { line ->
-            Column(
-                modifier = Modifier.semantics(mergeDescendants = true) {},
-                verticalArrangement = Arrangement.spacedBy(spacing.xxs),
-            ) {
-                Text(text = timerText(line.at), style = typography.caption, color = colors.textSecondary)
-                Text(
-                    text = line.text ?: stringResource(Res.string.transcript_failed),
-                    style = typography.body,
-                    color = if (line.text == null) colors.textSecondary else colors.text,
-                )
-            }
-        }
+        Text(text = timerText(line.at), style = typography.caption, color = colors.textSecondary)
+        Text(
+            text = line.text ?: stringResource(Res.string.transcript_failed),
+            style = typography.body,
+            color = if (line.text == null) colors.textSecondary else colors.text,
+        )
     }
 }
 

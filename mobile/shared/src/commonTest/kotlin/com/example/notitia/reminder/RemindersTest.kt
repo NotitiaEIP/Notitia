@@ -31,6 +31,18 @@ class RemindersTest {
     }
 
     @Test
+    fun aReminderReadBackFromItsKeyRingsAtNineInTheZoneOfTheMoment() {
+        val key = reminderKey(LocalDate(2026, 11, 20))
+        assertEquals(Instant.parse("2026-11-19T08:00:00Z"), reminderAt(key, paris))
+        assertEquals(Instant.parse("2026-11-19T14:00:00Z"), reminderAt(key, TimeZone.of("America/New_York")))
+    }
+
+    @Test
+    fun aKeyThisAppDidNotWriteGivesNoTime() {
+        assertEquals(null, reminderAt("rappel", paris))
+    }
+
+    @Test
     fun theActionsDueTheSameDayShareOneReminder() {
         val due = LocalDate(2026, 11, 14)
         val meetings = listOf(

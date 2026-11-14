@@ -26,6 +26,7 @@ object NoMeetingStore : MeetingStore {
 }
 
 private const val EXTENSION = ".notitia"
+private const val DRAFT = ".tmp"
 
 // One file per meeting, so a damaged file loses one meeting and not all of them.
 class FileMeetingStore(
@@ -39,13 +40,14 @@ class FileMeetingStore(
         return Uuid.random().toString().also { write(file, it.encodeToByteArray()) }
     }
 
-    // A file this app cannot read stays on disk: a newer app may read it again after an update.
-    override fun loadAll(): List<Meeting> =
-        if (!files.exists(directory)) {
-            emptyList()
-        } else {
-            files.list(directory).filter { it.name.endsWith(EXTENSION) }.mapNotNull { MeetingCodec.decode(read(it)) }
-        }
+    // A file this app cannot read stays on disk: a newer app may read it again after an update. A draft goes: it is
+    // the words of a meeting the user may have deleted since, and no write runs while the meetings are read.
+    override fun loadAll(): List<Meeting> {
+        if (!files.exists(directory)) return emptyList()
+        val (drafts, others) = files.list(directory).partition { it.name.endsWith(DRAFT) }
+        drafts.forEach { files.delete(it, mustExist = false) }
+        return others.filter { it.name.endsWith(EXTENSION) }.mapNotNull { MeetingCodec.decode(read(it)) }
+    }
 
     override fun save(meeting: Meeting) = write(fileOf(meeting.id), MeetingCodec.encode(meeting))
 
@@ -58,7 +60,7 @@ class FileMeetingStore(
 
     private fun fileOf(id: String) = Path(directory, id + EXTENSION)
 
-    private fun draftOf(file: Path) = Path(directory, file.name + ".tmp")
+    private fun draftOf(file: Path) = Path(directory, file.name + DRAFT)
 
     private fun read(file: Path): ByteArray = files.source(file).buffered().use { it.readByteArray() }
 
