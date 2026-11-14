@@ -2,6 +2,7 @@ package com.example.notitia.reminder
 
 import android.Manifest
 import android.app.AlarmManager
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -37,7 +38,13 @@ class AlarmReminderScheduler(context: Context) : ReminderScheduler {
     private val context = context.applicationContext
     private val alarms = alarms(this.context)
 
-    override suspend fun pending(): Set<String> = alarms.all.keys
+    // A rung alarm leaves the preferences, but its notification may still be up.
+    override suspend fun pending(): Set<String> {
+        val shown = context.getSystemService<NotificationManager>()?.activeNotifications.orEmpty()
+            .filter { it.id == NOTIFICATION_ID }
+            .mapNotNull { it.tag }
+        return alarms.all.keys + shown
+    }
 
     override fun schedule(reminder: Reminder, message: String) {
         val alarm = Alarm(reminder.at.toEpochMilliseconds(), message, reminder.actions.map { it.key })

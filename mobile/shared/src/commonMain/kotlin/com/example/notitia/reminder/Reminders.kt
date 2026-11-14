@@ -41,7 +41,8 @@ fun reminders(meetings: List<Meeting>, zone: TimeZone, today: LocalDate): List<R
 // The phone's own notifications: no server is involved (product rule 1). message never holds an action's words, since
 // a notification shows on the lock screen and on a watch.
 interface ReminderScheduler {
-    // What an earlier run left scheduled and not yet shown.
+    // What an earlier run left scheduled, or shown and still on screen: an action ticked after a restart takes
+    // its notification back too.
     suspend fun pending(): Set<String>
     fun schedule(reminder: Reminder, message: String)
     // Also takes back a notification already shown.
