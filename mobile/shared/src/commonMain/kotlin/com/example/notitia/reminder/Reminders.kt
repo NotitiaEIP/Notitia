@@ -24,6 +24,17 @@ class ReminderTap(val actionKeys: List<String>)
 
 fun reminderAt(due: LocalDate, zone: TimeZone): Instant = due.minus(DatePeriod(days = 1)).atTime(REMINDER_TIME).toInstant(zone)
 
+fun reminderKey(due: LocalDate): String = due.toString()
+
+// Read back from the key alone, so a phone that changed time zone can move an alarm the app is not there to move.
+// null for a key this app did not write.
+fun reminderAt(key: String, zone: TimeZone): Instant? =
+    try {
+        reminderAt(LocalDate.parse(key), zone)
+    } catch (_: IllegalArgumentException) {
+        null
+    }
+
 // Kept until its day is over, so a notification already shown stays up until then. A late action has none.
 fun MinutesAction.hasReminder(today: LocalDate): Boolean = reminder && !done && due != null && due >= today
 
@@ -35,7 +46,7 @@ fun reminders(meetings: List<Meeting>, zone: TimeZone, today: LocalDate): List<R
         }
     }
     .groupBy({ it.first }, { it.second })
-    .map { (due, actions) -> Reminder(due.toString(), reminderAt(due, zone), actions) }
+    .map { (due, actions) -> Reminder(reminderKey(due), reminderAt(due, zone), actions) }
     .sortedBy { it.at }
 
 // The phone's own notifications: no server is involved (product rule 1). message never holds an action's words, since

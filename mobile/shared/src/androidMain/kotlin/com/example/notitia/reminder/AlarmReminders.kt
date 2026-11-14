@@ -18,6 +18,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.content.getSystemService
 import com.example.notitia.shared.R
+import kotlinx.datetime.TimeZone
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -70,11 +71,25 @@ class ReminderReceiver : BroadcastReceiver() {
     }
 }
 
-// A reminder whose time passed while the phone was off rings at once, as a calendar does.
-class RebootReceiver : BroadcastReceiver() {
+private val RESCHEDULE_ACTIONS = setOf(
+    Intent.ACTION_BOOT_COMPLETED,
+    Intent.ACTION_MY_PACKAGE_REPLACED,
+    Intent.ACTION_TIMEZONE_CHANGED,
+)
+
+// Android forgets alarms on a reboot or an update, and keeps them at the same instant when the time zone changes: each
+// one is set again at 9 in the phone's zone now. A reminder whose time passed meanwhile rings at once, as a calendar does.
+class RescheduleReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != Intent.ACTION_BOOT_COMPLETED && intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
-        alarms(context).all.forEach { (key, value) -> (value as? String)?.let(::decode)?.let { ring(context, key, it.at) } }
+        if (intent.action !in RESCHEDULE_ACTIONS) return
+        val alarms = alarms(context)
+        val zone = TimeZone.currentSystemDefault()
+        alarms.all.forEach { (key, value) ->
+            val alarm = (value as? String)?.let(::decode) ?: return@forEach
+            val at = reminderAt(key, zone)?.toEpochMilliseconds() ?: alarm.at
+            if (at != alarm.at) alarms.edit { putString(key, Json.encodeToString(Alarm(at, alarm.message, alarm.actions))) }
+            ring(context, key, at)
+        }
     }
 }
 
