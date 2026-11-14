@@ -13,6 +13,7 @@ private const val SUMMARY = "SUMMARY:"
 private const val DECISION = "DECISION:"
 private const val ACTION = "ACTION:"
 private const val NONE = "-"
+private const val ACTION_FIELDS = 3
 
 // One line per item rather than JSON: the open models break JSON more often than lines.
 private val MINUTES_INSTRUCTIONS = """
@@ -73,15 +74,18 @@ internal fun parseMinutes(reply: String, lines: List<TranscriptLine> = emptyList
     )
 }
 
+// A task may hold a bar of its own: the three fields asked of the model are always the last ones.
 private fun parseAction(line: String, lines: List<TranscriptLine>): MinutesAction? {
     val parts = line.split('|').map { it.trim() }
-    val text = parts[0].takeIf { it.isNotEmpty() } ?: return null
+    val textParts = (parts.size - ACTION_FIELDS).coerceAtLeast(1)
+    val text = parts.take(textParts).joinToString(" | ").takeIf { it.isNotEmpty() } ?: return null
+    val fields = parts.drop(textParts)
     return MinutesAction(
         text = text,
-        owner = parts.getOrNull(1)?.takeUnless { it.isEmpty() || it == NONE },
-        due = parts.getOrNull(2)?.let(::parseDate),
+        owner = fields.getOrNull(0)?.takeUnless { it.isEmpty() || it == NONE },
+        due = fields.getOrNull(1)?.let(::parseDate),
         done = false,
-        source = parts.getOrNull(3)?.let { sourceAt(it, lines) },
+        source = fields.getOrNull(2)?.let { sourceAt(it, lines) },
     )
 }
 
