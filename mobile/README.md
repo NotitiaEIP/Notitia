@@ -35,7 +35,8 @@ Sous Windows, lance-la dans **Git Bash** (installé avec Git), pas dans PowerShe
    cd Notitia
    ```
 
-3. Lance `./notitia` et choisis « Diagnostiquer mon installation ».
+3. Installe Rust avec [rustup](https://rustup.rs) : le cœur de l'app est écrit en Rust, et Gradle le compile avec l'app.
+4. Lance `./notitia` et choisis « Diagnostiquer mon installation ». Pour chaque outil qui manque encore (`cargo-ndk`, le NDK), il donne la commande ou le menu qui l'installe.
 
 ### Activer le débogage USB (une fois par téléphone)
 
@@ -50,7 +51,7 @@ Sous Windows, lance-la dans **Git Bash** (installé avec Git), pas dans PowerShe
 ./notitia emulator   # émulateur Android
 ./notitia apk        # fichier .apk
 ./notitia ios        # Xcode (Mac)
-./notitia check      # build et tests, comme la CI
+./notitia check      # cœur Rust, build et tests, comme la CI
 ./notitia doctor     # diagnostic
 ```
 
@@ -59,5 +60,6 @@ Sous Windows, lance-la dans **Git Bash** (installé avec Git), pas dans PowerShe
 Ces dossiers sont dans `mobile/`.
 
 - `shared/` : le code partagé entre Android et iOS (écrans, logique, données). `src/commonMain` pour ce qui est commun, `src/androidMain` et `src/iosMain` pour ce qui dépend de la plateforme.
+- `coreAndroid/` : le cœur Rust pour Android. Gradle y compile [`core/`](../core) et y génère le Kotlin qui l'appelle : rien n'y est écrit à la main.
 - `androidApp/` : le point d'entrée Android.
 - `iosApp/` : le projet Xcode, point d'entrée iOS.
