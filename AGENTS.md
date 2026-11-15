@@ -52,7 +52,7 @@ Préférer une interface injectée à `expect`/`actual` dès que l'implémentati
 - Lancer l'app : `./notitia`, depuis la racine ou depuis `mobile/`, ouvre un menu. Sans menu : `./notitia phone` (téléphone branché), `./notitia emulator`, `./notitia apk`.
 - Compiler et tester avant une PR : `./notitia check`, qui lance `./gradlew build` dans `mobile/`.
 - Tests du code partagé seuls : `cd mobile && ./gradlew :shared:testAndroidHostTest`.
-- iOS : `./notitia ios` ouvre `mobile/iosApp/iosApp.xcodeproj` dans Xcode, sur un Mac. Sous Linux et Windows, les cibles iOS ne compilent pas : c'est normal, ne cherche pas à « réparer » une erreur iOS depuis ces machines.
+- iOS : `./notitia ios` ouvre `mobile/iosApp/iosApp.xcodeproj` dans Xcode, sur un Mac. Sous Linux et Windows, le Kotlin d'iOS se compile (`cd mobile && ./gradlew :shared:compileKotlinIosSimulatorArm64`) mais l'app ne se construit pas : la CI la construit pour le simulateur sur un Mac de GitHub (job `ios`) dès qu'une PR touche `mobile/`.
 - Mac : ouvrir `macos/apple/Notitia.xcodeproj` dans Xcode, et tester `NotitiaKit` avec `cd macos/apple/NotitiaKit && swift test`, sur un Mac seulement. Le build Gradle ignore `macos/`, et la CI lance ces tests sur un Mac de GitHub (job `macos`) dès qu'une PR touche `macos/`.
 
 ## Conventions
