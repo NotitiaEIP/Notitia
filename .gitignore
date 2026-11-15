@@ -37,3 +37,7 @@ GoogleService-Info.plist
 *.safetensors
 *.mlmodel
 *.mlpackage/
+
+# Rust core: build output and generated bindings
+core/target/
+mobile/iosApp/iosApp/Generated/
