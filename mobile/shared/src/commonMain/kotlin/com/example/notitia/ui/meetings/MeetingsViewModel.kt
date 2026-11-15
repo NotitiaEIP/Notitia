@@ -3,9 +3,10 @@ package com.example.notitia.ui.meetings
 import androidx.lifecycle.ViewModel
 import com.example.notitia.meeting.ActionId
 import com.example.notitia.meeting.Meeting
+import com.example.notitia.meeting.MeetingStatus
+import com.example.notitia.meeting.RecorderState
 import com.example.notitia.meeting.ownedBy
 import com.example.notitia.recording.MeetingRecorder
-import com.example.notitia.recording.RecorderState
 import com.example.notitia.storage.MeetingRepository
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.datetime.LocalDate

@@ -10,11 +10,12 @@ import com.example.notitia.ai.SpeechSegment
 import com.example.notitia.ai.SpeechSegmenter
 import com.example.notitia.ai.pcmToWav
 import com.example.notitia.meeting.Meeting
+import com.example.notitia.meeting.MeetingStatus
 import com.example.notitia.meeting.MinutesState
 import com.example.notitia.meeting.TranscriptLine
 import com.example.notitia.meeting.WrittenMinutes
+import com.example.notitia.meeting.recordedMeetingId
 import com.example.notitia.ui.components.today
-import com.example.notitia.ui.meetings.MeetingStatus
 import com.example.notitia.ui.meetings.status
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
@@ -40,8 +41,6 @@ internal fun cleanTranscript(text: String): String {
     val cleaned = text.trim()
     return if (madeUpSentences.any { it.containsMatchIn(cleaned) }) "" else cleaned
 }
-
-fun recordedMeetingId(startedAt: Instant) = "recorded-${startedAt.toEpochMilliseconds()}"
 
 // Lives while the meeting is heard and transcribed: MeetingRecorder keeps a copy of it at each change. Without speech,
 // this build cannot transcribe: the meeting keeps its duration and no text.

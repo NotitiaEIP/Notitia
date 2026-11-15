@@ -2,6 +2,7 @@ package com.example.notitia.ui.meetings
 
 import androidx.compose.runtime.Composable
 import com.example.notitia.meeting.Meeting
+import com.example.notitia.meeting.MeetingStatus
 import com.example.notitia.meeting.MinutesState
 import com.example.notitia.ui.actions.DueGroup
 import com.example.notitia.ui.actions.dueGroup
@@ -26,13 +27,6 @@ data class MeetingListItem(
 ) {
     // Whoever recorded, until the speakers are told apart (E2).
     val participants: Int get() = speakers.size.coerceAtLeast(1)
-}
-
-sealed interface MeetingStatus {
-    // summary opens the card, as a mail's first lines in Gmail; late is what its line says in red.
-    data class Ready(val summary: String? = null, val late: Int = 0) : MeetingStatus
-    data class Transcribing(val progress: Float, val remaining: Duration) : MeetingStatus
-    data object WritingMinutes : MeetingStatus
 }
 
 fun MinutesState.status(today: LocalDate): MeetingStatus = when (this) {

@@ -6,9 +6,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import com.example.notitia.ai.MinutesWriter
 import com.example.notitia.ai.SpeechEngine
+import com.example.notitia.meeting.MeetingStatus
 import com.example.notitia.meeting.MinutesState
+import com.example.notitia.meeting.RecorderState
 import com.example.notitia.storage.MeetingRepository
-import com.example.notitia.ui.meetings.MeetingStatus
 import kotlin.concurrent.Volatile
 import kotlin.time.Clock
 import kotlin.time.Duration

@@ -29,8 +29,8 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.notitia.meeting.Meeting
-import com.example.notitia.recording.RecorderState
-import com.example.notitia.recording.recordedMeetingId
+import com.example.notitia.meeting.RecorderState
+import com.example.notitia.meeting.recordedMeetingId
 import com.example.notitia.reminder.ReminderTap
 import com.example.notitia.ui.actions.ActionsScreen
 import com.example.notitia.ui.actions.ActionsView
