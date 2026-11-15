@@ -20,24 +20,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      mobile: ${{ steps.diff.outputs.mobile }}
+      app: ${{ steps.diff.outputs.app }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - id: diff
-        name: Does this change touch mobile/?
+        name: Does this change touch mobile/ or core/?
         env:
           BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: |
           # Without a usable base (first push of a branch), build anyway.
           if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
-            echo "mobile=true" >> "$GITHUB_OUTPUT"
-          elif grep -qE '^(mobile/|\.github/workflows/build\.yml$)' <<< "$(git diff --name-only "$BASE" HEAD)"; then
-            echo "mobile=true" >> "$GITHUB_OUTPUT"
+            echo "app=true" >> "$GITHUB_OUTPUT"
+          elif grep -qE '^(mobile/|core/|\.github/workflows/build\.yml$)' <<< "$(git diff --name-only "$BASE" HEAD)"; then
+            echo "app=true" >> "$GITHUB_OUTPUT"
           else
-            echo "mobile=false" >> "$GITHUB_OUTPUT"
+            echo "app=false" >> "$GITHUB_OUTPUT"
           fi
 
   # If the changes job fails, its output is empty: Gradle and the iPhone build run anyway.
@@ -59,28 +59,55 @@ jobs:
             exit 1
           fi
 
-      # The check above runs on every change; Gradle only when mobile/ changes.
+      # The check above runs on every change; Rust and Gradle only when mobile/ or core/ changes.
       - uses: actions/setup-java@v5
-        if: needs.changes.outputs.mobile != 'false'
+        if: needs.changes.outputs.app != 'false'
         with:
           distribution: temurin
           java-version: 21
 
       - uses: gradle/actions/setup-gradle@v4
-        if: needs.changes.outputs.mobile != 'false'
+        if: needs.changes.outputs.app != 'false'
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
+      - uses: actions/cache@v4
+        if: needs.changes.outputs.app != 'false'
+        with:
+          path: |
+            ~/.cargo/bin/cargo-ndk*
+            ~/.cargo/registry
+            core/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('core/Cargo.lock', 'core/rust-toolchain.toml') }}
+
+      # The first cargo call installs the toolchain and the targets that core/rust-toolchain.toml fixes.
+      - name: Test the Rust core
+        if: needs.changes.outputs.app != 'false'
+        run: cargo test
+        working-directory: core
+
+      # Gradle builds the core for Android with these: the NDK that libs.versions.toml fixes, and cargo-ndk.
+      - name: Install the NDK and cargo-ndk
+        if: needs.changes.outputs.app != 'false'
+        run: |
+          ndk=$(sed -n 's/^android-ndk = "\(.*\)"/\1/p' mobile/gradle/libs.versions.toml)
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$ndk" > /dev/null
+          # The cache brings the binary back without the record cargo install keeps of it, and cargo install then
+          # refuses to overwrite it: the version decides instead.
+          if ! cargo ndk --version 2>/dev/null | grep -qF "4.1.2"; then
+            cargo install cargo-ndk --locked --force --version 4.1.2
+          fi
+
       # Android and the shared tests. Linux compiles the iOS Kotlin code but cannot link it: the ios job does.
       - run: ./gradlew build
-        if: needs.changes.outputs.mobile != 'false'
+        if: needs.changes.outputs.app != 'false'
         working-directory: mobile
 
-  # Skipped when mobile/ is untouched: a skipped job counts as passed for a required check.
+  # Skipped when mobile/ and core/ are untouched: a skipped job counts as passed for a required check.
   ios:
     name: ios
     needs: changes
-    if: ${{ github.repository_owner == 'NotitiaEIP' && !cancelled() && needs.changes.outputs.mobile != 'false' }}
+    if: ${{ github.repository_owner == 'NotitiaEIP' && !cancelled() && needs.changes.outputs.app != 'false' }}
     runs-on: macos-26
     timeout-minutes: 45
     steps:
@@ -101,9 +128,54 @@ jobs:
           path: ~/.konan
           key: konan-${{ runner.os }}-${{ hashFiles('mobile/gradle/libs.versions.toml') }}
 
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            core/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('core/Cargo.lock', 'core/rust-toolchain.toml') }}
+
       - run: xcodebuild -version
+
+      # Before Xcode: it lists the Swift files of a build before any script runs, the generated one included.
+      - name: Build the Rust core for the simulator
+        run: mobile/iosApp/build-core.sh
 
       # By target: the project ships no shared scheme. Xcode links the shared Kotlin code through Gradle.
       - name: Build the iPhone app for the simulator
         run: xcodebuild -project iosApp.xcodeproj -target iosApp -sdk iphonesimulator -configuration Debug build CODE_SIGNING_ALLOWED=NO
         working-directory: mobile/iosApp
+
+      # Swift names the Kotlin classes from this header: when the build breaks, it says what Swift should have written.
+      - name: Show how Swift sees the Kotlin bridge
+        if: failure()
+        run: |
+          header=$(find mobile -name Shared.h | head -1)
+          [ -n "$header" ] && grep -nE -A8 'swift_name\("(NotitiaCore|CoreResult|CoreOk|CoreFailed|CoreFailure|HostProbe|MeetingSummary|MainViewControllerKt)"' "$header"
+
+      # The proof of the bridge on an iPhone: the app reads a meeting through Swift and Rust, and Rust calls Kotlin back.
+      - name: Run the bridge self-check on a simulator
+        timeout-minutes: 10
+        working-directory: mobile/iosApp
+        run: |
+          app=build/Debug-iphonesimulator/Notitia.app
+          device=$(xcrun simctl list devices available | grep -m1 -E '^ +iPhone' | grep -oE '[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12}')
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b
+          xcrun simctl install "$device" "$app"
+          bundle=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")
+          xcrun simctl launch --console-pty "$device" "$bundle" -coreSelfCheck > self-check.log 2>&1 || true
+          cat self-check.log
+          # Read from the app's own folder: simctl does not always pass on what the app prints.
+          marker="$(xcrun simctl get_app_container "$device" "$bundle" data)/tmp/core-self-check.txt"
+          for _ in $(seq 1 30); do [ -f "$marker" ] && break; sleep 1; done
+          if grep -q 'core bridge: ok' "$marker" 2>/dev/null; then
+            cat "$marker"
+            exit 0
+          fi
+          echo "::error::Pas de « core bridge: ok » : $(cat "$marker" 2>/dev/null || echo "aucun marqueur, l'app s'est sans doute arrêtée avant")"
+          # Only the made-up meeting of the self-check runs here: these logs hold no real meeting.
+          xcrun simctl spawn "$device" log show --last 5m --style compact --predicate 'process == "Notitia"' | tail -80 || true
+          report=$(ls -t ~/Library/Logs/DiagnosticReports/ 2>/dev/null | grep -i notitia | head -1)
+          [ -n "$report" ] && head -120 ~/Library/Logs/DiagnosticReports/"$report"
+          exit 1

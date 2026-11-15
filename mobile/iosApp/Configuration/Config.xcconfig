@@ -5,3 +5,7 @@ PRODUCT_BUNDLE_IDENTIFIER=com.example.notitia.Notitia$(TEAM_ID)
 
 CURRENT_PROJECT_VERSION=1
 MARKETING_VERSION=1.0
+
+// The Rust core: its static library and the C header behind its generated Swift, both written by build-core.sh.
+OTHER_LDFLAGS=$(inherited) "$(SRCROOT)/build/core/libnotitia_core.a"
+OTHER_SWIFT_FLAGS=$(inherited) -Xcc "-fmodule-map-file=$(SRCROOT)/build/core/notitia_coreFFI.modulemap"

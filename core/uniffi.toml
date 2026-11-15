@@ -1,0 +1,3 @@
+# The only place that names the package of the generated Kotlin: renaming the app (T-01) changes this line.
+[bindings.kotlin]
+package_name = "com.example.notitia.core"

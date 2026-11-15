@@ -2,6 +2,7 @@ package com.example.notitia
 
 import com.example.notitia.ai.MinutesWriter
 import com.example.notitia.ai.SpeechEngine
+import com.example.notitia.bridge.NotitiaCore
 import com.example.notitia.meeting.Meetings
 import com.example.notitia.meeting.Recording
 import com.example.notitia.recording.MeetingRecorder
@@ -31,8 +32,9 @@ import notitia.shared.generated.resources.reminder_message
 import org.jetbrains.compose.resources.getPluralString
 
 // Built once per process, by the platform: screens come and go, the meetings and what works on them stay. microphone
-// is null on a platform that cannot record yet, speechEngine when this build cannot transcribe.
+// is null on a platform that cannot record yet, speechEngine when this build cannot transcribe, core in a preview.
 class Notitia(
+    val core: NotitiaCore? = null,
     meetingStore: MeetingStore = NoMeetingStore,
     microphone: Microphone? = null,
     speechEngine: SpeechEngine? = null,

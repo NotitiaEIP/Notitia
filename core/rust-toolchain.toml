@@ -1,0 +1,10 @@
+# Rust moves in a pull request of its own, like Gradle and Kotlin.
+[toolchain]
+channel = "1.100.0"
+profile = "minimal"
+targets = [
+    "aarch64-linux-android",
+    "x86_64-linux-android",
+    "aarch64-apple-ios",
+    "aarch64-apple-ios-sim",
+]
