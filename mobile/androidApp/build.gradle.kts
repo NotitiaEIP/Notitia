@@ -36,6 +36,11 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
+        // The Rust core is built for 64-bit phones and the emulator only: without this filter, the 32-bit libraries
+        // of other dependencies would let the app install on a phone where the core is missing.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
     }
     packaging {
         resources {
