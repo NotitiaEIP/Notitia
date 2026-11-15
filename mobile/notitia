@@ -201,6 +201,30 @@ cargo_core() {
   (cd "$CORE_DIR" && cargo "$@")
 }
 
+# The Play Store refuses an app whose libraries are not aligned on 16 KB pages. Read in the APK rather than in
+# core/: the libraries that dependencies bring, like the one of JNA, are checked with the core.
+check_page_size() {
+  local readelf apk="" f tmp so align misaligned=""
+  readelf="$(ls "$SDK/ndk/$(catalog_version android-ndk)"/toolchains/llvm/prebuilt/*/bin/llvm-readelf* 2>/dev/null | head -1)"
+  [ -n "$readelf" ] || die "llvm-readelf introuvable dans le NDK : lance « Diagnostiquer mon installation »."
+  for f in "$APK_DIR"/*.apk; do
+    if [ -f "$f" ]; then apk="$f"; break; fi
+  done
+  [ -n "$apk" ] || die "APK introuvable dans $APK_DIR."
+
+  tmp="$(mktemp -d)"
+  unzip -q -o "$apk" 'lib/*' -d "$tmp" 2>/dev/null
+  for so in "$tmp"/lib/*/*.so; do
+    [ -f "$so" ] || { rm -rf "$tmp"; die "Aucune bibliothèque dans l'APK : le cœur Rust n'y est pas."; }
+    for align in $("$readelf" -lW "$so" | awk '$1 == "LOAD" {print $NF}'); do
+      if [ $((align % 16384)) -ne 0 ]; then misaligned="$misaligned ${so#"$tmp"/lib/}"; break; fi
+    done
+  done
+  rm -rf "$tmp"
+  [ -z "$misaligned" ] \
+    || die "Bibliothèques non alignées sur des pages de 16 Ko, que le Play Store refuse :$misaligned"
+}
+
 adb() { "$SDK/platform-tools/adb" "$@"; }
 
 # One "serial<TAB>state" line per device adb can see.
@@ -386,6 +410,7 @@ cmd_check() {
     || die "Un test du cœur Rust échoue : corrige avant d'ouvrir la PR."
   gradle build \
     || die "Le build ou un test échoue : corrige avant d'ouvrir la PR."
+  check_page_size
   ok "Cœur, build et tests OK : tu peux ouvrir ta PR."
 }
 
