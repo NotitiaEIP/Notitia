@@ -1,6 +1,8 @@
 # Each area notifies its pair (CADRE.md, part 9); review is optional. The last matching line wins.
 *                                @clembdn @nathanderenty
 
+/core/                           @clembdn @Alexou52
+
 /mobile/androidApp/              @nathanderenty @clembdn
 /mobile/shared/src/androidMain/  @nathanderenty @clembdn
 

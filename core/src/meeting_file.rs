@@ -71,7 +71,8 @@ pub(crate) fn summary_of(bytes: &[u8]) -> Result<MeetingSummary, CoreError> {
     }
     let file: MeetingFile = serde_json::from_slice(bytes).map_err(|_| CoreError::NotAMeeting)?;
     let started_at = OffsetDateTime::parse(&file.meeting.started_at, &Rfc3339).map_err(|_| CoreError::NotAMeeting)?;
-    let started_at_ms = i64::try_from(started_at.unix_timestamp_nanos() / 1_000_000).map_err(|_| CoreError::NotAMeeting)?;
+    let started_at_ms =
+        i64::try_from(started_at.unix_timestamp_nanos() / 1_000_000).map_err(|_| CoreError::NotAMeeting)?;
     Ok(MeetingSummary { id: file.meeting.id, title: file.meeting.title, started_at_ms })
 }
 

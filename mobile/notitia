@@ -12,8 +12,10 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT" || exit 1
 
 APK_DIR="androidApp/build/outputs/apk/debug"
+CORE_DIR="$ROOT/../core"
 SDK=""
 APK=""
+CORE_MISSING=()
 
 if [ -t 1 ]; then
   BOLD=$'\033[1m'; DIM=$'\033[2m'; REV=$'\033[7m'; RESET=$'\033[0m'
@@ -142,6 +144,87 @@ need_android() {
   find_sdk || die "SDK Android introuvable. Ouvre le projet une fois dans Android Studio pour qu'il l'installe, puis relance."
 }
 
+# The script, Gradle and the CI read the same versions.
+catalog_version() {
+  sed -n "s/^$1 = \"\(.*\)\"/\1/p" gradle/libs.versions.toml | head -1
+}
+
+# rustup rather than cargo alone: only rustup installs the Rust version and the phone targets that
+# core/rust-toolchain.toml fixes. A terminal opened before the install does not have ~/.cargo/bin on its PATH yet.
+find_rust() {
+  local bin
+  bin="$(to_unix "${CARGO_HOME:-$HOME/.cargo}")/bin"
+  case ":$PATH:" in
+    *":$bin:"*) ;;
+    *) if [ -d "$bin" ]; then PATH="$bin:$PATH"; fi ;;
+  esac
+  command -v rustup >/dev/null 2>&1 && command -v cargo >/dev/null 2>&1
+}
+
+# Fills CORE_MISSING with what this machine lacks to build the Rust core, one line per tool with the way to
+# install it. Call find_sdk first: the NDK lives in the SDK.
+check_core() {
+  local ndk cargo_ndk found
+  ndk="$(catalog_version android-ndk)"
+  cargo_ndk="$(catalog_version cargo-ndk)"
+  CORE_MISSING=()
+
+  if ! find_rust; then
+    CORE_MISSING+=("Rust introuvable : installe rustup depuis https://rustup.rs, puis rouvre ce terminal.")
+    CORE_MISSING+=("cargo-ndk absent : une fois Rust installé, lance cargo install cargo-ndk --locked --version $cargo_ndk")
+  elif ! command -v cargo-ndk >/dev/null 2>&1; then
+    CORE_MISSING+=("cargo-ndk absent : lance cargo install cargo-ndk --locked --version $cargo_ndk")
+  else
+    # From core/, where rust-toolchain.toml picks the Rust version: a machine may have no default one.
+    found="$(cd "$CORE_DIR" && cargo ndk --version | awk '{print $2}')"
+    if [ -n "$found" ] && [ "$found" != "$cargo_ndk" ]; then
+      CORE_MISSING+=("cargo-ndk $found trouvé, il faut la version $cargo_ndk : lance cargo install cargo-ndk --locked --force --version $cargo_ndk")
+    fi
+  fi
+
+  if [ -n "$SDK" ] && [ ! -d "$SDK/ndk/$ndk" ]; then
+    CORE_MISSING+=("NDK $ndk absent : dans Android Studio, Tools > SDK Manager > SDK Tools, coche « Show Package Details », puis NDK (Side by side) $ndk.")
+  fi
+
+  [ "${#CORE_MISSING[@]}" -eq 0 ]
+}
+
+need_core() {
+  local line
+  check_core && return 0
+  for line in "${CORE_MISSING[@]}"; do bad "$line"; done
+  die "Le cœur Rust ne peut pas se construire sur cette machine : installe ce qui manque au-dessus, puis relance."
+}
+
+cargo_core() {
+  info "${DIM}cargo $*${RESET}"
+  (cd "$CORE_DIR" && cargo "$@")
+}
+
+# The Play Store refuses an app whose libraries are not aligned on 16 KB pages. Read in the APK rather than in
+# core/: the libraries that dependencies bring, like the one of JNA, are checked with the core.
+check_page_size() {
+  local readelf apk="" f tmp so align misaligned=""
+  readelf="$(ls "$SDK/ndk/$(catalog_version android-ndk)"/toolchains/llvm/prebuilt/*/bin/llvm-readelf* 2>/dev/null | head -1)"
+  [ -n "$readelf" ] || die "llvm-readelf introuvable dans le NDK : lance « Diagnostiquer mon installation »."
+  for f in "$APK_DIR"/*.apk; do
+    if [ -f "$f" ]; then apk="$f"; break; fi
+  done
+  [ -n "$apk" ] || die "APK introuvable dans $APK_DIR."
+
+  tmp="$(mktemp -d)"
+  unzip -q -o "$apk" 'lib/*' -d "$tmp" 2>/dev/null
+  for so in "$tmp"/lib/*/*.so; do
+    [ -f "$so" ] || { rm -rf "$tmp"; die "Aucune bibliothèque dans l'APK : le cœur Rust n'y est pas."; }
+    for align in $("$readelf" -lW "$so" | awk '$1 == "LOAD" {print $NF}'); do
+      if [ $((align % 16384)) -ne 0 ]; then misaligned="$misaligned ${so#"$tmp"/lib/}"; break; fi
+    done
+  done
+  rm -rf "$tmp"
+  [ -z "$misaligned" ] \
+    || die "Bibliothèques non alignées sur des pages de 16 Ko, que le Play Store refuse :$misaligned"
+}
+
 adb() { "$SDK/platform-tools/adb" "$@"; }
 
 # One "serial<TAB>state" line per device adb can see.
@@ -166,6 +249,7 @@ app_id() {
 }
 
 build_apk() {
+  need_core
   gradle :androidApp:assembleDebug \
     || die "Le build a échoué. Lis l'erreur au-dessus, ou lance « Diagnostiquer mon installation »."
   local f
@@ -316,15 +400,22 @@ cmd_ios() {
 
 cmd_check() {
   need_android
-  if gradle build; then
-    ok "Build et tests OK : tu peux ouvrir ta PR."
-  else
-    die "Le build ou un test échoue : corrige avant d'ouvrir la PR."
-  fi
+  need_core
+  # The quickest to fail first. --locked: a Cargo.lock that no longer matches Cargo.toml fails here, not in the CI.
+  cargo_core fmt --check \
+    || die "Le cœur Rust n'est pas formaté : lance cargo fmt dans core/, puis relance."
+  cargo_core clippy --locked --all-targets -- -D warnings \
+    || die "clippy relève un problème dans le cœur Rust : corrige-le (message au-dessus)."
+  cargo_core test --locked \
+    || die "Un test du cœur Rust échoue : corrige avant d'ouvrir la PR."
+  gradle build \
+    || die "Le build ou un test échoue : corrige avant d'ouvrir la PR."
+  check_page_size
+  ok "Cœur, build et tests OK : tu peux ouvrir ta PR."
 }
 
 cmd_doctor() {
-  local fail=0 major serial state phone_count=0 unauthorized=0 avds
+  local fail=0 major serial state phone_count=0 unauthorized=0 avds line
   printf '%sDiagnostic%s\n\n' "$BOLD" "$RESET"
 
   if find_java; then
@@ -367,6 +458,13 @@ EOF
     fi
   else
     bad "SDK Android introuvable : ouvre le projet une fois dans Android Studio pour qu'il l'installe."
+    fail=1
+  fi
+
+  if check_core; then
+    ok "Cœur Rust : rustup, cargo-ndk $(catalog_version cargo-ndk), NDK $(catalog_version android-ndk)"
+  else
+    for line in "${CORE_MISSING[@]}"; do bad "$line"; done
     fail=1
   fi
 
@@ -413,7 +511,7 @@ Sans commande, un menu s'ouvre : flèches ↑ ↓ pour choisir, Entrée pour val
   emulator   Lancer sur un émulateur Android
   apk        Construire l'APK (fichier à installer ou partager)
   ios        Ouvrir le projet iOS dans Xcode (Mac)
-  check      Vérifier avant une PR (build et tests)
+  check      Vérifier avant une PR (cœur Rust, build et tests)
   doctor     Diagnostiquer mon installation
 EOF
 }
@@ -447,7 +545,7 @@ main_menu() {
     "Produit un fichier .apk à envoyer à un testeur, qui l'installe sans rien d'autre."
     "Sur Mac seulement. Xcode s'ouvre, tu choisis un iPhone en haut, puis tu cliques sur ▶."
     "La même vérification que la CI. À lancer avant chaque PR."
-    "Vérifie Java, le SDK Android, les appareils, Xcode et gh. À lancer la première fois ou si quelque chose bloque."
+    "Vérifie Java, le SDK Android, Rust, les appareils, Xcode et gh. À lancer la première fois ou si quelque chose bloque."
     ""
   )
   menu "Notitia : que veux-tu faire ?"

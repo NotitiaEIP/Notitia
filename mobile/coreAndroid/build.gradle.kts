@@ -26,8 +26,8 @@ abstract class CargoTask : DefaultTask() {
             }
         } catch (failure: Exception) {
             throw GradleException(
-                "The Rust core did not build. It needs Rust (https://rustup.rs) and cargo-ndk (cargo install cargo-ndk --locked); " +
-                    "the error above says which step failed.",
+                "The Rust core did not build: the error above says which step failed. " +
+                    "`./notitia doctor` says what this machine lacks to build it.",
                 failure,
             )
         }
@@ -116,6 +116,8 @@ android {
 
     defaultConfig {
         minSdk = libs.versions.android.minSdk.get().toInt()
+        // With the library rather than in the app: whoever shrinks the code gets the rules of the bridge with it.
+        consumerProguardFiles("consumer-rules.pro")
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

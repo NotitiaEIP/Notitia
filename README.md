@@ -4,6 +4,7 @@ Notitia enregistre une réunion, la transcrit et en tire un compte rendu, sans q
 
 | Dossier | Ce qu'il contient |
 | --- | --- |
+| [`core/`](docs/03-coeur-rust.md) | Le cœur Rust : la logique commune à toutes les apps |
 | [`mobile/`](mobile/README.md) | L'app Android et iPhone, en Kotlin Multiplatform |
 | [`macos/`](macos/README.md) | L'app Mac, en Swift |
 | [`docs/`](docs/README.md) | Les choix techniques expliqués : architecture, benchmark, feuille de route |

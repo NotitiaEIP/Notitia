@@ -4,7 +4,7 @@ Instructions pour toute IA qui code dans ce repo : Claude Code, GitHub Copilot, 
 
 ## Le projet
 
-Notitia est une app mobile (Android et iOS) qui enregistre une réunion, la transcrit et en tire un compte rendu : décisions, actions et responsables. Tout se passe sur l'appareil. C'est l'EIP d'une équipe d'Epitech Nice (promo 2028). L'app Android et iOS vit dans `mobile/`, l'app Mac dans `macos/`, la documentation dans le repo `Notitia_Documentation` de l'organisation NotitiaEIP. À chaque fusion, `main` et les tags sont copiés vers le repo de l'école, `EpitechPGE3-2025/G-EIP-601-ALL-6-1-eip-51`, sans les fichiers des assistants IA (`AGENTS.md`, `CLAUDE.md`, `.claude/`) : c'est une copie, personne n'y pousse à la main.
+Notitia est une app mobile (Android et iOS) qui enregistre une réunion, la transcrit et en tire un compte rendu : décisions, actions et responsables. Tout se passe sur l'appareil. C'est l'EIP d'une équipe d'Epitech Nice (promo 2028). Le cœur Rust, la logique commune à toutes les apps, vit dans `core/`, l'app Android et iOS dans `mobile/`, l'app Mac dans `macos/`, la documentation dans le repo `Notitia_Documentation` de l'organisation NotitiaEIP. À chaque fusion, `main` et les tags sont copiés vers le repo de l'école, `EpitechPGE3-2025/G-EIP-601-ALL-6-1-eip-51`, sans les fichiers des assistants IA (`AGENTS.md`, `CLAUDE.md`, `.claude/`) : c'est une copie, personne n'y pousse à la main.
 
 Le cadre de l'année, ce qu'on fait et ce qu'on ne fait pas, est dans [CADRE.md](https://github.com/NotitiaEIP/notitia_documentation/blob/main/CADRE.md). Si une demande le contredit, signale-le avant de coder.
 
@@ -20,14 +20,17 @@ En cas de doute sur une de ces règles, arrête-toi et demande plutôt que devin
 
 ## Stack
 
+- Rust pour le cœur, appelé depuis Kotlin et Swift par les ponts d'UniFFI (`docs/adr/0002-coeur-rust.md`). La version de Rust et ses cibles sont fixées dans `core/rust-toolchain.toml`, les dépendances Rust dans `core/Cargo.toml`.
 - Kotlin Multiplatform et Compose Multiplatform : l'interface est partagée entre Android et iOS.
-- Gradle via le wrapper (`mobile/gradlew`), dont la version est fixée dans `mobile/gradle/wrapper/gradle-wrapper.properties`. Les versions des dépendances vivent uniquement dans `mobile/gradle/libs.versions.toml`.
+- Gradle via le wrapper (`mobile/gradlew`), dont la version est fixée dans `mobile/gradle/wrapper/gradle-wrapper.properties`. Les versions des dépendances vivent uniquement dans `mobile/gradle/libs.versions.toml`, celles du NDK et de `cargo-ndk` comprises.
 - Android Studio avec le plugin Kotlin Multiplatform, ouvert sur le dossier `mobile/`. Xcode sur Mac pour iOS.
 
 ## Organisation du code
 
+- `core/` : le cœur Rust, sans écran. La logique y vit ou y part : format `.notitia`, stockage, enregistrement, transcription, compte rendu, recherche.
+- `mobile/coreAndroid/` : le cœur pour Android. Gradle y compile `core/` et y génère le Kotlin du pont : rien n'y est écrit à la main, et rien de généré n'est commité.
 - `mobile/shared/` : le code partagé entre Android et iOS. Dans `mobile/shared/src/` :
-  - `commonMain` : tout ce qui peut être partagé (écrans, logique, modèles de données, accès aux modèles IA) ;
+  - `commonMain` : les écrans, leur état, la mise en forme, et la logique qui n'est pas encore dans le cœur ;
   - `androidMain` et `iosMain` : seulement ce qui dépend de la plateforme (micro, enregistrement en arrière-plan, widget, exécution des modèles).
 - `mobile/androidApp/` : le point d'entrée Android (activité, manifeste, icônes).
 - `mobile/iosApp/` : le projet Xcode qui embarque le code partagé.
@@ -47,10 +50,14 @@ interface AudioRecorder {
 
 Préférer une interface injectée à `expect`/`actual` dès que l'implémentation garde un état.
 
+Le cœur se branche de la même façon : `NotitiaCore`, dans `commonMain` (`bridge/`), est tenue par `RustCore.kt` sur Android et par `RustCore.swift` sur l'iPhone. Swift ne sait ni suspendre ni lever nos exceptions : une interface tenue par le cœur n'a que des fonctions bloquantes et des valeurs simples (texte, nombres, pas d'`Instant`), et rend un échec comme une valeur, `CoreResult`. Kotlin l'enveloppe ensuite dans ses coroutines. Le cœur rend des données, jamais une phrase d'interface.
+
 ## Commandes
 
 - Lancer l'app : `./notitia`, depuis la racine ou depuis `mobile/`, ouvre un menu. Sans menu : `./notitia phone` (téléphone branché), `./notitia emulator`, `./notitia apk`.
-- Compiler et tester avant une PR : `./notitia check`, qui lance `./gradlew build` dans `mobile/`.
+- Compiler et tester avant une PR : `./notitia check`, que la CI lance aussi. Dans `core/` : `cargo fmt --check`, `cargo clippy` et `cargo test`. Puis `./gradlew build` dans `mobile/`, et l'alignement des bibliothèques de l'APK sur des pages de 16 Ko.
+- Tests du cœur seuls : `cd core && cargo test`. Formater le Rust avant de le proposer : `cargo fmt`.
+- Savoir ce qu'il manque à une machine (Java, SDK Android, rustup, `cargo-ndk`, NDK) : `./notitia doctor`.
 - Tests du code partagé seuls : `cd mobile && ./gradlew :shared:testAndroidHostTest`.
 - iOS : `./notitia ios` ouvre `mobile/iosApp/iosApp.xcodeproj` dans Xcode, sur un Mac. Sous Linux et Windows, le Kotlin d'iOS se compile (`cd mobile && ./gradlew :shared:compileKotlinIosSimulatorArm64`) mais l'app ne se construit pas : la CI la construit pour le simulateur sur un Mac de GitHub (job `ios`) dès qu'une PR touche `mobile/`.
 - Mac : ouvrir `macos/apple/Notitia.xcodeproj` dans Xcode, et tester `NotitiaKit` avec `cd macos/apple/NotitiaKit && swift test`, sur un Mac seulement. Le build Gradle ignore `macos/`, et la CI lance ces tests sur un Mac de GitHub (job `macos`) dès qu'une PR touche `macos/`.
@@ -67,10 +74,11 @@ Préférer une interface injectée à `expect`/`actual` dès que l'implémentati
   ```
 
 - Commits au format Conventional Commits (voir « Le message de commit et la description de PR »). Une PR traite un seul sujet et se fusionne en squash.
-- La logique métier vit dans `commonMain` et se teste dans `commonTest`.
-- Une nouvelle dépendance passe par `mobile/gradle/libs.versions.toml`, avec une licence vérifiée (Apache 2.0, MIT ou BSD de préférence).
+- La logique métier nouvelle s'écrit dans `core/` et se teste en Rust. Celle qui reste en Kotlin dans `commonMain` y part tâche par tâche (T-57 à T-61) et se teste d'ici là dans `commonTest`.
+- Le Rust est formaté par `cargo fmt` et passe `cargo clippy` sans avertissement.
+- Une nouvelle dépendance passe par `mobile/gradle/libs.versions.toml`, ou par `core/Cargo.toml` pour le cœur, avec une licence vérifiée (Apache 2.0, MIT ou BSD de préférence).
 - Jamais de fichier de modèle IA dans le repo (`.gguf`, `.onnx`, `.tflite`, `.bin`...). Les modèles sont livrés par les stores (Play for On-device AI sur Android, Background Assets sur iOS).
-- Monter Gradle, AGP, Kotlin ou Compose se fait dans une PR à part.
+- Monter Gradle, AGP, Kotlin, Compose, Rust ou UniFFI se fait dans une PR à part.
 
 ## Ce que tu fais, ce que tu proposes
 
@@ -160,6 +168,7 @@ Le scope est facultatif. S'il y en a un, il vient de cette liste :
 | `storage` | Base de données, fichiers, chiffrement, suppression après 30 jours |
 | `ai` | Chargement et exécution des modèles |
 | `dependencies` | Versions dans `mobile/gradle/libs.versions.toml` |
+| `core` | Cœur Rust et son pont vers les apps, quand le changement ne relève d'aucun autre scope |
 | `android` | Code propre à Android qui ne relève d'aucun autre scope |
 | `ios` | Code propre à iOS qui ne relève d'aucun autre scope |
 | `macos` | Code propre à l'app Mac qui ne relève d'aucun autre scope |
