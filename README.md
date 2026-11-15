@@ -6,6 +6,7 @@ Notitia enregistre une réunion, la transcrit et en tire un compte rendu, sans q
 | --- | --- |
 | [`mobile/`](mobile/README.md) | L'app Android et iPhone, en Kotlin Multiplatform |
 | [`macos/`](macos/README.md) | L'app Mac, en Swift |
+| [`docs/`](docs/README.md) | Les choix techniques expliqués : architecture, benchmark, feuille de route |
 
 Pour lancer l'app Android ou iPhone, une seule commande à la racine : `./notitia`.
 
