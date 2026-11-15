@@ -4,12 +4,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import com.example.notitia.ai.MinutesWriter
 import com.example.notitia.ai.SpeechEngine
 import com.example.notitia.meeting.MinutesState
 import com.example.notitia.storage.MeetingRepository
 import com.example.notitia.ui.meetings.MeetingStatus
-import com.example.notitia.ui.minutes.MinutesWriter
-import com.example.notitia.ui.recording.MeetingTranscription
 import kotlin.concurrent.Volatile
 import kotlin.time.Clock
 import kotlin.time.Duration

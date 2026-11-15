@@ -1,5 +1,6 @@
 package com.example.notitia
 
-import com.example.notitia.ui.minutes.MinutesWriter
+import com.example.notitia.ai.MinutesWriter
+
 
 fun minutesWriterForBuild(): MinutesWriter? = null

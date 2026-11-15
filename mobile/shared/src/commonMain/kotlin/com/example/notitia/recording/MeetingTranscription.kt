@@ -1,9 +1,10 @@
-package com.example.notitia.ui.recording
+package com.example.notitia.recording
 
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.example.notitia.ai.MinutesWriter
 import com.example.notitia.ai.SpeechEngine
 import com.example.notitia.ai.SpeechSegment
 import com.example.notitia.ai.SpeechSegmenter
@@ -15,7 +16,6 @@ import com.example.notitia.meeting.WrittenMinutes
 import com.example.notitia.ui.components.today
 import com.example.notitia.ui.meetings.MeetingStatus
 import com.example.notitia.ui.meetings.status
-import com.example.notitia.ui.minutes.MinutesWriter
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
 import kotlin.time.Instant

@@ -30,6 +30,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.recording.RecorderState
+import com.example.notitia.recording.recordedMeetingId
 import com.example.notitia.reminder.ReminderTap
 import com.example.notitia.ui.actions.ActionsScreen
 import com.example.notitia.ui.actions.ActionsView
@@ -53,7 +54,6 @@ import com.example.notitia.ui.recording.PlayerPosition
 import com.example.notitia.ui.recording.RecordingFailedAlert
 import com.example.notitia.ui.recording.RecordingPlayerHost
 import com.example.notitia.ui.recording.RecordingPlayerState
-import com.example.notitia.ui.recording.recordedMeetingId
 import com.example.notitia.ui.search.SearchHistoryDrawer
 import com.example.notitia.ui.search.SearchScreen
 import com.example.notitia.ui.search.SearchState

@@ -1,7 +1,7 @@
 package com.example.notitia
 
-import com.example.notitia.ui.minutes.LanguageModelMinutesWriter
-import com.example.notitia.ui.minutes.MinutesWriter
+import com.example.notitia.ai.LanguageModelMinutesWriter
+import com.example.notitia.ai.MinutesWriter
 
 // Without the gateway in local.properties, a debug build has no minutes writer, like a release build.
 fun minutesWriterForBuild(): MinutesWriter? =

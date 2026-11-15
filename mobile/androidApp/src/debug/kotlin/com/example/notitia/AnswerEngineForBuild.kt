@@ -1,7 +1,7 @@
 package com.example.notitia
 
+import com.example.notitia.ai.RagAnswerEngine
 import com.example.notitia.ui.search.AnswerEngine
-import com.example.notitia.ui.search.RagAnswerEngine
 import com.example.notitia.ui.search.SampleAnswerEngine
 
 // Without the gateway in local.properties, a debug build answers like a release build.

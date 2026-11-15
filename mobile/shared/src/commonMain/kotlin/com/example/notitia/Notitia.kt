@@ -1,5 +1,6 @@
 package com.example.notitia
 
+import com.example.notitia.ai.MinutesWriter
 import com.example.notitia.ai.SpeechEngine
 import com.example.notitia.recording.MeetingRecorder
 import com.example.notitia.recording.Microphone
@@ -11,7 +12,6 @@ import com.example.notitia.storage.MeetingRepository
 import com.example.notitia.storage.MeetingStore
 import com.example.notitia.storage.NoMeetingStore
 import com.example.notitia.ui.meetings.sampleMeetings
-import com.example.notitia.ui.minutes.MinutesWriter
 import com.example.notitia.ui.search.AnswerEngine
 import com.example.notitia.ui.search.SampleAnswerEngine
 import kotlin.time.Clock

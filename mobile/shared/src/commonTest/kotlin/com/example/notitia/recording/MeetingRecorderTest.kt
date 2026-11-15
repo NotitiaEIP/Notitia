@@ -6,7 +6,6 @@ import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MinutesState
 import com.example.notitia.storage.MeetingRepository
 import com.example.notitia.storage.NoMeetingStore
-import com.example.notitia.ui.recording.recordedMeetingId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
