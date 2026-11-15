@@ -26,8 +26,8 @@ abstract class CargoTask : DefaultTask() {
             }
         } catch (failure: Exception) {
             throw GradleException(
-                "The Rust core did not build. It needs Rust (https://rustup.rs) and cargo-ndk (cargo install cargo-ndk --locked); " +
-                    "the error above says which step failed.",
+                "The Rust core did not build: the error above says which step failed. " +
+                    "`./notitia doctor` says what this machine lacks to build it.",
                 failure,
             )
         }
