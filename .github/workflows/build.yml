@@ -34,7 +34,7 @@ jobs:
           # Without a usable base (first push of a branch), build anyway.
           if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
             echo "app=true" >> "$GITHUB_OUTPUT"
-          elif grep -qE '^(mobile/|core/|\.github/workflows/build\.yml$)' <<< "$(git diff --name-only "$BASE" HEAD)"; then
+          elif grep -qE '^(mobile/|core/|notitia$|\.github/workflows/build\.yml$)' <<< "$(git diff --name-only "$BASE" HEAD)"; then
             echo "app=true" >> "$GITHUB_OUTPUT"
           else
             echo "app=false" >> "$GITHUB_OUTPUT"
@@ -80,28 +80,24 @@ jobs:
             core/target
           key: cargo-${{ runner.os }}-${{ hashFiles('core/Cargo.lock', 'core/rust-toolchain.toml') }}
 
-      # The first cargo call installs the toolchain and the targets that core/rust-toolchain.toml fixes.
-      - name: Test the Rust core
-        if: needs.changes.outputs.app != 'false'
-        run: cargo test
-        working-directory: core
-
-      # Gradle builds the core for Android with these: the NDK that libs.versions.toml fixes, and cargo-ndk.
+      # Gradle builds the core for Android with these, at the versions that libs.versions.toml fixes. Rust needs no
+      # step: at the first cargo call, rustup installs what core/rust-toolchain.toml fixes.
       - name: Install the NDK and cargo-ndk
         if: needs.changes.outputs.app != 'false'
         run: |
-          ndk=$(sed -n 's/^android-ndk = "\(.*\)"/\1/p' mobile/gradle/libs.versions.toml)
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$ndk" > /dev/null
+          version() { sed -n "s/^$1 = \"\(.*\)\"/\1/p" mobile/gradle/libs.versions.toml; }
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$(version android-ndk)" > /dev/null
           # The cache brings the binary back without the record cargo install keeps of it, and cargo install then
           # refuses to overwrite it: the version decides instead.
-          if ! cargo ndk --version 2>/dev/null | grep -qF "4.1.2"; then
-            cargo install cargo-ndk --locked --force --version 4.1.2
+          if ! cargo ndk --version 2>/dev/null | grep -qF "$(version cargo-ndk)"; then
+            cargo install cargo-ndk --locked --force --version "$(version cargo-ndk)"
           fi
 
-      # Android and the shared tests. Linux compiles the iOS Kotlin code but cannot link it: the ios job does.
-      - run: ./gradlew build
+      # The command every developer runs before a pull request: the Rust core, then Android and the shared tests.
+      # Linux compiles the iOS Kotlin code but cannot link it: the ios job does.
+      - name: Check the core and the app
         if: needs.changes.outputs.app != 'false'
-        working-directory: mobile
+        run: ./notitia check
 
   # Skipped when mobile/ and core/ are untouched: a skipped job counts as passed for a required check.
   ios:
