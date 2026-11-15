@@ -8,7 +8,11 @@ struct iOSApp: App {
         #if DEBUG
         // The CI starts the app this way on a simulator to prove the bridge: it reads the marker, the app quits.
         if ProcessInfo.processInfo.arguments.contains("-coreSelfCheck") {
-            print(MainViewControllerKt.coreSelfCheckMarker(core: RustCore()))
+            let marker = MainViewControllerKt.coreSelfCheckMarker(core: RustCore())
+            // Also in a file: the console of a simulator app does not always reach the CI.
+            let file = FileManager.default.temporaryDirectory.appendingPathComponent("core-self-check.txt")
+            try? marker.write(to: file, atomically: true, encoding: .utf8)
+            print(marker)
             exit(0)
         }
         #endif

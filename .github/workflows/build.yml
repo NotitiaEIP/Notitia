@@ -92,7 +92,11 @@ jobs:
         run: |
           ndk=$(sed -n 's/^android-ndk = "\(.*\)"/\1/p' mobile/gradle/libs.versions.toml)
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$ndk" > /dev/null
-          cargo install cargo-ndk --locked --version 4.1.2
+          # The cache brings the binary back without the record cargo install keeps of it, and cargo install then
+          # refuses to overwrite it: the version decides instead.
+          if ! cargo ndk --version 2>/dev/null | grep -qF "4.1.2"; then
+            cargo install cargo-ndk --locked --force --version 4.1.2
+          fi
 
       # Android and the shared tests. Linux compiles the iOS Kotlin code but cannot link it: the ios job does.
       - run: ./gradlew build
@@ -162,4 +166,16 @@ jobs:
           bundle=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")
           xcrun simctl launch --console-pty "$device" "$bundle" -coreSelfCheck > self-check.log 2>&1 || true
           cat self-check.log
-          grep -q 'core bridge: ok' self-check.log
+          # Read from the app's own folder: simctl does not always pass on what the app prints.
+          marker="$(xcrun simctl get_app_container "$device" "$bundle" data)/tmp/core-self-check.txt"
+          for _ in $(seq 1 30); do [ -f "$marker" ] && break; sleep 1; done
+          if grep -q 'core bridge: ok' "$marker" 2>/dev/null; then
+            cat "$marker"
+            exit 0
+          fi
+          echo "::error::Pas de « core bridge: ok » : $(cat "$marker" 2>/dev/null || echo "aucun marqueur, l'app s'est sans doute arrêtée avant")"
+          # Only the made-up meeting of the self-check runs here: these logs hold no real meeting.
+          xcrun simctl spawn "$device" log show --last 5m --style compact --predicate 'process == "Notitia"' | tail -80 || true
+          report=$(ls -t ~/Library/Logs/DiagnosticReports/ 2>/dev/null | grep -i notitia | head -1)
+          [ -n "$report" ] && head -120 ~/Library/Logs/DiagnosticReports/"$report"
+          exit 1
