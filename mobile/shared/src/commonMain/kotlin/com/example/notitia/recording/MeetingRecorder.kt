@@ -9,6 +9,7 @@ import com.example.notitia.ai.SpeechEngine
 import com.example.notitia.meeting.MeetingStatus
 import com.example.notitia.meeting.MinutesState
 import com.example.notitia.meeting.RecorderState
+import com.example.notitia.meeting.Recording
 import com.example.notitia.storage.MeetingRepository
 import kotlin.concurrent.Volatile
 import kotlin.time.Clock
@@ -32,9 +33,9 @@ class MeetingRecorder(
     private val repository: MeetingRepository,
     private val scope: CoroutineScope,
     private val clock: Clock = Clock.System,
-) {
+) : Recording {
     private val recorder = AudioRecorder(microphone, scope)
-    val state: StateFlow<RecorderState> = recorder.state
+    override val state: StateFlow<RecorderState> = recorder.state
 
     // The meetings still being transcribed, whose progress the kept meeting does not hold.
     private var transcribing by mutableStateOf(emptyMap<String, MeetingTranscription>())
@@ -43,9 +44,9 @@ class MeetingRecorder(
     @Volatile
     private var current: MeetingTranscription? = null
 
-    fun progress(id: String): MeetingStatus? = transcribing[id]?.status
+    override fun progress(meetingId: String): MeetingStatus? = transcribing[meetingId]?.status
 
-    fun start() {
+    override fun start() {
         val transcription = MeetingTranscription(clock.now(), speech, writer)
         if (!recorder.start(transcription.startedAt, transcription::addAudio)) return
         current = transcription
@@ -63,11 +64,11 @@ class MeetingRecorder(
         }
     }
 
-    fun togglePause() = recorder.togglePause()
+    override fun togglePause() = recorder.togglePause()
 
-    fun dismissFailure() = recorder.dismissFailure()
+    override fun dismissFailure() = recorder.dismissFailure()
 
-    fun stop() {
+    override fun stop() {
         val transcription = current ?: return
         current = null
         transcribing += transcription.id to transcription

@@ -2,8 +2,10 @@ package com.example.notitia.storage
 
 import com.example.notitia.meeting.ActionId
 import com.example.notitia.meeting.Meeting
+import com.example.notitia.meeting.Meetings
 import com.example.notitia.meeting.MinutesAction
 import com.example.notitia.meeting.MinutesState
+import com.example.notitia.meeting.ownedBy
 import com.example.notitia.meeting.renamed
 import com.example.notitia.meeting.withAction
 import kotlin.concurrent.Volatile
@@ -18,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDate
 
 // The one place that holds the meetings. A change shows at once; the file follows in the background.
 class MeetingRepository(
@@ -28,7 +31,7 @@ class MeetingRepository(
     // One write at a time and in order, so a tick never overwrites the end of a transcription. Not tied to a
     // screen: closing the app must not cancel a write.
     disk: CoroutineDispatcher = Dispatchers.IO.limitedParallelism(1),
-) {
+) : Meetings {
     private val writes = CoroutineScope(SupervisorJob() + disk)
     private val sampleIds = samples.map { it.id }.toSet()
     private val state = MutableStateFlow<List<Meeting>?>(null)
@@ -36,8 +39,7 @@ class MeetingRepository(
     // Deleted while the app runs: a stopped meeting is saved until its minutes are written, and must not come back.
     private val deleted = MutableStateFlow(emptySet<String>())
 
-    // null until the files are read, so the list never flashes empty at launch.
-    val meetings: StateFlow<List<Meeting>?> = state.asStateFlow()
+    override val meetings: StateFlow<List<Meeting>?> = state.asStateFlow()
 
     @Volatile
     var device: String = ""
@@ -76,11 +78,20 @@ class MeetingRepository(
     fun updateAction(id: ActionId, transform: (MinutesAction) -> MinutesAction) =
         update(id.meetingId) { it.withAction(id.index, transform) }
 
-    fun rename(id: String, title: String) = update(id) { meeting -> meeting.renamed(title).takeIf { it != meeting } }
+    override fun setDone(id: ActionId, done: Boolean) = updateAction(id) { it.copy(done = done) }
+
+    override fun setOwner(id: ActionId, owner: String?) = updateAction(id) { it.ownedBy(owner) }
+
+    // Without a date, a reminder has no day: it does not come back on its own with the next date.
+    override fun setDue(id: ActionId, due: LocalDate?) = updateAction(id) { it.copy(due = due, reminder = it.reminder && due != null) }
+
+    override fun setReminder(id: ActionId, on: Boolean) = updateAction(id) { it.copy(reminder = on) }
+
+    override fun rename(id: String, title: String) = update(id) { meeting -> meeting.renamed(title).takeIf { it != meeting } }
 
     // For good, samples included until the next launch. One change for all of them, so the list closes up once;
     // the reminders follow the list, so the meetings' go too.
-    fun delete(ids: Set<String>) {
+    override fun delete(ids: Set<String>) {
         deleted.update { it + ids }
         state.update { meetings -> meetings?.filterNot { it.id in ids } }
         val written = ids - sampleIds

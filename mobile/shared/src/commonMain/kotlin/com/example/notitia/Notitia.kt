@@ -2,6 +2,8 @@ package com.example.notitia
 
 import com.example.notitia.ai.MinutesWriter
 import com.example.notitia.ai.SpeechEngine
+import com.example.notitia.meeting.Meetings
+import com.example.notitia.meeting.Recording
 import com.example.notitia.recording.MeetingRecorder
 import com.example.notitia.recording.Microphone
 import com.example.notitia.reminder.NoReminderScheduler
@@ -43,9 +45,12 @@ class Notitia(
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     // Made-up meetings beside the user's, so the app has something to show before a first recording.
-    val repository = MeetingRepository(meetingStore, sampleMeetings(clock.now()), clock)
+    private val repository = MeetingRepository(meetingStore, sampleMeetings(clock.now()), clock)
 
-    val recorder = MeetingRecorder(microphone, speechEngine, minutesWriter, repository, scope, clock)
+    // All the screens know of the meetings and of a recording: what holds them can change without touching a screen.
+    val meetings: Meetings = repository
+
+    val recording: Recording = MeetingRecorder(microphone, speechEngine, minutesWriter, repository, scope, clock)
 
     // The reminders follow the meetings: ticking, moving or removing an action moves its notification too. A new line
     // of a transcription changes no reminder, so it schedules nothing.
