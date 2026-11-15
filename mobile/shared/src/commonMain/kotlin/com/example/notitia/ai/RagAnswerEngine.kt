@@ -1,7 +1,10 @@
-package com.example.notitia.ui.search
+package com.example.notitia.ai
 
-import com.example.notitia.ai.LanguageModel
-import com.example.notitia.ai.withoutReasoning
+import com.example.notitia.ui.search.Answer
+import com.example.notitia.ui.search.AnswerEngine
+import com.example.notitia.ui.search.AnswerPart
+import com.example.notitia.ui.search.Passage
+import com.example.notitia.ui.search.samplePassages
 import kotlin.math.sqrt
 
 private const val MAX_SOURCES = 4

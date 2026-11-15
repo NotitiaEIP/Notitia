@@ -1,5 +1,6 @@
 package com.example.notitia.ui.meetings
 
+import com.example.notitia.meeting.MeetingStatus
 import com.example.notitia.meeting.MinutesAction
 import com.example.notitia.meeting.MinutesState
 import com.example.notitia.meeting.WrittenMinutes

@@ -5,7 +5,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import com.example.notitia.recording.MicrophoneProblem
+import com.example.notitia.meeting.MicrophoneProblem
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
 import notitia.shared.generated.resources.Res

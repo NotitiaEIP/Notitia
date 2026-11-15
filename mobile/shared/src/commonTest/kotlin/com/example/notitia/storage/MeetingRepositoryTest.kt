@@ -12,6 +12,7 @@ import kotlin.test.assertNull
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.coroutines.Dispatchers
+import kotlinx.datetime.LocalDate
 
 class MeetingRepositoryTest {
 
@@ -69,6 +70,34 @@ class MeetingRepositoryTest {
             .copy(modifiedAt = now)
         assertEquals(listOf(changed), repository.meetings.value)
         assertEquals(changed, store.saved["recorded-1"])
+    }
+
+    private fun MeetingRepository.firstAction(): MinutesAction =
+        (meetings.value?.single()?.minutes as MinutesState.Written).minutes.actions.first()
+
+    @Test
+    fun anActionIsCorrectedOneValueAtATime() {
+        val repository = repository(MemoryStore(meeting("recorded-1")))
+        val id = ActionId("recorded-1", 0)
+        repository.setDone(id, true)
+        repository.setOwner(id, " Nathan ")
+        repository.setDue(id, LocalDate(2026, 11, 20))
+        repository.setReminder(id, true)
+        assertEquals(
+            MinutesAction("Préparer la démo", owner = "Nathan", due = LocalDate(2026, 11, 20), done = true, reminder = true),
+            repository.firstAction(),
+        )
+    }
+
+    @Test
+    fun aReminderGoesWithItsDate() {
+        val repository = repository(MemoryStore(meeting("recorded-1")))
+        val id = ActionId("recorded-1", 0)
+        repository.setDue(id, LocalDate(2026, 11, 20))
+        repository.setReminder(id, true)
+        repository.setDue(id, null)
+        repository.setDue(id, LocalDate(2026, 11, 27))
+        assertEquals(false, repository.firstAction().reminder)
     }
 
     @Test

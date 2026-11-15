@@ -1,5 +1,7 @@
 package com.example.notitia.recording
 
+import com.example.notitia.meeting.MicrophoneProblem
+import com.example.notitia.meeting.RecorderState
 import kotlin.concurrent.Volatile
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
@@ -13,28 +15,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-
-sealed interface RecorderState {
-    data object Idle : RecorderState
-
-    // Nothing was recorded: the attempt is over, and the screen says why.
-    data class Failed(val problem: MicrophoneProblem) : RecorderState
-
-    sealed interface Active : RecorderState {
-        val startedAt: Instant
-
-        // The audio actually heard, pauses left out: what the meeting keeps as its duration.
-        val recorded: Duration
-    }
-
-    // level is the loudness of the last read, from 0 (silence) to 1.
-    data class Recording(override val startedAt: Instant, override val recorded: Duration, val level: Float) : Active
-
-    data class Paused(override val startedAt: Instant, override val recorded: Duration) : Active
-
-    // The microphone stopped on its own (a call, another app): what was heard stays, and resuming listens again.
-    data class Interrupted(override val startedAt: Instant, override val recorded: Duration) : Active
-}
 
 // The one truth about a recording: the screen, and later the recording service, only read it. microphone is null
 // on a platform that cannot record yet.

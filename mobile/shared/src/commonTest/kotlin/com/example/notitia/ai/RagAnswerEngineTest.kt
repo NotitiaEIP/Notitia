@@ -1,6 +1,8 @@
-package com.example.notitia.ui.search
+package com.example.notitia.ai
 
-import com.example.notitia.ai.LanguageModel
+import com.example.notitia.ui.search.AnswerPart
+import com.example.notitia.ui.search.Passage
+import com.example.notitia.ui.search.runNow
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull

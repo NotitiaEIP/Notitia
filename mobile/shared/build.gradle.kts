@@ -71,3 +71,8 @@ kotlin {
 dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
 }
+
+// ScreensBoundaryTest reads these sources: an import alone must be enough to run it again.
+tasks.withType<Test>().configureEach {
+    inputs.dir("src/commonMain/kotlin").withPathSensitivity(PathSensitivity.RELATIVE)
+}

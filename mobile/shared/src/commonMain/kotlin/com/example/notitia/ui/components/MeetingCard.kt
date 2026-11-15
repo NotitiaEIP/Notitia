@@ -23,9 +23,9 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import com.example.notitia.meeting.MeetingStatus
 import com.example.notitia.ui.meetings.MeetingDay
 import com.example.notitia.ui.meetings.MeetingListItem
-import com.example.notitia.ui.meetings.MeetingStatus
 import com.example.notitia.ui.meetings.clockTime
 import com.example.notitia.ui.meetings.lengthLabel
 import com.example.notitia.ui.meetings.meetingDay

@@ -1,6 +1,5 @@
-package com.example.notitia.ui.minutes
+package com.example.notitia.ai
 
-import com.example.notitia.ai.LanguageModel
 import com.example.notitia.meeting.ActionSource
 import com.example.notitia.meeting.MinutesAction
 import com.example.notitia.meeting.TranscriptLine

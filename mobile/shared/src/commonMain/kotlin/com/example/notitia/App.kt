@@ -29,7 +29,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.notitia.meeting.Meeting
-import com.example.notitia.recording.RecorderState
+import com.example.notitia.meeting.RecorderState
 import com.example.notitia.reminder.ReminderTap
 import com.example.notitia.ui.actions.ActionsScreen
 import com.example.notitia.ui.actions.ActionsView
@@ -53,7 +53,6 @@ import com.example.notitia.ui.recording.PlayerPosition
 import com.example.notitia.ui.recording.RecordingFailedAlert
 import com.example.notitia.ui.recording.RecordingPlayerHost
 import com.example.notitia.ui.recording.RecordingPlayerState
-import com.example.notitia.ui.recording.recordedMeetingId
 import com.example.notitia.ui.search.SearchHistoryDrawer
 import com.example.notitia.ui.search.SearchScreen
 import com.example.notitia.ui.search.SearchState
@@ -90,7 +89,7 @@ fun App(
     val darkTheme = theme.isDark()
     SystemBarsFollow(darkTheme)
     val meetingsModel = viewModel {
-        MeetingsViewModel(notitia.repository, notitia.recorder)
+        MeetingsViewModel(notitia.meetings, notitia.recording)
     }
     val kept = meetingsModel.meetings.collectAsStateWithLifecycle().value
     val people = remember(kept) { personColors(kept.orEmpty()) }
@@ -99,7 +98,7 @@ fun App(
         val recorder by meetingsModel.recording.collectAsStateWithLifecycle()
         val recording = recorder as? RecorderState.Active
         // The meeting being recorded is the mini bar's: it joins the list once stopped.
-        val recordingId = recording?.let { recordedMeetingId(it.startedAt) }
+        val recordingId = recording?.meetingId
         val stored = kept?.filterNot { it.id == recordingId } ?: return@NotitiaTheme
         LaunchedEffect(Unit) { onLoaded() }
         val today = rememberToday()
