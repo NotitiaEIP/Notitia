@@ -13,28 +13,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: build
-    # The Epitech copy carries this file too: there, the job is skipped.
+  changes:
+    name: changes
+    # The Epitech copy carries this file too: there, the jobs are skipped.
     if: github.repository_owner == 'NotitiaEIP'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
+    outputs:
+      mobile: ${{ steps.diff.outputs.mobile }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: No AI model files in the repo
-        run: |
-          # AGENTS.md: models are delivered by the stores, never committed.
-          files=$(git ls-files '*.gguf' '*.onnx' '*.tflite' '*.bin' '*.safetensors' '*.mlmodel' '*.mlpackage/*')
-          if [ -n "$files" ]; then
-            echo "::error::Fichier de modèle IA dans le repo : $files"
-            exit 1
-          fi
-
-      # The check above runs on every change; Gradle only when mobile/ changes.
-      - id: changes
+      - id: diff
         name: Does this change touch mobile/?
         env:
           BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
@@ -48,18 +40,70 @@ jobs:
             echo "mobile=false" >> "$GITHUB_OUTPUT"
           fi
 
+  # If the changes job fails, its output is empty: Gradle and the iPhone build run anyway.
+  build:
+    name: build
+    needs: changes
+    if: ${{ github.repository_owner == 'NotitiaEIP' && !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: No AI model files in the repo
+        run: |
+          # AGENTS.md: models are delivered by the stores, never committed.
+          files=$(git ls-files '*.gguf' '*.onnx' '*.tflite' '*.bin' '*.safetensors' '*.mlmodel' '*.mlpackage/*')
+          if [ -n "$files" ]; then
+            echo "::error::Fichier de modèle IA dans le repo : $files"
+            exit 1
+          fi
+
+      # The check above runs on every change; Gradle only when mobile/ changes.
       - uses: actions/setup-java@v5
-        if: steps.changes.outputs.mobile == 'true'
+        if: needs.changes.outputs.mobile != 'false'
         with:
           distribution: temurin
           java-version: 21
 
       - uses: gradle/actions/setup-gradle@v4
-        if: steps.changes.outputs.mobile == 'true'
+        if: needs.changes.outputs.mobile != 'false'
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
-      # Android and the shared tests. The iOS targets cannot build on Linux and are skipped.
+      # Android and the shared tests. Linux compiles the iOS Kotlin code but cannot link it: the ios job does.
       - run: ./gradlew build
-        if: steps.changes.outputs.mobile == 'true'
+        if: needs.changes.outputs.mobile != 'false'
         working-directory: mobile
+
+  # Skipped when mobile/ is untouched: a skipped job counts as passed for a required check.
+  ios:
+    name: ios
+    needs: changes
+    if: ${{ github.repository_owner == 'NotitiaEIP' && !cancelled() && needs.changes.outputs.mobile != 'false' }}
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      # The Kotlin/Native compiler and its dependencies: about 1 GB that Gradle's own cache does not hold.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('mobile/gradle/libs.versions.toml') }}
+
+      - run: xcodebuild -version
+
+      # By target: the project ships no shared scheme. Xcode links the shared Kotlin code through Gradle.
+      - name: Build the iPhone app for the simulator
+        run: xcodebuild -project iosApp.xcodeproj -target iosApp -sdk iphonesimulator -configuration Debug build CODE_SIGNING_ALLOWED=NO
+        working-directory: mobile/iosApp
