@@ -308,6 +308,7 @@ cmd_apk() {
 cmd_ios() {
   is_mac || die "Le projet iOS ne se construit que sur un Mac avec Xcode. Ici, choisis une option Android."
   command -v xcodebuild >/dev/null 2>&1 || die "Xcode introuvable. Installe-le depuis l'App Store, puis relance."
+  iosApp/build-core.sh || die "Le cœur Rust ne compile pas. Lis l'erreur au-dessus."
   open iosApp/iosApp.xcodeproj || die "Impossible d'ouvrir iosApp/iosApp.xcodeproj."
   ok "Xcode s'ouvre. En haut de la fenêtre, choisis un iPhone (simulateur), puis clique sur ▶."
   info "Le premier build est long : Xcode compile aussi le code Kotlin partagé."

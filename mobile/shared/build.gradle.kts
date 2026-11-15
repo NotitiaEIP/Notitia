@@ -42,6 +42,7 @@ kotlin {
     
     sourceSets {
         androidMain.dependencies {
+            implementation(project(":coreAndroid"))
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.core.ktx)
             implementation(libs.compose.uiToolingPreview)
