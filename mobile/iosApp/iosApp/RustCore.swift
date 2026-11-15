@@ -25,8 +25,8 @@ final class RustCore: NSObject, Shared.NotitiaCore {
     private func failure(of error: CoreError) -> Shared.CoreFailure {
         switch error {
         case .Unreadable: return .unreadable
-        case .NotAMeeting: return .notAMeeting
-        case .NewerFormat: return .newerFormat
+        case .NotAMeeting: return .notameeting
+        case .NewerFormat: return .newerformat
         }
     }
 }
