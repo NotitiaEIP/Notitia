@@ -71,7 +71,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 1A1616D662078C75A23D2DCD /* Build configuration list for PBXNativeTarget "iosApp" */;
 			buildPhases = (
-				D6F3A60C6204FCC3A3A5B86E /* Compile Kotlin Framework */,
+				D6F3A60C6204FCC3A3A5B86E /* Compile Rust Core and Kotlin Framework */,
 				D90A89749470A2CC62AE27FA /* Sources */,
 				E4661BC0F15661CFBBC96A1A /* Frameworks */,
 				997535F2E6730D78758886DD /* Resources */,
@@ -135,7 +135,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		D6F3A60C6204FCC3A3A5B86E /* Compile Kotlin Framework */ = {
+		D6F3A60C6204FCC3A3A5B86E /* Compile Rust Core and Kotlin Framework */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -145,14 +145,14 @@
 			);
 			inputPaths = (
 			);
-			name = "Compile Kotlin Framework";
+			name = "Compile Rust Core and Kotlin Framework";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set to \\\"YES\\\"\"\n  exit 0\nfi\ncd \"$SRCROOT/..\"\n./gradlew :shared:embedAndSignAppleFrameworkForXcode\n";
+			shellScript = "\"$SRCROOT/build-core.sh\"\nif [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set to \\\"YES\\\"\"\n  exit 0\nfi\ncd \"$SRCROOT/..\"\n./gradlew :shared:embedAndSignAppleFrameworkForXcode\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
