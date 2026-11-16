@@ -26,14 +26,7 @@ Dessiner une interface native par système coûte cher. On ne le fait que là o�
 
 ## Ce qui change pour l'app de Lucas
 
-Aujourd'hui le Mac range tout en notes à blocs, un format que le téléphone ne lit pas. Les deux apps ne peuvent pas s'échanger une réunion.
-
-| | Aujourd'hui | Avec le cœur commun |
-| --- | --- | --- |
-| Interface | SwiftUI | SwiftUI |
-| Réunions | Dans `NotitiaKit`, format propre au Mac | Dans le cœur Rust, format `.notitia` |
-| Transcription et résumé | Moteurs d'Apple, dans `NotitiaKit` | Les mêmes moteurs, fournis au cœur par le pont |
-| Éditeur de notes | Dans l'app | Reste dans l'app, hors du cœur |
+Aujourd'hui le Mac range tout en notes à blocs, un format que le téléphone ne lit pas : les deux apps ne peuvent pas s'échanger une réunion. Avec le cœur, les moteurs d'Apple restent : la façade les fournit au cœur par le pont.
 
 L'éditeur de notes n'entre pas dans le cœur : le [cadre](../projet/cadre.md) ne le retient pas pour cette année, les entretiens demandant un compte rendu et non un carnet de notes.
 

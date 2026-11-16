@@ -65,4 +65,5 @@ Les mêmes couleurs veulent dire la même chose sur toutes les pages.
 - Le cadre ne change qu'à la revue de fin de jalon, par une PR que toute l'équipe relit (partie 9 du cadre).
 - Un choix technique qui change passe par une nouvelle fiche dans `adr/`, puis par la page concernée.
 - Les schémas sont des fichiers SVG dans [`schemas/`](schemas/). Ils s'ouvrent et se corrigent dans un éditeur de texte.
+- Les icônes des schémas sont dans [`schemas/icones.svg`](schemas/icones.svg). Un schéma reprend le symbole dont il a besoin dans ses propres `<defs>`, car GitHub n'affiche pas un SVG qui en charge un autre.
 - Chaque fait du benchmark porte sa date. Un fait qu'on n'a pas pu vérifier est écrit comme tel.
