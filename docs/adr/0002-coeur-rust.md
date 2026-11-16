@@ -34,7 +34,7 @@ C'est le moment où changer de fondations coûte le moins.
 | Une interface native par système sur ordinateur | Deux interfaces de plus sans personne pour les tenir |
 | Electron pour l'ordinateur | Lourd, et pensé pour un cœur qui serait un site web |
 
-Le détail de la comparaison est dans [la page 3](../03-coeur-rust.md) et [la page 6](../06-windows-linux.md).
+Le détail de la comparaison est dans [le cœur Rust](../architecture/coeur-rust.md) et [Windows et Linux](../architecture/windows-linux.md).
 
 ## Conséquences
 
@@ -58,7 +58,7 @@ Un mini cœur, dans `core/`, lit un fichier `.notitia` version 1 écrit par le c
 
 ## Suite
 
-- Le plan par étapes est dans [la feuille de route](../08-feuille-de-route.md).
+- Le plan par étapes est dans [la feuille de route](../projet/feuille-de-route.md).
 - Restent à prouver pour la tâche T-05 : la capture d'une visio sur chaque système, la détection du début d'une réunion, le canal de distribution.
 - Le protocole du lien sur le même réseau fera l'objet de sa propre fiche.
 - Le cadre du projet est à mettre à jour : partie 6 pour l'architecture, partie 8 pour la date de M1.

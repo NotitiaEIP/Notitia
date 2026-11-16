@@ -1,8 +1,8 @@
-# 5. Mac
+# Mac
 
 Le Mac garde une interface native en SwiftUI, parce que l'app existe et qu'elle a un responsable. Ce qui change : ses réunions passent par le cœur commun, pour que le Mac et le téléphone lisent les mêmes fichiers.
 
-![Le Mac : ce qui reste, ce qui change](schemas/13-mac.svg)
+![Le Mac : ce qui reste, ce qui change](../schemas/13-mac.svg)
 
 ## Pourquoi du natif ici, et pas ailleurs
 
@@ -35,7 +35,7 @@ Aujourd'hui le Mac range tout en notes à blocs, un format que le téléphone ne
 | Transcription et résumé | Moteurs d'Apple, dans `NotitiaKit` | Les mêmes moteurs, fournis au cœur par le pont |
 | Éditeur de notes | Dans l'app | Reste dans l'app, hors du cœur |
 
-L'éditeur de notes n'entre pas dans le cœur : le [cadre](https://github.com/NotitiaEIP/notitia_documentation/blob/main/CADRE.md) ne le retient pas pour cette année, les entretiens demandant un compte rendu et non un carnet de notes.
+L'éditeur de notes n'entre pas dans le cœur : le [cadre](../projet/cadre.md) ne le retient pas pour cette année, les entretiens demandant un compte rendu et non un carnet de notes.
 
 ## Quand
 

@@ -1,4 +1,4 @@
-# 9. Les sources
+# Les sources
 
 Tout ce qui suit a été consulté le 14 novembre 2026. Une source de presse ou une offre d'emploi est signalée comme telle : elle pèse moins qu'un dépôt de code ou qu'un article de l'équipe elle-même.
 

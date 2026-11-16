@@ -1,4 +1,4 @@
-# 2. Le benchmark
+# Le benchmark
 
 Les produits qui calculent sur l'appareil partagent tous un cœur écrit dans un langage natif, et affichent par-dessus une interface par famille d'appareils. C'est le modèle que Notitia reprend.
 
@@ -8,13 +8,13 @@ Les produits qui calculent sur l'appareil partagent tous un cœur écrit dans un
 - **Avec quoi.** Leurs dépôts de code quand ils sont publics, leurs articles techniques, et leurs offres d'emploi, qui disent souvent la technologie plus franchement que le site.
 - **La question posée à chacun.** Avec quoi est faite l'interface sur ordinateur, sur mobile, et qu'est-ce qui est partagé entre les deux.
 
-Tous les liens sont dans [la page des sources](09-sources.md).
+Tous les liens sont dans [la page des sources](sources.md).
 
 ## Les leaders : deux étages
 
 Une app se découpe en deux étages. Celui du haut affiche, celui du bas travaille. Le tableau montre ce que chaque produit met à chaque étage.
 
-![Comment font les leaders : deux étages](schemas/03-leaders.svg)
+![Comment font les leaders : deux étages](../schemas/03-leaders.svg)
 
 | Produit | Ce qu'on en retient pour Notitia |
 | --- | --- |
@@ -28,7 +28,7 @@ Une app se découpe en deux étages. Celui du haut affiche, celui du bas travail
 
 ## Les concurrents : où se fait le calcul
 
-![Où se fait le calcul : la carte des concurrents](schemas/04-concurrents.svg)
+![Où se fait le calcul : la carte des concurrents](../schemas/04-concurrents.svg)
 
 | Concurrent | Interface ordinateur | Mobile | Où se fait le calcul |
 | --- | --- | --- | --- |

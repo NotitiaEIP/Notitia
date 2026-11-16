@@ -1,4 +1,4 @@
-# 3. Le cœur commun en Rust
+# Le cœur commun en Rust
 
 Toute la logique de Notitia vit dans une seule bibliothèque Rust, sans aucun écran, que les cinq systèmes utilisent. On y gagne un code unique et léger. On le paie en délai et en relecture.
 
@@ -12,7 +12,7 @@ Toute la logique de Notitia vit dans une seule bibliothèque Rust, sans aucun é
 
 Le cœur aurait pu rester en Kotlin, le langage du code actuel. C'était le chemin le plus court, et on l'a sérieusement étudié.
 
-![Cœur Kotlin ou cœur Rust : la balance honnête](schemas/05-kotlin-ou-rust.svg)
+![Cœur Kotlin ou cœur Rust : la balance honnête](../schemas/05-kotlin-ou-rust.svg)
 
 Le cœur Kotlin gagne sur le court terme. Le cœur Rust a été retenu parce que le moteur de Notitia reste à écrire : l'audio n'est pas encore gardé sur le disque et aucune IA ne tourne sur l'appareil. Tant qu'il n'y a qu'environ 2 000 lignes de logique à porter, changer de fondations coûte peu. Dans un an, ce serait tout rebrancher.
 
@@ -38,7 +38,7 @@ Une précision pour ne pas se tromper d'argument : Rust ne rend pas l'IA plus ra
 
 Kotlin et Swift ne savent pas appeler du Rust directement. [UniFFI](https://github.com/mozilla/uniffi-rs), l'outil de Mozilla qu'utilise Bitwarden, écrit le code de liaison à notre place.
 
-![Le pont : comment chaque app appelle le cœur](schemas/06-pont.svg)
+![Le pont : comment chaque app appelle le cœur](../schemas/06-pont.svg)
 
 Trois règles pour que ce pont ne devienne pas le maillon faible :
 
@@ -50,7 +50,7 @@ Trois règles pour que ce pont ne devienne pas le maillon faible :
 
 Le schéma montre ce que fait le cœur, et le peu qui reste à la façade.
 
-![Le trajet d'une réunion](schemas/07-trajet-reunion.svg)
+![Le trajet d'une réunion](../schemas/07-trajet-reunion.svg)
 
 | Dans le cœur | Dans chaque façade |
 | --- | --- |

@@ -1,10 +1,10 @@
-# 6. Windows et Linux
+# Windows et Linux
 
 Windows et Linux partagent une seule interface, écrite en technologies web et affichée par Tauri, posée directement sur le cœur Rust. Les deux systèmes sortent en même temps.
 
 ## Cinq façons de faire l'interface
 
-![Windows et Linux : cinq façons de faire l'interface](schemas/09-options-ordinateur.svg)
+![Windows et Linux : cinq façons de faire l'interface](../schemas/09-options-ordinateur.svg)
 
 Aucune de ces options n'utilise les boutons du système, sauf la dernière. Toutes peuvent donc afficher exactement notre charte : le violet, la police, les espacements.
 
@@ -32,7 +32,7 @@ L'analogie du vidéoprojecteur résume le point faible. Electron apporte son pro
 
 L'ordinateur n'envoie aucun bot dans la réunion. Il enregistre ce qui sort de ses propres haut-parleurs, plus le micro.
 
-![Capter une visio sans bot](schemas/10-capture-visio.svg)
+![Capter une visio sans bot](../schemas/10-capture-visio.svg)
 
 Garder deux pistes séparées donne un premier « qui parle » sans aucun calcul : le micro, c'est l'utilisateur ; le son de la visio, ce sont les autres.
 

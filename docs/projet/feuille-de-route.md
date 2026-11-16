@@ -1,8 +1,8 @@
-# 8. La feuille de route
+# La feuille de route
 
 On prouve le pont avant de réécrire quoi que ce soit, puis on porte le cœur morceau par morceau. Le jalon M1 passe du 6 au 20 décembre, la bêta du 14 février ne bouge pas.
 
-![La feuille de route jusqu'au jalon M4](schemas/12-feuille-de-route.svg)
+![La feuille de route jusqu'au jalon M4](../schemas/12-feuille-de-route.svg)
 
 ## Les étapes
 
@@ -28,7 +28,7 @@ L'étape 1 est un garde-fou. Si le pont vers l'iPhone ne marche pas comme prévu
 | M3 Bêta | 14 février | 14 février | La bêta porte sur le téléphone seul |
 | M4 Actions et ordinateur | 28 mars | 28 mars | Windows et Linux sortent ensemble |
 
-La date de la bêta est fixée par l'école : le Beta Test Plan se rend le 7 février. Ces dates entrent dans le [cadre](https://github.com/NotitiaEIP/notitia_documentation/blob/main/CADRE.md) par une PR relue par toute l'équipe.
+La date de la bêta est fixée par l'école : le Beta Test Plan se rend le 7 février. Ces dates entrent dans le [cadre](cadre.md) par une PR relue par toute l'équipe.
 
 ## Les risques, et ce qu'on fait
 
@@ -41,7 +41,7 @@ La date de la bêta est fixée par l'école : le Beta Test Plan se rend le 7 fé
 | La CI devient plus longue | La compilation du cœur est mise en cache |
 | Le rendu de Tauri varie sur Linux | Test sur deux distributions avant d'annoncer Linux |
 | UniFFI n'est pas en version 1.0 | Versions fixées, montée dans une PR à part |
-| Un moteur d'IA trop lent sur un téléphone moyen | La fiche T-06 mesure avant de choisir, et la troisième marche du [lien](07-lien.md) offre une issue |
+| Un moteur d'IA trop lent sur un téléphone moyen | La fiche T-06 mesure avant de choisir, et la troisième marche du [lien](../architecture/lien.md) offre une issue |
 
 ## Qui fait quoi
 

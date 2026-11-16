@@ -1,8 +1,8 @@
-# 7. Le lien entre appareils
+# Le lien entre appareils
 
 Le téléphone et l'ordinateur d'une même personne se relient directement, sans compte et sans serveur. On y arrive en trois marches, de la plus simple à la plus ambitieuse.
 
-![Le lien entre le téléphone et l'ordinateur, en trois marches](schemas/11-lien.svg)
+![Le lien entre le téléphone et l'ordinateur, en trois marches](../schemas/11-lien.svg)
 
 ## Pourquoi c'est le cœur qui rend le lien possible
 
