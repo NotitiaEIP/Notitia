@@ -54,6 +54,7 @@ import com.example.notitia.ui.components.NotitiaSegmentedControl
 import com.example.notitia.ui.components.SectionHeader
 import com.example.notitia.ui.components.SpeakerChip
 import com.example.notitia.ui.components.rememberContextMenuState
+import com.example.notitia.ui.components.rememberTextShare
 import com.example.notitia.ui.components.rememberToday
 import com.example.notitia.ui.meetings.MeetingListItem
 import com.example.notitia.ui.meetings.sampleMinutes
@@ -66,6 +67,7 @@ import com.example.notitia.ui.theme.NotitiaTheme
 import com.example.notitia.ui.theme.shareIcon
 import kotlin.time.Clock
 import kotlin.time.Instant
+import kotlinx.datetime.TimeZone
 import notitia.shared.generated.resources.Res
 import notitia.shared.generated.resources.delete
 import notitia.shared.generated.resources.edit
@@ -110,6 +112,8 @@ fun MinutesRoute(
     val today = rememberToday()
     val now = remember(today) { Clock.System.now() }
     val minutes = meeting.toMinutes(item)
+    val share = rememberTextShare()
+    val shareWords = rememberMinutesShareWords()
     NavigationBackHandler(
         state = rememberNavigationEventState(NavigationEventInfo.None),
         onBackCompleted = onBack,
@@ -129,12 +133,17 @@ fun MinutesRoute(
         onToggleAction = { index -> onSetDone(ActionId(meeting.id, index), !minutes.actions[index].done) },
         onRename = onRename,
         onDelete = onDelete,
+        onShare = if (meeting.minutes is MinutesState.Written) {
+            { share(minutesShareText(minutes, shareWords, TimeZone.currentSystemDefault())) {} }
+        } else {
+            null
+        },
         transcript = meeting.transcript,
         modifier = modifier,
     )
 }
 
-// notice replaces the minutes when they are not written.
+// notice replaces the minutes when they are not written, and onShare is null then: there is nothing to send.
 @Composable
 fun MinutesScreen(
     minutes: Minutes,
@@ -145,6 +154,7 @@ fun MinutesScreen(
     onToggleAction: (Int) -> Unit,
     onRename: (String) -> Unit,
     onDelete: () -> Unit,
+    onShare: (() -> Unit)?,
     notice: StringResource? = null,
     transcript: List<TranscriptLine> = emptyList(),
     modifier: Modifier = Modifier,
@@ -211,13 +221,15 @@ fun MinutesScreen(
                 else -> item { Column { MinutesContent(minutes, onToggleAction) } }
             }
         }
-        HorizontalDivider(color = NotitiaTheme.colors.divider)
-        NotitiaButton(
-            text = stringResource(Res.string.minutes_share),
-            onClick = {},
-            icon = painterResource(shareIcon),
-            modifier = Modifier.fillMaxWidth().padding(spacing.l),
-        )
+        if (onShare != null) {
+            HorizontalDivider(color = NotitiaTheme.colors.divider)
+            NotitiaButton(
+                text = stringResource(Res.string.minutes_share),
+                onClick = onShare,
+                icon = painterResource(shareIcon),
+                modifier = Modifier.fillMaxWidth().padding(spacing.l),
+            )
+        }
     }
     DestructiveConfirmation(
         destruction = if (confirmingDelete) meetingDeletion(meeting.title) else null,
@@ -379,6 +391,7 @@ private fun MinutesScreenPreview() = NotitiaTheme {
         onToggleAction = {},
         onRename = {},
         onDelete = {},
+        onShare = {},
         modifier = Modifier.background(NotitiaTheme.colors.background),
     )
 }
