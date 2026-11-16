@@ -101,6 +101,8 @@
     <string name="minutes_decisions">Décisions</string>
     <string name="minutes_actions">Actions</string>
     <string name="minutes_summary">Résumé</string>
+    <string name="minutes_summary_more">plus</string>
+    <string name="minutes_summary_unfold">Lire tout le résumé</string>
     <string name="minutes_writing">Rédaction du compte rendu…</string>
     <string name="minutes_failed">Le compte rendu n’a pas pu être rédigé.</string>
     <string name="minutes_unavailable">Le compte rendu n’est pas encore rédigé sur le téléphone.</string>
