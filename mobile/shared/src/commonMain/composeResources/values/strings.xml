@@ -109,6 +109,11 @@
     <string name="minutes_no_summary">Rien à résumer.</string>
     <string name="action_no_owner">Sans responsable</string>
     <string name="minutes_share">Partager le compte rendu</string>
+    <string name="minutes_share_date">%1$s&#160;%2$s %3$s</string>
+    <string name="minutes_share_line">– %1$s</string>
+    <string name="minutes_share_action_owner">– %1$s (%2$s)</string>
+    <string name="minutes_share_action_due">– %1$s, pour le %2$s</string>
+    <string name="minutes_share_action_owner_due">– %1$s (%2$s), pour le %3$s</string>
     <string name="action_due">avant le %1$s</string>
     <string name="action_due_today">aujourd’hui</string>
     <string name="action_due_tomorrow">demain</string>

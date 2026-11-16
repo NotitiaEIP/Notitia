@@ -2,6 +2,8 @@ package com.example.notitia.ui.actions
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import com.example.notitia.ui.components.filled
+import com.example.notitia.ui.components.withoutFinalStop
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -113,14 +115,7 @@ fun nudgeText(nudge: Nudge, words: NudgeWords): String = buildString {
     append(words.thanks)
 }
 
-// The line adds its own comma after the text: a full stop the model left would sit in the middle of it.
 private fun NudgeLine.words(words: NudgeWords): String {
-    val text = text.trim().trimEnd('.', ' ')
+    val text = text.withoutFinalStop()
     return due?.let { words.lineDue.filled(text, words.date(it)) } ?: words.line.filled(text)
 }
-
-// The same placeholders as the resources: %1$s or %1$d.
-private val PLACEHOLDER = Regex("""%(\d+)\$[ds]""")
-
-private fun String.filled(vararg args: String): String =
-    PLACEHOLDER.replace(this) { args[it.groupValues[1].toInt() - 1] }
