@@ -35,6 +35,7 @@ Une fiche se lit en deux minutes et ne change plus : pour revenir sur un choix, 
 | Fiche | Décision | Statut |
 | --- | --- | --- |
 | [0002](adr/0002-coeur-rust.md) | Un cœur Rust pour toutes les apps, une interface par famille d'appareils | Acceptée le 15 novembre 2026 |
+| [0003](adr/0003-format-notitia-v2.md) | Le format `.notitia` version 2 : un identifiant par action, le temps en millisecondes, les champs inconnus gardés | Proposée le 16 novembre 2026 |
 
 ## Ailleurs dans le repo
 

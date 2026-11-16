@@ -10,10 +10,12 @@ crate-type = ["lib", "cdylib", "staticlib"]
 
 [dependencies]
 serde = { version = "1.0.229", features = ["derive"] }
-serde_json = "1.0.154"
-time = { version = "0.3.55", features = ["parsing"] }
+# raw_value: the version of a file is read before the meeting it wraps is.
+serde_json = { version = "1.0.154", features = ["raw_value"] }
+time = { version = "0.3.55", features = ["formatting", "macros", "parsing"] }
 # Exact: UniFFI is not 1.0 yet, and its generated code must match the library it talks to.
 uniffi = "=0.32.2"
+uuid = { version = "1.29.2", features = ["v4"] }
 
 [workspace]
 members = ["uniffi-bindgen"]

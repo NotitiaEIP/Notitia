@@ -1,0 +1,162 @@
+mod id;
+
+use serde::{Deserialize, Serialize};
+use time::{Date, UtcDateTime};
+
+pub use id::{ActionId, InvalidId, MeetingId};
+
+// What a newer app wrote and this one does not know: kept, so rewriting a file loses nothing of it.
+pub type Extra = serde_json::Map<String, serde_json::Value>;
+
+// A day on the calendar, the same in every time zone: an action is due on the 14th wherever the phone is.
+// Written by hand: the module that time generates refuses a null inside the minutes, where serde reads twice.
+pub(crate) mod civil_date {
+    use serde::de::Error as _;
+    use serde::ser::Error as _;
+    use serde::{Deserialize, Deserializer, Serializer};
+    use time::Date;
+    use time::format_description::BorrowedFormatItem;
+    use time::macros::format_description;
+
+    const FORMAT: &[BorrowedFormatItem<'_>] = format_description!("[year]-[month]-[day]");
+
+    pub fn serialize<S: Serializer>(date: &Option<Date>, serializer: S) -> Result<S::Ok, S::Error> {
+        match date {
+            Some(date) => serializer.serialize_str(&date.format(FORMAT).map_err(S::Error::custom)?),
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Date>, D::Error> {
+        let text = Option::<String>::deserialize(deserializer)?;
+        text.map(|text| Date::parse(&text, FORMAT)).transpose().map_err(D::Error::custom)
+    }
+}
+
+// Always written in UTC, whatever offset it was read with: every app then writes the same text for an instant.
+pub(crate) mod instant {
+    use serde::de::Error as _;
+    use serde::ser::Error as _;
+    use serde::{Deserialize, Deserializer, Serializer};
+    use time::UtcDateTime;
+    use time::format_description::well_known::Rfc3339;
+
+    pub fn serialize<S: Serializer>(instant: &UtcDateTime, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&instant.format(&Rfc3339).map_err(S::Error::custom)?)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<UtcDateTime, D::Error> {
+        UtcDateTime::parse(&String::deserialize(deserializer)?, &Rfc3339).map_err(D::Error::custom)
+    }
+}
+
+/// A meeting as the core keeps it, and as version 2 of the `.notitia` format writes it: a field that is absent
+/// and a field that is null mean the same.
+///
+/// Product rule 1, held by the compiler: outside the tests a meeting has no `Debug`, so no log can print one.
+///
+/// ```
+/// fn exists<T>() {}
+/// exists::<notitia_core::meeting::Meeting>();
+/// ```
+///
+/// ```compile_fail
+/// fn printable<T: std::fmt::Debug>() {}
+/// printable::<notitia_core::meeting::Meeting>();
+/// ```
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(Debug))]
+#[serde(rename_all = "camelCase")]
+pub struct Meeting {
+    pub id: MeetingId,
+    #[serde(with = "instant")]
+    pub started_at: UtcDateTime,
+    // The audio actually heard, pauses left out.
+    pub duration_ms: u64,
+    // When and where it last changed, so two devices can be reconciled later (E10).
+    #[serde(with = "instant")]
+    pub modified_at: UtcDateTime,
+    pub device: String,
+    // None until the user names the meeting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    // Named by the user, meeting by meeting: no voiceprint links them across meetings (product rule 4).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub speakers: Vec<String>,
+    pub minutes: MinutesState,
+    // Last, as the longest: whoever reads a file by eye finds the rest first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub transcript: Vec<TranscriptLine>,
+    #[serde(flatten)]
+    pub extra: Extra,
+}
+
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(Debug))]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum MinutesState {
+    Writing,
+    Written { minutes: Minutes },
+    Failed,
+    // No writer in this build.
+    Unavailable,
+}
+
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(Debug))]
+pub struct Minutes {
+    pub summary: String,
+    pub decisions: Vec<String>,
+    pub actions: Vec<Action>,
+    #[serde(flatten)]
+    pub extra: Extra,
+}
+
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(Debug))]
+pub struct Action {
+    pub id: ActionId,
+    pub text: String,
+    // A first name, as said in the meeting: None when nobody was named.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner: Option<String>,
+    #[serde(default, with = "civil_date", skip_serializing_if = "Option::is_none")]
+    pub due: Option<Date>,
+    pub done: bool,
+    // Asked by the user: a notification the day before the action is due.
+    #[serde(default)]
+    pub reminder: bool,
+    // None when the minutes cannot point to the sentence.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<ActionSource>,
+    #[serde(flatten)]
+    pub extra: Extra,
+}
+
+// The sentence as transcribed, never as the model rewrote it.
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(Debug))]
+#[serde(rename_all = "camelCase")]
+pub struct ActionSource {
+    pub quote: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speaker: Option<String>,
+    pub at_ms: u64,
+    #[serde(flatten)]
+    pub extra: Extra,
+}
+
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(Debug))]
+#[serde(rename_all = "camelCase")]
+pub struct TranscriptLine {
+    pub at_ms: u64,
+    // None for a passage the engine could not transcribe.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    // None until the voices are told apart (E2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speaker: Option<String>,
+    #[serde(flatten)]
+    pub extra: Extra,
+}

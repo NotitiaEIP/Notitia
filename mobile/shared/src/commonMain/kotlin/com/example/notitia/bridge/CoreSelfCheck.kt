@@ -14,6 +14,9 @@ import kotlinx.io.files.SystemTemporaryDirectory
 
 private const val STARTED_AT_MS = 1_794_303_000_000
 
+// The core reads formats the Kotlin codec does not write yet: only a version far ahead is newer for both.
+private const val FORMAT_NO_APP_READS = 1_000
+
 // Made up, so the marker and the file say nothing of a real meeting.
 private val sample = Meeting(
     id = "core-self-check",
@@ -44,7 +47,7 @@ class CoreSelfCheck(
             write(
                 newer,
                 written.decodeToString()
-                    .replace("\"version\":$MEETING_FORMAT_VERSION", "\"version\":${MEETING_FORMAT_VERSION + 1}")
+                    .replace("\"version\":$MEETING_FORMAT_VERSION", "\"version\":$FORMAT_NO_APP_READS")
                     .encodeToByteArray(),
             )
             val expected = MeetingSummary(sample.id, sample.title, STARTED_AT_MS)
