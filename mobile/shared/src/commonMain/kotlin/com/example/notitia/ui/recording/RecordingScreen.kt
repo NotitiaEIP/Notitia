@@ -48,6 +48,7 @@ import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
 import com.example.notitia.ui.theme.reducedMotion
 import kotlin.time.Clock
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import notitia.shared.generated.resources.Res
@@ -71,7 +72,8 @@ import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun RecordingScreen(
-    recording: RecorderState.Active,
+    phase: RecordingPhase,
+    recording: () -> RecorderState.Active?,
     onCollapse: () -> Unit,
     onMark: () -> Unit,
     onStop: () -> Unit,
@@ -84,22 +86,12 @@ fun RecordingScreen(
         modifier = modifier.padding(horizontal = spacing.l),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        TopBar(recording, onCollapse)
+        TopBar(phase, onCollapse)
         Spacer(Modifier.weight(1f))
-        BasicText(
-            text = timerText(recording.recorded),
-            style = NotitiaTheme.typography.timer.copy(
-                color = NotitiaTheme.colors.text,
-                textAlign = TextAlign.Center,
-            ),
-            maxLines = 1,
-            // At 200 % text, the hours would no longer fit on a small phone.
-            autoSize = TextAutoSize.StepBased(maxFontSize = NotitiaTheme.typography.timer.fontSize),
-            modifier = Modifier.fillMaxWidth(),
-        )
+        Timer(recording)
         RecordingWave(recording, moving = visible, modifier = Modifier.padding(top = spacing.xl))
         // The user did not stop it: say why it stopped and what brings it back.
-        if (recording is RecorderState.Interrupted) {
+        if (phase == RecordingPhase.Interrupted) {
             Text(
                 text = stringResource(Res.string.recording_interrupted_hint),
                 style = NotitiaTheme.typography.callout,
@@ -109,12 +101,26 @@ fun RecordingScreen(
             )
         }
         Spacer(Modifier.weight(1f))
-        Controls(recording, onMark, onStop, onTogglePause, Modifier.padding(bottom = spacing.xl))
+        Controls(phase, onMark, onStop, onTogglePause, Modifier.padding(bottom = spacing.xl))
     }
 }
 
+// A scope of its own: each read of the microphone recomposes the timer, not the screen around it.
 @Composable
-private fun TopBar(recording: RecorderState.Active, onCollapse: () -> Unit) {
+private fun Timer(recording: () -> RecorderState.Active?) = BasicText(
+    text = timerText(recording()?.recorded ?: Duration.ZERO),
+    style = NotitiaTheme.typography.timer.copy(
+        color = NotitiaTheme.colors.text,
+        textAlign = TextAlign.Center,
+    ),
+    maxLines = 1,
+    // At 200 % text, the hours would no longer fit on a small phone.
+    autoSize = TextAutoSize.StepBased(maxFontSize = NotitiaTheme.typography.timer.fontSize),
+    modifier = Modifier.fillMaxWidth(),
+)
+
+@Composable
+private fun TopBar(phase: RecordingPhase, onCollapse: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -131,9 +137,9 @@ private fun TopBar(recording: RecorderState.Active, onCollapse: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.s, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            RecordingDot(recording.held)
+            RecordingDot(phase.held)
             Text(
-                text = recordingStatus(recording),
+                text = recordingStatus(phase),
                 style = NotitiaTheme.typography.bodyStrong,
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
@@ -145,15 +151,26 @@ private fun TopBar(recording: RecorderState.Active, onCollapse: () -> Unit) {
     }
 }
 
+// What the sheet shows of a recording besides the timer and the wave: a pause, a resume or a cut changes it, a read
+// of the microphone does not.
+enum class RecordingPhase { Listening, Paused, Interrupted }
+
+val RecorderState.Active.phase: RecordingPhase
+    get() = when (this) {
+        is RecorderState.Recording -> RecordingPhase.Listening
+        is RecorderState.Paused -> RecordingPhase.Paused
+        is RecorderState.Interrupted -> RecordingPhase.Interrupted
+    }
+
 // An interruption shows like a pause the user did not ask for: amber, and Resume listens again.
-val RecorderState.Active.held: Boolean get() = this !is RecorderState.Recording
+val RecordingPhase.held: Boolean get() = this != RecordingPhase.Listening
 
 @Composable
-fun recordingStatus(recording: RecorderState.Active): String = stringResource(
-    when (recording) {
-        is RecorderState.Recording -> Res.string.recording_in_progress
-        is RecorderState.Paused -> Res.string.recording_paused
-        is RecorderState.Interrupted -> Res.string.recording_interrupted
+fun recordingStatus(phase: RecordingPhase): String = stringResource(
+    when (phase) {
+        RecordingPhase.Listening -> Res.string.recording_in_progress
+        RecordingPhase.Paused -> Res.string.recording_paused
+        RecordingPhase.Interrupted -> Res.string.recording_interrupted
     },
 )
 
@@ -183,7 +200,7 @@ fun RecordingDot(paused: Boolean) {
 
 @Composable
 private fun Controls(
-    recording: RecorderState.Active,
+    phase: RecordingPhase,
     onMark: () -> Unit,
     onStop: () -> Unit,
     onTogglePause: () -> Unit,
@@ -191,9 +208,9 @@ private fun Controls(
 ) {
     val colors = NotitiaTheme.colors
     val sizes = NotitiaTheme.sizes
-    val paused = recording.held
+    val paused = phase.held
     // After an interruption, Resume is the one thing left to do: it takes the colour that means acting.
-    val resumeFirst = recording is RecorderState.Interrupted
+    val resumeFirst = phase == RecordingPhase.Interrupted
     // Bottom-aligned, so the three labels stay on one line although the stop button is bigger.
     // Each control gets a third of the width, so "Reprendre", longer than "Pause", moves nothing.
     Row(
@@ -298,8 +315,10 @@ private fun RecordingControl(
 @NotitiaPreviews
 @Composable
 private fun RecordingScreenPreview() = NotitiaTheme {
+    val sample = RecorderState.Recording(Clock.System.now(), 12.minutes + 34.seconds, level = 0.5f)
     RecordingScreen(
-        recording = RecorderState.Recording(Clock.System.now(), 12.minutes + 34.seconds, level = 0.5f),
+        phase = sample.phase,
+        recording = { sample },
         onCollapse = {},
         onMark = {},
         onStop = {},
@@ -311,8 +330,10 @@ private fun RecordingScreenPreview() = NotitiaTheme {
 @NotitiaPreviews
 @Composable
 private fun InterruptedRecordingScreenPreview() = NotitiaTheme {
+    val sample = RecorderState.Interrupted(Clock.System.now(), 1.minutes * 62 + 3.seconds)
     RecordingScreen(
-        recording = RecorderState.Interrupted(Clock.System.now(), 1.minutes * 62 + 3.seconds),
+        phase = sample.phase,
+        recording = { sample },
         onCollapse = {},
         onMark = {},
         onStop = {},

@@ -25,6 +25,7 @@ import com.example.notitia.meeting.RecorderState
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
 import kotlin.time.Clock
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import notitia.shared.generated.resources.Res
@@ -38,7 +39,8 @@ import org.jetbrains.compose.resources.stringResource
 // hold gets its Resume button here too, so nobody has to open the sheet to notice it stopped.
 @Composable
 fun RecordingMiniBar(
-    recording: RecorderState.Active,
+    phase: RecordingPhase,
+    recording: () -> RecorderState.Active?,
     onStop: () -> Unit,
     onResume: () -> Unit,
     modifier: Modifier = Modifier,
@@ -52,19 +54,15 @@ fun RecordingMiniBar(
         horizontalArrangement = Arrangement.spacedBy(spacing.s),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        RecordingDot(recording.held)
+        RecordingDot(phase.held)
         Text(
-            text = recordingStatus(recording),
+            text = recordingStatus(phase),
             style = NotitiaTheme.typography.bodyStrong,
             maxLines = 1,
             modifier = Modifier.weight(1f),
         )
-        Text(
-            text = timerText(recording.recorded),
-            style = NotitiaTheme.typography.bodyStrong.copy(fontFeatureSettings = "tnum"),
-            maxLines = 1,
-        )
-        if (recording.held) {
+        MiniBarTimer(recording)
+        if (phase.held) {
             MiniBarButton(stringResource(Res.string.recording_resume), onResume, NotitiaTheme.colors.accentSoft) {
                 Icon(
                     painter = painterResource(Res.drawable.play_filled),
@@ -83,6 +81,14 @@ fun RecordingMiniBar(
         }
     }
 }
+
+// A scope of its own: each read of the microphone recomposes the timer, not the bar around it.
+@Composable
+private fun MiniBarTimer(recording: () -> RecorderState.Active?) = Text(
+    text = timerText(recording()?.recorded ?: Duration.ZERO),
+    style = NotitiaTheme.typography.bodyStrong.copy(fontFeatureSettings = "tnum"),
+    maxLines = 1,
+)
 
 @Composable
 private fun MiniBarButton(description: String, onClick: () -> Unit, background: Color, icon: @Composable () -> Unit) {
@@ -117,17 +123,17 @@ private fun RecordingMiniBarPreview() = NotitiaTheme {
         verticalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.l),
     ) {
         val startedAt = Clock.System.now()
-        RecordingMiniBar(
-            recording = RecorderState.Recording(startedAt, 12.minutes + 34.seconds, level = 0.5f),
-            onStop = {},
-            onResume = {},
-            modifier = Modifier.background(NotitiaTheme.colors.surfaceRaised, NotitiaTheme.shapes.full),
-        )
-        RecordingMiniBar(
-            recording = RecorderState.Interrupted(startedAt, 12.minutes + 34.seconds),
-            onStop = {},
-            onResume = {},
-            modifier = Modifier.background(NotitiaTheme.colors.surfaceRaised, NotitiaTheme.shapes.full),
-        )
+        listOf(
+            RecorderState.Recording(startedAt, 12.minutes + 34.seconds, level = 0.5f),
+            RecorderState.Interrupted(startedAt, 12.minutes + 34.seconds),
+        ).forEach { sample ->
+            RecordingMiniBar(
+                phase = sample.phase,
+                recording = { sample },
+                onStop = {},
+                onResume = {},
+                modifier = Modifier.background(NotitiaTheme.colors.surfaceRaised, NotitiaTheme.shapes.full),
+            )
+        }
     }
 }
