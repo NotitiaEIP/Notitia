@@ -60,6 +60,8 @@ object NotitiaSizes {
     val speakerAvatar = 22.dp
     val speakerDot = 8.dp
     val bullet = 6.dp
+    // The fade before « plus » on a folded text: wide enough that no letter is cut sharp.
+    val summaryFade = 40.dp
     val progressBar = 4.dp
     val tabBar = 64.dp
     val selectionBar = 64.dp

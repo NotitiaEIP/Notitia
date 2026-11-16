@@ -25,8 +25,12 @@ fun sampleWrittenMinutes(meetingId: String, today: LocalDate): WrittenMinutes = 
 )
 
 private val sampleSummaries = mapOf(
+    // Longer than three lines, as real minutes are: the fold of the summary shows on it.
     "sample-1" to "Le prototype enregistre et transcrit sur le téléphone. La démo de la transcription est " +
-        "prête pour lundi ; il reste le registre RGPD à rédiger.",
+        "prête pour lundi ; il reste le registre RGPD à rédiger. L’équipe a revu le parcours d’enregistrement : " +
+        "un seul geste pour démarrer, une mini-barre pour suivre la réunion depuis les autres onglets. Le compte " +
+        "rendu arrive encore trop tard après l’arrêt, il faudra le préparer pendant la réunion. Lucas vérifie " +
+        "que l’audio reste chiffré sur le disque, Adam prépare les questions pour les entretiens de la semaine.",
     "sample-2" to "Sophie, cadre de santé, veut relire le compte rendu avant de le partager, et que l’audio " +
         "ne quitte jamais le téléphone.",
     "sample-3" to "L’accueil garde un seul bouton Enregistrer, en bas de l’écran. Nathan teste l’enregistrement " +
