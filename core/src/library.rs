@@ -1,3 +1,4 @@
+mod index;
 mod store;
 
 use std::cmp::Ordering;
@@ -97,11 +98,16 @@ impl Library {
         let read = |_: io::Error| LibraryError::Unreadable;
         let store = Store::open(directory).map_err(read)?;
         let device = store.device().map_err(read)?;
-        let stored = store.load().map_err(read)?.into_iter();
-        let entries = stored.map(|meeting| Entry { meeting: meeting.interrupted(), transcript: Transcript::Written });
+        let (stored, index) = store.load(clock()).map_err(read)?;
+        let entries =
+            stored.into_iter().map(|meeting| Entry { meeting: meeting.interrupted(), transcript: Transcript::Written });
         let mut meetings = Meetings { entries: entries.collect(), deleted: HashSet::new() };
         meetings.sort();
         listener.on_event(&Event::Listed(meetings.list()));
+        // After the list: the first screen does not wait for a cache to reach the disk.
+        if let Some(index) = index {
+            store.keep(index);
+        }
         Ok(Self { store, device, listener, clock, behind: Mutex::default(), meetings: Mutex::new(meetings) })
     }
 
@@ -262,6 +268,7 @@ mod tests {
     use crate::meeting::{ActionDraft, ActionId, Edit, MinutesDraft, MinutesState, Snapshot};
 
     const NOW: UtcDateTime = utc_datetime!(2026-11-11 8:00);
+    const LONG_BEFORE: UtcDateTime = utc_datetime!(2026-11-10 8:00);
     const V1_BY_KOTLIN: &str = include_str!("../tests/fixtures/meeting-v1.notitia");
 
     // The side of the app, in a few lines: its list is rebuilt from the events alone.
@@ -273,6 +280,8 @@ mod tests {
         unsaved: Mutex<Vec<MeetingId>>,
         // The file of a meeting as it stood when its change was told.
         files_when_told: Mutex<Vec<Option<Meeting>>>,
+        // Whether the folder had its index each time the list was told.
+        index_when_listed: Mutex<Vec<bool>>,
     }
 
     impl Listener for App {
@@ -280,7 +289,10 @@ mod tests {
             self.events.lock().unwrap().push(event.clone());
             let mut list = self.list.lock().unwrap();
             match event {
-                Event::Listed(meetings) => list.clone_from(meetings),
+                Event::Listed(meetings) => {
+                    self.index_when_listed.lock().unwrap().push(self.folder.join("index").exists());
+                    list.clone_from(meetings);
+                }
                 Event::Changed(meeting) => {
                     self.files_when_told.lock().unwrap().push(on_disk(&self.folder, &meeting.id));
                     list.retain(|known| known.id != meeting.id);
@@ -308,6 +320,17 @@ mod tests {
         let store = Store::open(folder.path().into()).unwrap();
         stored.iter().for_each(|meeting| store.write(meeting).unwrap());
         launch(folder)
+    }
+
+    // Its meetings written long before the launch: the next launch trusts what the index kept of them.
+    fn settled(stored: &[Meeting]) -> (Phone, Store) {
+        let folder = tempfile::tempdir().unwrap();
+        let store = Store::open(folder.path().into()).unwrap();
+        for meeting in stored {
+            store.write(meeting).unwrap();
+            store.date(&meeting.id, LONG_BEFORE);
+        }
+        (launch(folder), store)
     }
 
     fn launch(folder: TempDir) -> Phone {
@@ -401,6 +424,38 @@ mod tests {
     fn minutes_left_writing_by_a_killed_app_have_failed() {
         let phone = phone(&[Meeting { minutes: MinutesState::Writing, ..meeting("recorded-1") }]);
         assert_eq!(phone.list()[0].minutes, MinutesState::Failed);
+    }
+
+    #[test]
+    fn the_list_is_told_before_the_index_is_written() {
+        let phone = phone(&[meeting("recorded-1")]);
+        assert_eq!(*phone.app.index_when_listed.lock().unwrap(), [false]);
+        assert!(phone.path("index").exists());
+    }
+
+    #[test]
+    fn a_meeting_is_listed_from_the_index_without_its_file_being_read() {
+        let killed = Meeting { minutes: MinutesState::Writing, ..heard("recorded-1") };
+        let (phone, store) = settled(std::slice::from_ref(&killed));
+        let listed = phone.list();
+        assert_eq!(listed[0].minutes, MinutesState::Failed);
+        // Blanked, with the size and the date it had: reading it would lose the meeting.
+        let size = fs::metadata(phone.path("recorded-1.notitia")).unwrap().len();
+        fs::write(phone.path("recorded-1.notitia"), " ".repeat(usize::try_from(size).unwrap())).unwrap();
+        store.date(&killed.id, LONG_BEFORE);
+        assert_eq!(phone.relaunched().list(), listed);
+    }
+
+    #[test]
+    fn a_change_made_by_the_app_overrules_the_index_at_the_next_launches() {
+        let (phone, store) = settled(&[heard("recorded-1")]);
+        phone.rename("recorded-1", "Point produit");
+        // Dated as the file the index knows, so that its size alone tells the two apart.
+        store.date(&id("recorded-1"), LONG_BEFORE);
+        let shown = phone.list();
+        let phone = phone.relaunched();
+        assert_eq!(phone.list(), shown);
+        assert_eq!(phone.relaunched().list(), shown);
     }
 
     #[test]

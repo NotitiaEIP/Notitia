@@ -2,8 +2,10 @@ use std::fs::{self, DirBuilder, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
+use time::UtcDateTime;
 use uuid::Uuid;
 
+use super::index::{Index, Stat};
 use crate::format;
 use crate::meeting::{Meeting, MeetingId};
 
@@ -11,6 +13,7 @@ use crate::meeting::{Meeting, MeetingId};
 const EXTENSION: &str = ".notitia";
 const DRAFT: &str = ".tmp";
 const DEVICE: &str = "device";
+const INDEX: &str = "index";
 
 // The one place that touches the disk, one file per meeting: a damaged file loses one meeting and not all of them.
 // Every byte goes through read_file and write_file: US-81 encrypts there.
@@ -47,26 +50,51 @@ impl Store {
         }
     }
 
-    // Every meeting without its lines, so the transcripts are never all in memory at once. A file this app cannot
-    // read stays on disk: a newer app may read it after an update. A draft goes: it is the words of a meeting the
-    // user may have deleted since, and nothing writes while the folder is read.
-    pub fn load(&self) -> io::Result<Vec<Meeting>> {
+    // Every meeting without its lines, so the transcripts are never all in memory at once, and the index to keep
+    // when the folder no longer says what the last one did. A file this app cannot read stays on disk: a newer app
+    // may read it after an update. A draft goes: it is the words of a meeting the user may have deleted since, and
+    // nothing writes while the folder is read.
+    pub fn load(&self, now: UtcDateTime) -> io::Result<(Vec<Meeting>, Option<Index>)> {
+        let known = self.read_file(INDEX).ok().and_then(|bytes| Index::decode(&bytes)).unwrap_or_default();
+        let mut index = Index::read_at(now);
         let mut meetings = Vec::new();
+        let mut trusted = 0;
         for entry in fs::read_dir(&self.directory)? {
             let name = entry?.file_name();
             let Some(name) = name.to_str() else { continue };
             if name.ends_with(DRAFT) {
                 let _ = fs::remove_file(self.directory.join(name));
-            } else if let Some(id) = name.strip_suffix(EXTENSION)
-                && let Ok(mut meeting) = self.decode(name)
-                // Under another name, deleting the meeting would miss its file and bring it back at each launch.
-                && meeting.id.as_str() == id
-            {
-                meeting.transcript = Vec::new();
+            } else if let Some(id) = name.strip_suffix(EXTENSION).and_then(|id| MeetingId::new(id).ok()) {
+                // Its size and date before its words: a file that changes in between is kept newer than its date
+                // says, and the next launch reads it again. The other way round would hide the change.
+                let file = fs::metadata(self.directory.join(name)).ok().as_ref().and_then(Stat::of);
+                let meeting = match file.and_then(|file| known.trusted(&id, file)) {
+                    Some(kept) => {
+                        trusted += 1;
+                        kept.clone()
+                    }
+                    None => match self.decode(name) {
+                        // Under another name, deleting the meeting would miss its file and bring it back at each
+                        // launch.
+                        Ok(read) if read.id == id => Meeting { transcript: Vec::new(), ..read },
+                        _ => continue,
+                    },
+                };
+                if let Some(file) = file {
+                    index.keep(file, meeting.clone());
+                }
                 meetings.push(meeting);
             }
         }
-        Ok(meetings)
+        let unchanged = trusted == known.len() && trusted == index.len();
+        Ok((meetings, (!unchanged).then_some(index)))
+    }
+
+    // A cache: when it cannot be written, the next launch reads the files again.
+    pub fn keep(&self, index: Index) {
+        if let Some(bytes) = index.encode() {
+            let _ = self.write_file(INDEX, &bytes);
+        }
     }
 
     pub fn read(&self, id: &MeetingId) -> io::Result<Meeting> {
@@ -142,9 +170,27 @@ fn write_flushed(path: &Path, bytes: &[u8]) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use tempfile::TempDir;
+    use time::Duration;
+    use time::macros::utc_datetime;
 
     use super::*;
     use crate::meeting::testing::{heard, id, meeting, written};
+
+    const V1_BY_KOTLIN: &str = include_str!("../../tests/fixtures/meeting-v1.notitia");
+    const FILE: &str = "recorded-1.notitia";
+    // A launch, the one after it, and a write long before both. The files a test does not date bear the day the
+    // test runs, later than any of them: never trusted, they are read at each launch as without an index.
+    const OPENED: UtcDateTime = utc_datetime!(2026-11-11 8:00);
+    const LATER: UtcDateTime = utc_datetime!(2026-11-12 8:00);
+    const BEFORE: UtcDateTime = utc_datetime!(2026-11-10 8:00);
+
+    impl Store {
+        // As a write at that time would have left the file.
+        pub(in crate::library) fn date(&self, id: &MeetingId, at: UtcDateTime) {
+            let file = OpenOptions::new().write(true).open(self.directory.join(file_of(id))).unwrap();
+            file.set_modified(at.into()).unwrap();
+        }
+    }
 
     fn store() -> (TempDir, Store) {
         let folder = tempfile::tempdir().unwrap();
@@ -152,19 +198,40 @@ mod tests {
         (folder, store)
     }
 
+    // What a launch lists, by identifier, its index kept as a launch keeps it.
+    fn opened(store: &Store, now: UtcDateTime) -> Vec<Meeting> {
+        let (mut meetings, index) = store.load(now).unwrap();
+        index.into_iter().for_each(|index| store.keep(index));
+        meetings.sort_by(|a, b| a.id.cmp(&b.id));
+        meetings
+    }
+
     fn ids(store: &Store) -> Vec<String> {
-        let mut ids: Vec<String> = store.load().unwrap().into_iter().map(|meeting| meeting.id.into()).collect();
-        ids.sort();
-        ids
+        opened(store, OPENED).into_iter().map(|meeting| meeting.id.into()).collect()
+    }
+
+    fn titled(title: &str) -> Meeting {
+        Meeting { title: Some(title.into()), ..meeting("recorded-1") }
+    }
+
+    // A meeting listed at OPENED, then replaced outside the app by one of the same size, its date left as it was.
+    fn replaced_unseen(written: UtcDateTime) -> (TempDir, Store) {
+        let (folder, store) = store();
+        store.write(&titled("Point A")).unwrap();
+        store.date(&id("recorded-1"), written);
+        assert_eq!(opened(&store, OPENED), [titled("Point A")]);
+        store.write(&titled("Point B")).unwrap();
+        store.date(&id("recorded-1"), written);
+        (folder, store)
     }
 
     #[test]
     fn a_written_meeting_is_read_back_and_listed_without_its_lines() {
         let (_folder, store) = store();
-        assert_eq!(store.load().unwrap(), []);
+        assert_eq!(opened(&store, OPENED), []);
         store.write(&heard("recorded-1")).unwrap();
         assert_eq!(store.read(&id("recorded-1")).unwrap(), heard("recorded-1"));
-        assert_eq!(Store::open(store.directory.clone()).unwrap().load().unwrap(), [meeting("recorded-1")]);
+        assert_eq!(opened(&Store::open(store.directory.clone()).unwrap(), OPENED), [meeting("recorded-1")]);
     }
 
     #[test]
@@ -173,7 +240,7 @@ mod tests {
         store.write(&meeting("recorded-1")).unwrap();
         let corrected = Meeting { minutes: written(&["Envoyer le compte rendu"]), ..meeting("recorded-1") };
         store.write(&corrected).unwrap();
-        assert_eq!(store.load().unwrap(), [corrected]);
+        assert_eq!(opened(&store, OPENED), [corrected]);
     }
 
     #[test]
@@ -254,8 +321,101 @@ mod tests {
 
         let (_folder, store) = store();
         store.write(&meeting("recorded-1")).unwrap();
+        opened(&store, OPENED);
         let mode = |path: PathBuf| fs::metadata(path).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode(store.directory.clone()), 0o700);
-        assert_eq!(mode(store.directory.join("recorded-1.notitia")), 0o600);
+        assert_eq!(mode(store.directory.join(FILE)), 0o600);
+        // The index holds titles and minutes: it is written as a meeting is.
+        assert_eq!(mode(store.directory.join(INDEX)), 0o600);
+        assert!(!store.directory.join("index.tmp").exists());
+    }
+
+    #[test]
+    fn the_index_keeps_every_meeting_without_its_lines() {
+        let (_folder, store) = store();
+        fs::write(store.directory.join(FILE), V1_BY_KOTLIN).unwrap();
+        store.write(&heard("recorded-2")).unwrap();
+        ["recorded-1", "recorded-2"].iter().for_each(|meeting| store.date(&id(meeting), BEFORE));
+        let read_from_the_files = opened(&store, OPENED);
+        assert_eq!(read_from_the_files.len(), 2);
+        let index = fs::read_to_string(store.directory.join(INDEX)).unwrap();
+        assert!(index.contains("Revue de sprint") && !index.contains("transcript"));
+        let (mut kept, to_write) = store.load(LATER).unwrap();
+        kept.sort_by(|a, b| a.id.cmp(&b.id));
+        assert_eq!(kept, read_from_the_files);
+        assert!(to_write.is_none());
+        assert_eq!(fs::read_to_string(store.directory.join(FILE)).unwrap(), V1_BY_KOTLIN);
+    }
+
+    // The limit of any cache by date, and the proof that the file was not opened.
+    #[test]
+    fn a_file_with_the_size_and_the_date_it_had_is_not_read_again() {
+        let (_folder, store) = replaced_unseen(BEFORE);
+        assert_eq!(opened(&store, LATER), [titled("Point A")]);
+    }
+
+    #[test]
+    fn a_file_as_recent_as_the_index_is_read_again() {
+        for written in [OPENED - Duration::seconds(2), OPENED - Duration::seconds(1), OPENED + Duration::hours(1)] {
+            let (_folder, store) = replaced_unseen(written);
+            assert_eq!(opened(&store, LATER), [titled("Point B")]);
+            // Older than the index it is now kept in: trusted from here on.
+            assert!(store.load(LATER + Duration::hours(2)).unwrap().1.is_none());
+        }
+    }
+
+    #[test]
+    fn an_index_missing_damaged_or_of_another_version_is_built_again() {
+        let damages: [fn(&str) -> Option<String>; 5] = [
+            |_| None,
+            |_| Some(String::new()),
+            |index| Some(index[..20].into()),
+            |index| Some(index.replace("\"version\":1,", "\"version\":2,")),
+            |index| Some(index.replace("\"format\":2,", "\"format\":1,")),
+        ];
+        for damage in damages {
+            let (_folder, store) = replaced_unseen(BEFORE);
+            let index = store.directory.join(INDEX);
+            let kept = fs::read_to_string(&index).unwrap();
+            let damaged = damage(&kept);
+            assert_ne!(damaged.as_deref(), Some(kept.as_str()));
+            match damaged {
+                Some(damaged) => fs::write(&index, damaged).unwrap(),
+                None => fs::remove_file(&index).unwrap(),
+            }
+            assert_eq!(opened(&store, LATER), [titled("Point B")]);
+            assert!(store.load(LATER).unwrap().1.is_none());
+        }
+    }
+
+    #[test]
+    fn a_file_changed_added_or_removed_outside_the_app_is_seen_at_the_next_launch() {
+        let (_folder, store) = store();
+        let dated = |meeting: &Meeting, at: UtcDateTime| {
+            store.write(meeting).unwrap();
+            store.date(&meeting.id, at);
+        };
+        ["recorded-1", "recorded-2", "recorded-3"].iter().for_each(|stored| dated(&meeting(stored), BEFORE));
+        assert_eq!(opened(&store, OPENED).len(), 3);
+        let of_another_size = titled("Point produit");
+        let of_another_date = Meeting { device: "phone-2".into(), ..meeting("recorded-2") };
+        dated(&of_another_size, BEFORE);
+        dated(&of_another_date, BEFORE + Duration::seconds(1));
+        fs::remove_file(store.directory.join("recorded-3.notitia")).unwrap();
+        dated(&meeting("recorded-4"), BEFORE);
+        assert_eq!(opened(&store, LATER), [of_another_size, of_another_date, meeting("recorded-4")]);
+        assert!(store.load(LATER).unwrap().1.is_none());
+    }
+
+    #[test]
+    fn an_index_that_cannot_be_written_is_not_an_error() {
+        let (_folder, store) = store();
+        fs::create_dir(store.directory.join(INDEX)).unwrap();
+        store.write(&meeting("recorded-1")).unwrap();
+        store.date(&id("recorded-1"), BEFORE);
+        for launch in [OPENED, LATER] {
+            assert_eq!(opened(&store, launch), [meeting("recorded-1")]);
+        }
+        assert!(!store.directory.join("index.tmp").exists());
     }
 }
