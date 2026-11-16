@@ -302,7 +302,7 @@ Natif dans les gestes, Notitia dans le style : retour, clavier, partage et vibra
 - **Partagé** : tous les écrans par défaut, écrits une fois dans `commonMain` avec Compose Multiplatform et le thème Notitia.
 - **Android** : Material 3 habillé de nos jetons, couleurs dynamiques coupées, affichage bord à bord, retour prédictif.
 - **iPhone** : les mêmes écrans, sans effet d'onde, avec le geste retour, l'icône de partage et les vibrations d'iOS. En Swift seulement le widget, la Live Activity, et un écran s'il le justifie, avec les mêmes couleurs et la même police.
-- **Téléphones hors des cases** : Huawei est hors du périmètre de la bêta. Sur Samsung et Xiaomi, tester l'enregistrement long en arrière-plan. Écrans de 360 à 430 dp de large ; la tablette viendra plus tard.
+- **Téléphones hors des cases** : Huawei est hors du périmètre de la bêta. Sur Samsung et Xiaomi, tester l'enregistrement long en arrière-plan. Écrans de 360 à 430 dp de large, en portrait seulement. Sur une tablette ou un pliant ouvert, l'app tourne et son contenu reste centré, 640 dp au plus (`sizes.contentMaxWidth`) ; la mise en page des grands écrans et l'iPad viendront plus tard.
 - **À vérifier sur un vrai iPhone** : que la taille de texte du système agrandit bien nos textes (la documentation de Compose Multiplatform ne le dit pas), VoiceOver, et le geste retour, qui passe par Navigation 3, encore en alpha.
 
 ## Dans le code
