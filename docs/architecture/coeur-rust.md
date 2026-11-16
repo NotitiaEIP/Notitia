@@ -44,11 +44,9 @@ Trois règles pour que ce pont ne devienne pas le maillon faible :
 
 1. **Seulement les ponts officiels**, Kotlin et Swift. Les ponts tenus par des tiers (vers Kotlin Multiplatform, vers C#) sont encore jeunes.
 2. **Versions fixées.** Rust et UniFFI ne montent de version que dans une PR à part.
-3. **La preuve d'abord.** Avant de porter le cœur, un mini cœur est appelé depuis Android et depuis l'iPhone. Si l'iPhone coince, on le sait en quelques jours.
+3. **La preuve d'abord.** Avant de porter le cœur, un mini cœur a été appelé depuis Android et depuis l'iPhone (T-55). Le résultat est dans l'[ADR 0002](../adr/0002-coeur-rust.md#résultat-de-la-preuve-du-pont-t-55).
 
 ## Le trajet d'une réunion
-
-Le schéma montre ce que fait le cœur, et le peu qui reste à la façade.
 
 ![Le trajet d'une réunion](../schemas/07-trajet-reunion.svg)
 

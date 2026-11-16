@@ -12,8 +12,6 @@ Tous les liens sont dans [la page des sources](sources.md).
 
 ## Les leaders : deux étages
 
-Une app se découpe en deux étages. Celui du haut affiche, celui du bas travaille. Le tableau montre ce que chaque produit met à chaque étage.
-
 ![Comment font les leaders : deux étages](../schemas/03-leaders.svg)
 
 | Produit | Ce qu'on en retient pour Notitia |

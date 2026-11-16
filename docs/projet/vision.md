@@ -32,16 +32,11 @@ C'est comme un restaurant avec une seule cuisine et plusieurs salles. La cuisine
 
 ## Où vit le code
 
-Tout est dans un seul repo. Les dossiers `core/` et `desktop/` arrivent avec le chantier.
+Tout est dans un seul repo. L'app Windows et Linux y aura son propre dossier quand son chantier commencera.
 
-```text
-Notitia/
-├── core/      le cœur Rust (à venir)
-├── mobile/    les écrans Android et iPhone, en Kotlin
-├── macos/     l'app Mac, en Swift
-├── desktop/   l'app Windows et Linux, dans Tauri (à venir)
-└── docs/      ce dossier
-```
+![La carte du repo : chaque dossier, ce qu'il contient, et qui le relit](../schemas/14-carte-du-repo.svg)
+
+Le détail, dossier par dossier, est dans [Bien démarrer](../demarrer.md#se-repérer).
 
 ## La vision à long terme
 

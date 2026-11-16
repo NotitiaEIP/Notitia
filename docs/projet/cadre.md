@@ -81,6 +81,8 @@ Pendant la bêta, tout le monde est en Bibliotheca et personne ne paie. On ne co
 
 ## 8. Les jalons
 
+![Les jalons de l'année, de M0 au Greenlight](../schemas/16-jalons.svg)
+
 | Jalon | Fin | On montre |
 | --- | --- | --- |
 | M0 Fondations | 8 novembre | CI, sauvegardes coupées, format commun et trois choix techniques écrits. Le renommage du package attend un nom de domaine (T-01) |
