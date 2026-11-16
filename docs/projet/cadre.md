@@ -83,7 +83,7 @@ Pendant la bêta, tout le monde est en Bibliotheca et personne ne paie. On ne co
 
 | Jalon | Fin | On montre |
 | --- | --- | --- |
-| M0 Fondations | 8 novembre | CI, package renommé, sauvegardes coupées, format commun et trois choix techniques écrits |
+| M0 Fondations | 8 novembre | CI, sauvegardes coupées, format commun et trois choix techniques écrits. Le renommage du package attend un nom de domaine (T-01) |
 | M1 Enregistrer partout | 20 décembre | Une réunion d'une heure enregistrée écran verrouillé sur Android et iPhone, en mode avion, et gardée sur le disque par le cœur |
 | M2 Compte rendu | 31 janvier | La réunion transcrite sur l'appareil, puis le CR juste après, envoyé en clair ou verrouillé |
 | M3 Bêta | 14 février | L'app du téléphone chez au moins 12 testeurs, le Beta Test Plan rendu. L'ordinateur vient après |
@@ -127,8 +127,8 @@ La techno de l'ordinateur est tranchée par l'[ADR 0002](../adr/0002-coeur-rust.
 
 | Question | Qui | Pour quand |
 | --- | --- | --- |
-| Comment coder l'app iOS | Lucas, Adam (T-04) | 8 novembre |
-| Quel moteur IA pour la bêta, et quels téléphones minimum | Alexandre (T-06) | 8 novembre |
+| La coque de l'iPhone : native en SwiftUI, ou en Compose comme les écrans | Lucas, Adam (T-04), sur un vrai iPhone | Avant M3 |
+| Quel moteur IA pour la bêta, et quels téléphones minimum | Alexandre (T-06) | Début de M2, où entre la transcription |
 | Quels objectifs de track | Toute l'équipe (B-01) | Rendez-vous mentor |
 | Qui a un Mac, un iPhone, un Android milieu de gamme | Toute l'équipe | Début du sprint 1 |
 | Le compte Google Play de l'école est-il personnel ou d'organisation (probablement d'organisation) | Clément, avec l'école | Avant M3 |
