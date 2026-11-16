@@ -28,7 +28,7 @@ L'étape 1 est un garde-fou. Si le pont vers l'iPhone ne marche pas comme prévu
 | M3 Bêta | 14 février | 14 février | La bêta porte sur le téléphone seul |
 | M4 Actions et ordinateur | 28 mars | 28 mars | Windows et Linux sortent ensemble |
 
-La date de la bêta est fixée par l'école : le Beta Test Plan se rend le 7 février. Ces dates entrent dans le [cadre](cadre.md) par une PR relue par toute l'équipe.
+La date de la bêta est fixée par l'école : le Beta Test Plan se rend le 7 février. Ces dates sont celles du [cadre](cadre.md#8-les-jalons), partie 8.
 
 ## Les risques, et ce qu'on fait
 
