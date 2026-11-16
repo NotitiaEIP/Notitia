@@ -1,4 +1,5 @@
 mod host;
+pub mod meeting;
 mod meeting_file;
 
 pub use host::{HostProbe, ask_host};
