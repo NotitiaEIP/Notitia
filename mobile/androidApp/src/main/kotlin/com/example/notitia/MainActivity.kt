@@ -1,6 +1,8 @@
 package com.example.notitia
 
+import android.annotation.SuppressLint
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.os.Bundle
 import android.view.View
 import android.view.ViewTreeObserver
@@ -17,6 +19,9 @@ import com.example.notitia.reminder.EXTRA_REMINDER_ACTIONS
 import com.example.notitia.reminder.ReminderTap
 import com.example.notitia.widget.ACTION_RECORD
 
+// Android's own line between a phone and a large screen.
+private const val LARGE_SCREEN_DP = 600
+
 class MainActivity : ComponentActivity() {
     // Counts the touches on the widget, also those that come while the app is already open.
     private var recordRequests by mutableIntStateOf(0)
@@ -26,6 +31,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        holdUprightOnPhones()
         // After a rotation the intent is the same one, already handled.
         if (savedInstanceState == null) handle(intent)
 
@@ -44,6 +50,17 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handle(intent)
+    }
+
+    // No screen is laid out for landscape on a phone. Android 16+ already ignores the manifest's lock on a large
+    // screen; this does the same on older versions. Folding or unfolding recreates the activity, so it runs again.
+    @SuppressLint("SourceLockedOrientationActivity")
+    private fun holdUprightOnPhones() {
+        requestedOrientation = if (resources.configuration.smallestScreenWidthDp >= LARGE_SCREEN_DP) {
+            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
     }
 
     // Android 12+ keeps its splash screen while no frame is drawn; older versions keep the window background.

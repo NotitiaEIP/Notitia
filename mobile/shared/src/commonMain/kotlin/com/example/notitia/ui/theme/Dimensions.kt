@@ -68,6 +68,8 @@ object NotitiaSizes {
     val tabPillWidth = 64.dp
     val tabPillHeight = 32.dp
     val sidePanel = 320.dp
+    // As wide as Material's sheets, so a sheet covers exactly the screen under it.
+    val contentMaxWidth = 640.dp
     val sheetRadius = 28.dp
     val strikeLine = 1.5.dp
     val quoteBar = 3.dp

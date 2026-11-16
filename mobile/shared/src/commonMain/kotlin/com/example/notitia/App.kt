@@ -38,6 +38,7 @@ import com.example.notitia.ui.actions.RecedesUnderSheet
 import com.example.notitia.ui.actions.SheetReveal
 import com.example.notitia.ui.actions.ownerChoices
 import com.example.notitia.ui.actions.trackedActions
+import com.example.notitia.ui.components.CenteredContent
 import com.example.notitia.ui.components.NotitiaTabBar
 import com.example.notitia.ui.components.offerUndo
 import com.example.notitia.ui.components.rememberToday
@@ -160,124 +161,127 @@ fun App(
             scrimColor = NotitiaTheme.colors.dim,
             drawerContent = { SearchHistoryDrawer(historyDrawer, search) },
         ) {
+            // Bounded inside the veils, so the drawer and the sheet still cover the whole window.
             RecedesUnderSheet(
                 reveal = actionSheet,
                 modifier = if (historyDrawer.isOpen) Modifier.clearAndSetSemantics {} else Modifier,
             ) {
-                RecordingPlayerHost(
-                    recording = { recorder.value as? RecorderState.Active },
-                    state = player,
-                    onStop = {
-                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                        meetingsModel.stopRecording()
-                    },
-                    onTogglePause = {
-                        val pausing = recorder.value is RecorderState.Recording
-                        haptics.performHapticFeedback(if (pausing) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn)
-                        meetingsModel.togglePause()
-                    },
-                    tabBar = {
-                        // The iPhone's selection toolbar takes the tab bar's place, as in Photos and Voice Memos.
-                        val chosen = selection.chosen
-                        if (chosen != null && selectionStyle == SelectionStyle.Toolbar) {
-                            SelectionToolbar(count = chosen.size, onDelete = selection::askToDelete)
-                        } else {
-                            NotitiaTabBar(
-                                selected = tab,
-                                onSelect = {
-                                    tab = it
+                CenteredContent {
+                    RecordingPlayerHost(
+                        recording = { recorder.value as? RecorderState.Active },
+                        state = player,
+                        onStop = {
+                            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                            meetingsModel.stopRecording()
+                        },
+                        onTogglePause = {
+                            val pausing = recorder.value is RecorderState.Recording
+                            haptics.performHapticFeedback(if (pausing) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn)
+                            meetingsModel.togglePause()
+                        },
+                        tabBar = {
+                            // The iPhone's selection toolbar takes the tab bar's place, as in Photos and Voice Memos.
+                            val chosen = selection.chosen
+                            if (chosen != null && selectionStyle == SelectionStyle.Toolbar) {
+                                SelectionToolbar(count = chosen.size, onDelete = selection::askToDelete)
+                            } else {
+                                NotitiaTabBar(
+                                    selected = tab,
+                                    onSelect = {
+                                        tab = it
+                                        openedMeetingId = null
+                                        openedActionKey = null
+                                        settingsOpen = false
+                                        selection.end()
+                                    },
+                                )
+                            }
+                        },
+                    ) { padding ->
+                        val screenModifier = Modifier.padding(padding).consumeWindowInsets(padding)
+                        if (openedMeeting != null) {
+                            MinutesRoute(
+                                meeting = openedMeeting.first,
+                                item = openedMeeting.second,
+                                onSetDone = meetingsModel::setDone,
+                                onRename = { meetingsModel.rename(openedMeeting.first.id, it) },
+                                onDelete = {
+                                    val id = openedMeeting.first.id
                                     openedMeetingId = null
-                                    openedActionKey = null
-                                    settingsOpen = false
-                                    selection.end()
+                                    scope.launch { deleteOnceShown { meetingsModel.delete(setOf(id)) } }
                                 },
-                            )
-                        }
-                    },
-                ) { padding ->
-                    val screenModifier = Modifier.padding(padding).consumeWindowInsets(padding)
-                    if (openedMeeting != null) {
-                        MinutesRoute(
-                            meeting = openedMeeting.first,
-                            item = openedMeeting.second,
-                            onSetDone = meetingsModel::setDone,
-                            onRename = { meetingsModel.rename(openedMeeting.first.id, it) },
-                            onDelete = {
-                                val id = openedMeeting.first.id
-                                openedMeetingId = null
-                                scope.launch { deleteOnceShown { meetingsModel.delete(setOf(id)) } }
-                            },
-                            backLabel = stringResource(tab.title),
-                            backDescription = stringResource(tab.backDescription),
-                            onBack = { openedMeetingId = null },
-                            modifier = screenModifier,
-                        )
-                    } else if (settingsOpen) {
-                        SettingsRoute(
-                            theme = theme,
-                            onThemeChange = { theme = it },
-                            onBack = { settingsOpen = false },
-                            modifier = screenModifier,
-                        )
-                    } else {
-                        when (tab) {
-                            Tab.Meetings -> MeetingsScreen(
-                                meetings = meetings,
-                                recording = recordingId != null,
-                                selection = selection,
-                                onOpen = { openedMeetingId = it.id },
-                                onRecord = ::startRecording,
-                                onSettings = { settingsOpen = true },
-                                onDelete = meetingsModel::delete,
+                                backLabel = stringResource(tab.title),
+                                backDescription = stringResource(tab.backDescription),
+                                onBack = { openedMeetingId = null },
                                 modifier = screenModifier,
                             )
-                            Tab.Actions -> {
-                                val minutes = stored.zip(meetings, Meeting::toMinutes)
-                                val tracked = trackedActions(minutes)
-                                ActionsScreen(
-                                    actions = tracked,
-                                    view = actionsView,
-                                    onViewChange = { actionsView = it },
-                                    openedAction = tracked.firstOrNull { it.id.key == openedActionKey }?.id,
-                                    sheetReveal = actionSheet,
-                                    ownerChoices = { meetingId ->
-                                        minutes.firstOrNull { it.meeting.id == meetingId }
-                                            ?.let(::ownerChoices)
-                                            .orEmpty()
-                                    },
-                                    onSetDone = meetingsModel::setDone,
-                                    onSetOwner = meetingsModel::setOwner,
-                                    onSetDue = meetingsModel::setDue,
-                                    onSetReminder = meetingsModel::setReminder,
-                                    onCompleted = { ids ->
-                                        scope.launch {
-                                            val message = getPluralString(Res.plurals.actions_done_message, ids.size, ids.size)
-                                            if (snackbars.offerUndo(message, getString(Res.string.undo))) {
-                                                ids.forEach { meetingsModel.setDone(it, false) }
+                        } else if (settingsOpen) {
+                            SettingsRoute(
+                                theme = theme,
+                                onThemeChange = { theme = it },
+                                onBack = { settingsOpen = false },
+                                modifier = screenModifier,
+                            )
+                        } else {
+                            when (tab) {
+                                Tab.Meetings -> MeetingsScreen(
+                                    meetings = meetings,
+                                    recording = recordingId != null,
+                                    selection = selection,
+                                    onOpen = { openedMeetingId = it.id },
+                                    onRecord = ::startRecording,
+                                    onSettings = { settingsOpen = true },
+                                    onDelete = meetingsModel::delete,
+                                    modifier = screenModifier,
+                                )
+                                Tab.Actions -> {
+                                    val minutes = stored.zip(meetings, Meeting::toMinutes)
+                                    val tracked = trackedActions(minutes)
+                                    ActionsScreen(
+                                        actions = tracked,
+                                        view = actionsView,
+                                        onViewChange = { actionsView = it },
+                                        openedAction = tracked.firstOrNull { it.id.key == openedActionKey }?.id,
+                                        sheetReveal = actionSheet,
+                                        ownerChoices = { meetingId ->
+                                            minutes.firstOrNull { it.meeting.id == meetingId }
+                                                ?.let(::ownerChoices)
+                                                .orEmpty()
+                                        },
+                                        onSetDone = meetingsModel::setDone,
+                                        onSetOwner = meetingsModel::setOwner,
+                                        onSetDue = meetingsModel::setDue,
+                                        onSetReminder = meetingsModel::setReminder,
+                                        onCompleted = { ids ->
+                                            scope.launch {
+                                                val message = getPluralString(Res.plurals.actions_done_message, ids.size, ids.size)
+                                                if (snackbars.offerUndo(message, getString(Res.string.undo))) {
+                                                    ids.forEach { meetingsModel.setDone(it, false) }
+                                                }
                                             }
-                                        }
-                                    },
-                                    onOpenAction = { openedActionKey = it.key },
-                                    onCloseAction = { openedActionKey = null },
+                                        },
+                                        onOpenAction = { openedActionKey = it.key },
+                                        onCloseAction = { openedActionKey = null },
+                                        onOpenMeeting = { openedMeetingId = it },
+                                        modifier = screenModifier,
+                                    )
+                                }
+                                Tab.Search -> SearchScreen(
+                                    meetings = meetings,
+                                    state = search,
+                                    historyOpen = historyDrawer.isOpen,
+                                    onOpenHistory = { scope.launch { historyDrawer.move(open = true, reduced) } },
                                     onOpenMeeting = { openedMeetingId = it },
                                     modifier = screenModifier,
                                 )
                             }
-                            Tab.Search -> SearchScreen(
-                                meetings = meetings,
-                                state = search,
-                                historyOpen = historyDrawer.isOpen,
-                                onOpenHistory = { scope.launch { historyDrawer.move(open = true, reduced) } },
-                                onOpenMeeting = { openedMeetingId = it },
-                                modifier = screenModifier,
-                            )
                         }
+                        // Over the tab bar and the mini bar, and kept across tabs, so an action can still be taken back.
+                        SnackbarHost(
+                            hostState = snackbars,
+                            modifier = Modifier.fillMaxSize().padding(padding).wrapContentHeight(Alignment.Bottom),
+                        )
                     }
-                    // Over the tab bar and the mini bar, and kept across tabs, so an action can still be taken back.
-                    SnackbarHost(
-                        hostState = snackbars,
-                        modifier = Modifier.fillMaxSize().padding(padding).wrapContentHeight(Alignment.Bottom),
-                    )
                 }
             }
         }
