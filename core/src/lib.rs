@@ -1,3 +1,4 @@
+pub mod format;
 mod host;
 pub mod meeting;
 mod meeting_file;

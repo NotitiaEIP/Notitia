@@ -1,12 +1,7 @@
 use std::fmt;
 use std::fs;
 
-use serde::Deserialize;
-use time::OffsetDateTime;
-use time::format_description::well_known::Rfc3339;
-
-// Raised when a change would make an older app misread a newer file.
-const FORMAT_VERSION: u32 = 1;
+use crate::format::{self, DecodeError};
 
 #[derive(Debug, PartialEq, uniffi::Record)]
 pub struct MeetingSummary {
@@ -38,23 +33,13 @@ impl fmt::Display for CoreError {
 
 impl std::error::Error for CoreError {}
 
-#[derive(Deserialize)]
-struct Envelope {
-    version: u32,
-}
-
-#[derive(Deserialize)]
-struct MeetingFile {
-    meeting: MeetingHead,
-}
-
-// Only what the summary needs: serde skips the other fields, and those a newer app of the same version adds.
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct MeetingHead {
-    id: String,
-    title: Option<String>,
-    started_at: String,
+impl From<DecodeError> for CoreError {
+    fn from(error: DecodeError) -> Self {
+        match error {
+            DecodeError::NotAMeeting => CoreError::NotAMeeting,
+            DecodeError::NewerFormat => CoreError::NewerFormat,
+        }
+    }
 }
 
 #[uniffi::export]
@@ -63,17 +48,11 @@ pub fn read_meeting_summary(path: String) -> Result<MeetingSummary, CoreError> {
     summary_of(&bytes)
 }
 
-// The version is read first, alone: a newer file may have moved every other field.
 pub(crate) fn summary_of(bytes: &[u8]) -> Result<MeetingSummary, CoreError> {
-    let envelope: Envelope = serde_json::from_slice(bytes).map_err(|_| CoreError::NotAMeeting)?;
-    if envelope.version > FORMAT_VERSION {
-        return Err(CoreError::NewerFormat);
-    }
-    let file: MeetingFile = serde_json::from_slice(bytes).map_err(|_| CoreError::NotAMeeting)?;
-    let started_at = OffsetDateTime::parse(&file.meeting.started_at, &Rfc3339).map_err(|_| CoreError::NotAMeeting)?;
+    let meeting = format::decode(bytes)?;
     let started_at_ms =
-        i64::try_from(started_at.unix_timestamp_nanos() / 1_000_000).map_err(|_| CoreError::NotAMeeting)?;
-    Ok(MeetingSummary { id: file.meeting.id, title: file.meeting.title, started_at_ms })
+        i64::try_from(meeting.started_at.unix_timestamp_nanos() / 1_000_000).map_err(|_| CoreError::NotAMeeting)?;
+    Ok(MeetingSummary { id: meeting.id.into(), title: meeting.title, started_at_ms })
 }
 
 #[cfg(test)]
@@ -105,7 +84,7 @@ mod tests {
 
     #[test]
     fn a_file_from_a_newer_format_is_not_read() {
-        let newer = WRITTEN_BY_KOTLIN.replace("\"version\":1", "\"version\":2");
+        let newer = WRITTEN_BY_KOTLIN.replace("\"version\":1", &format!("\"version\":{}", format::VERSION + 1));
         assert_eq!(summary_of(newer.as_bytes()), Err(CoreError::NewerFormat));
     }
 

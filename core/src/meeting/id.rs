@@ -63,6 +63,12 @@ impl ActionId {
     pub fn random() -> Self {
         Self(Uuid::new_v4().to_string())
     }
+
+    // A version 1 file knew an action by its place in the minutes: keeping it as the identifier leaves the
+    // reminders already scheduled on a phone pointing at the right action.
+    pub(crate) fn of_rank(rank: usize) -> Self {
+        Self(rank.to_string())
+    }
 }
 
 #[cfg(test)]
