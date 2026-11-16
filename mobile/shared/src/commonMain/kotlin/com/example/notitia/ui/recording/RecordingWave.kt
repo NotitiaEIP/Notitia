@@ -11,8 +11,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.CornerRadius
@@ -25,6 +28,8 @@ import com.example.notitia.ui.theme.NotitiaTheme
 import com.example.notitia.ui.theme.reducedMotion
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 
 // About one read of the microphone: each new bar has slid into place when the next one comes.
 private const val SLIDE_MS = 100
@@ -32,20 +37,26 @@ private const val SLIDE_MS = 100
 // The last levels heard, newest on the right, like the recorders of the phone. A pause freezes the wave where it was.
 // The wave is decoration: the timer and the status say that the recording runs.
 @Composable
-fun RecordingWave(recording: RecorderState.Active, modifier: Modifier = Modifier, moving: Boolean = true) {
+fun RecordingWave(recording: () -> RecorderState.Active?, modifier: Modifier = Modifier, moving: Boolean = true) {
     val sizes = NotitiaTheme.sizes
     val gradient = NotitiaTheme.colors.logoGradient
     val levels = remember { mutableStateListOf<Float>().apply { repeat(WAVE_BARS) { add(WAVE_REST_LEVEL) } } }
     val slide = remember { Animatable(0f) }
-    val sliding = moving && !reducedMotion()
-    LaunchedEffect(recording.recorded) {
-        if (recording !is RecorderState.Recording) return@LaunchedEffect
-        levels.removeAt(0)
-        levels.add(waveBarLevel(recording.level))
-        if (sliding) {
-            slide.snapTo(1f)
-            slide.animateTo(0f, tween(SLIDE_MS, easing = LinearEasing))
-        }
+    val sliding by rememberUpdatedState(moving && !reducedMotion())
+    // Collected rather than read while composing, so a read of the microphone only redraws the wave. Keyed on the
+    // audio heard, so a resume adds no bar.
+    LaunchedEffect(recording) {
+        snapshotFlow { recording() }
+            .distinctUntilChangedBy { it?.recorded }
+            .collectLatest { heard ->
+                if (heard !is RecorderState.Recording) return@collectLatest
+                levels.removeAt(0)
+                levels.add(waveBarLevel(heard.level))
+                if (sliding) {
+                    slide.snapTo(1f)
+                    slide.animateTo(0f, tween(SLIDE_MS, easing = LinearEasing))
+                }
+            }
     }
 
     Canvas(
@@ -77,7 +88,8 @@ private fun RecordingWavePreview() = NotitiaTheme {
         modifier = Modifier.background(NotitiaTheme.colors.background).padding(NotitiaTheme.spacing.l),
         verticalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.l),
     ) {
-        RecordingWave(RecorderState.Recording(Clock.System.now(), 1.minutes, level = 0.6f))
-        RecordingWave(RecorderState.Paused(Clock.System.now(), 1.minutes))
+        val startedAt = Clock.System.now()
+        RecordingWave(recording = { RecorderState.Recording(startedAt, 1.minutes, level = 0.6f) })
+        RecordingWave(recording = { RecorderState.Paused(startedAt, 1.minutes) })
     }
 }

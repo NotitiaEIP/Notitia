@@ -11,6 +11,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -91,15 +92,19 @@ fun App(
     val meetingsModel = viewModel {
         MeetingsViewModel(notitia.meetings, notitia.recording)
     }
-    val kept = meetingsModel.meetings.collectAsStateWithLifecycle().value
-    val people = remember(kept) { personColors(kept.orEmpty()) }
+    val kept = meetingsModel.meetings.collectAsStateWithLifecycle()
+    val recorder = meetingsModel.recording.collectAsStateWithLifecycle()
+    // The microphone moves the recorder ten times per second: the screens follow only a recording that starts, stops
+    // or fails, and the sheet reads the rest.
+    val recordingId by remember { derivedStateOf { (recorder.value as? RecorderState.Active)?.meetingId } }
+    val failure by remember { derivedStateOf { (recorder.value as? RecorderState.Failed)?.problem } }
+    // The meeting being recorded is the mini bar's: it joins the list once stopped, and its saves every few seconds
+    // leave the list as it is.
+    val listed by remember { derivedStateOf { kept.value?.filterNot { it.id == recordingId } } }
+    val people = remember(listed) { personColors(listed.orEmpty()) }
     NotitiaTheme(darkTheme = darkTheme, people = people) {
         var tab by rememberSaveable { mutableStateOf(Tab.Meetings) }
-        val recorder by meetingsModel.recording.collectAsStateWithLifecycle()
-        val recording = recorder as? RecorderState.Active
-        // The meeting being recorded is the mini bar's: it joins the list once stopped.
-        val recordingId = recording?.meetingId
-        val stored = kept?.filterNot { it.id == recordingId } ?: return@NotitiaTheme
+        val stored = listed ?: return@NotitiaTheme
         LaunchedEffect(Unit) { onLoaded() }
         val today = rememberToday()
         val meetings = stored.map { it.listItem(today, meetingsModel.progress(it.id)) }
@@ -139,16 +144,16 @@ fun App(
         }
         // Each touch on the home screen widget starts a recording, unless one already runs.
         LaunchedEffect(recordRequests) {
-            if (recordRequests > 0 && recording == null) startRecording()
+            if (recordRequests > 0 && recordingId == null) startRecording()
         }
         // A new recording gets a new sheet, which rises from the mini bar to the full screen.
-        val player = rememberSaveable(recording?.startedAt, saver = RecordingPlayerState.Saver) {
+        val player = rememberSaveable(recordingId, saver = RecordingPlayerState.Saver) {
             RecordingPlayerState(PlayerPosition.Collapsed, openOnStart = true)
         }
 
         // Over everything, tab bar included, as a modal: nothing behind the veil can be touched, or read.
         // The gesture only exists on the search screen, and not over a recording shown full screen.
-        val onSearch = tab == Tab.Search && openedMeeting == null && !(recording != null && player.isExpanded)
+        val onSearch = tab == Tab.Search && openedMeeting == null && !(recordingId != null && player.isExpanded)
         ModalNavigationDrawer(
             drawerState = historyDrawer,
             gesturesEnabled = historyDrawer.isOpen || onSearch,
@@ -160,14 +165,14 @@ fun App(
                 modifier = if (historyDrawer.isOpen) Modifier.clearAndSetSemantics {} else Modifier,
             ) {
                 RecordingPlayerHost(
-                    recording = recording,
+                    recording = { recorder.value as? RecorderState.Active },
                     state = player,
                     onStop = {
                         haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                         meetingsModel.stopRecording()
                     },
                     onTogglePause = {
-                        val pausing = recording is RecorderState.Recording
+                        val pausing = recorder.value is RecorderState.Recording
                         haptics.performHapticFeedback(if (pausing) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn)
                         meetingsModel.togglePause()
                     },
@@ -218,7 +223,7 @@ fun App(
                         when (tab) {
                             Tab.Meetings -> MeetingsScreen(
                                 meetings = meetings,
-                                recording = recording != null,
+                                recording = recordingId != null,
                                 selection = selection,
                                 onOpen = { openedMeetingId = it.id },
                                 onRecord = ::startRecording,
@@ -276,9 +281,9 @@ fun App(
                 }
             }
         }
-        (recorder as? RecorderState.Failed)?.let { failed ->
+        failure?.let { problem ->
             RecordingFailedAlert(
-                problem = failed.problem,
+                problem = problem,
                 onOpenSettings = microphone::openSettings,
                 onDismiss = meetingsModel::dismissFailure,
             )

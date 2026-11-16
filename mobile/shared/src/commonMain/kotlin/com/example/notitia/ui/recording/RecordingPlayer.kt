@@ -146,7 +146,8 @@ class RecordingPlayerState(initialValue: PlayerPosition, openOnStart: Boolean) {
 // tab bar, and the tab bar slides away as the sheet opens over it.
 @Composable
 fun RecordingPlayerHost(
-    recording: RecorderState.Active?,
+    // Changes ten times per second while the microphone listens: only the timer and the wave read it.
+    recording: () -> RecorderState.Active?,
     state: RecordingPlayerState,
     onStop: () -> Unit,
     onTogglePause: () -> Unit,
@@ -157,22 +158,24 @@ fun RecordingPlayerHost(
     val sizes = NotitiaTheme.sizes
     val gap = NotitiaTheme.spacing.s
     var tabBarHeight by remember { mutableIntStateOf(0) }
+    val phase = remember(recording) { derivedStateOf { recording()?.phase } }.value
 
     // Until the foreground service of US-11, a phone that goes to sleep stops the microphone. Only while it listens:
     // a paused meeting lets the screen sleep.
-    val awake = if (recording is RecorderState.Recording) Modifier.keepScreenOn() else Modifier
+    val awake = if (phase == RecordingPhase.Listening) Modifier.keepScreenOn() else Modifier
     BoxWithConstraints(Modifier.fillMaxSize().background(NotitiaTheme.colors.background).then(awake)) {
         val tabBarDp = with(density) { tabBarHeight.toDp() }
         val top = WindowInsets.safeDrawing.only(WindowInsetsSides.Top).asPaddingValues().calculateTopPadding()
-        val miniBarRoom = if (recording != null) sizes.miniBar + gap * 2 else 0.dp
+        val miniBarRoom = if (phase != null) sizes.miniBar + gap * 2 else 0.dp
         content(PaddingValues(top = top, bottom = tabBarDp + miniBarRoom))
 
-        if (recording != null) {
+        if (phase != null) {
             val collapsedOffset = with(density) {
                 constraints.maxHeight - tabBarHeight - (gap + sizes.miniBar).toPx()
             }
             SideEffect { state.updateAnchors(collapsedOffset) }
             RecordingPlayer(
+                phase = phase,
                 recording = recording,
                 state = state,
                 fullWidth = constraints.maxWidth,
@@ -186,7 +189,7 @@ fun RecordingPlayerHost(
             Modifier
                 .align(Alignment.BottomCenter)
                 .onSizeChanged { tabBarHeight = it.height }
-                .graphicsLayer { translationY = (if (recording != null) state.progress else 0f) * size.height },
+                .graphicsLayer { translationY = (if (phase != null) state.progress else 0f) * size.height },
         ) {
             tabBar()
         }
@@ -195,7 +198,8 @@ fun RecordingPlayerHost(
 
 @Composable
 private fun RecordingPlayer(
-    recording: RecorderState.Active,
+    phase: RecordingPhase,
+    recording: () -> RecorderState.Active?,
     state: RecordingPlayerState,
     fullWidth: Int,
     fullHeight: Int,
@@ -263,6 +267,7 @@ private fun RecordingPlayer(
             .background(colors.surfaceRaised),
     ) {
         FullScreen(
+            phase = phase,
             recording = recording,
             state = state,
             visible = expanded,
@@ -282,6 +287,7 @@ private fun RecordingPlayer(
         if (!expanded) {
             val expandLabel = stringResource(Res.string.recording_expand)
             RecordingMiniBar(
+                phase = phase,
                 recording = recording,
                 onStop = onStop,
                 onResume = onTogglePause,
@@ -295,7 +301,8 @@ private fun RecordingPlayer(
 
 @Composable
 private fun FullScreen(
-    recording: RecorderState.Active,
+    phase: RecordingPhase,
+    recording: () -> RecorderState.Active?,
     state: RecordingPlayerState,
     visible: Boolean,
     onStop: () -> Unit,
@@ -306,6 +313,7 @@ private fun FullScreen(
     Column(if (visible) modifier else modifier.clearAndSetSemantics {}) {
         Handle(state, Modifier.statusBarsPadding())
         RecordingScreen(
+            phase = phase,
             recording = recording,
             onCollapse = state::collapse,
             onMark = {},
