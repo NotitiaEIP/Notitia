@@ -19,8 +19,6 @@ Le téléphone garde ses écrans en Kotlin avec Compose, les mêmes sur Android 
 - **La charte y est déjà codée.** Le thème `NotitiaTheme` porte les couleurs, la police et les espacements de [DESIGN.md](../../DESIGN.md).
 - **Le changement se fait dessous.** L'app reçoit déjà son stockage, son micro et ses moteurs par des interfaces. On remplace ce qu'il y a derrière ces interfaces, pas les écrans.
 
-C'est comme changer le moteur d'une voiture en gardant le tableau de bord : le conducteur ne voit rien.
-
 ## Ce qui reste propre à chaque système
 
 | | Android | iPhone |

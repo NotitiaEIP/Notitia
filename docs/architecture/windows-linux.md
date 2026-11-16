@@ -30,11 +30,9 @@ L'analogie du vidéoprojecteur résume le point faible. Electron apporte son pro
 
 ## Capter une visio sans bot
 
-L'ordinateur n'envoie aucun bot dans la réunion. Il enregistre ce qui sort de ses propres haut-parleurs, plus le micro.
-
 ![Capter une visio sans bot](../schemas/10-capture-visio.svg)
 
-Garder deux pistes séparées donne un premier « qui parle » sans aucun calcul : le micro, c'est l'utilisateur ; le son de la visio, ce sont les autres.
+Aucun bot n'entre dans la réunion : l'ordinateur enregistre ce qui sort de ses propres haut-parleurs, plus le micro. Garder les deux pistes séparées donne un premier « qui parle » sans aucun calcul.
 
 | Système | Par où passe le son de la visio | Ce qu'on en sait |
 | --- | --- | --- |
