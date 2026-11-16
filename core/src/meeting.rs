@@ -1,8 +1,11 @@
+mod change;
 mod id;
 
 use serde::{Deserialize, Serialize};
 use time::{Date, UtcDateTime};
 
+pub(crate) use change::Stamp;
+pub use change::{ActionDraft, Change, Edit, MinutesDraft, Snapshot};
 pub use id::{ActionId, InvalidId, MeetingId};
 
 // What a newer app wrote and this one does not know: kept, so rewriting a file loses nothing of it.
@@ -159,4 +162,61 @@ pub struct TranscriptLine {
     pub speaker: Option<String>,
     #[serde(flatten)]
     pub extra: Extra,
+}
+
+// The meetings the tests start from, made up.
+#[cfg(test)]
+pub(crate) mod testing {
+    use time::macros::utc_datetime;
+
+    use super::*;
+
+    pub fn id(text: &str) -> MeetingId {
+        MeetingId::new(text).unwrap()
+    }
+
+    pub fn meeting(text: &str) -> Meeting {
+        Meeting {
+            id: id(text),
+            started_at: utc_datetime!(2026-11-10 9:30),
+            duration_ms: 30 * 60_000,
+            modified_at: utc_datetime!(2026-11-10 10:00),
+            device: "phone-1".into(),
+            title: None,
+            speakers: Vec::new(),
+            minutes: written(&["Préparer la démo"]),
+            transcript: Vec::new(),
+            extra: Extra::new(),
+        }
+    }
+
+    pub fn written(actions: &[&str]) -> MinutesState {
+        let action = |(rank, text): (usize, &&str)| Action {
+            id: ActionId::of_rank(rank),
+            text: (*text).into(),
+            owner: None,
+            due: None,
+            done: false,
+            reminder: false,
+            source: None,
+            extra: Extra::new(),
+        };
+        MinutesState::Written {
+            minutes: Minutes {
+                summary: String::new(),
+                decisions: Vec::new(),
+                actions: actions.iter().enumerate().map(action).collect(),
+                extra: Extra::new(),
+            },
+        }
+    }
+
+    // With a line, as a meeting that was transcribed.
+    pub fn heard(text: &str) -> Meeting {
+        Meeting { transcript: vec![line(0, "Bonjour à tous.")], ..meeting(text) }
+    }
+
+    pub fn line(at_ms: u64, text: &str) -> TranscriptLine {
+        TranscriptLine { at_ms, text: Some(text.into()), speaker: None, extra: Extra::new() }
+    }
 }
