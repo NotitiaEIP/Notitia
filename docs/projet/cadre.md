@@ -1,6 +1,6 @@
 # Cadre Notitia 2026-2027
 
-Version 1 du 24 octobre 2026, proposée par Clément, validée par l'équipe dans la PR qui ajoute ce fichier.
+Version 1 du 24 octobre 2026, proposée par Clément, validée par l'équipe dans la PR qui ajoute ce fichier. Version 2 du 16 novembre 2026 : l'architecture, le jalon M1 et la relecture du cœur suivent l'[ADR 0002](../adr/0002-coeur-rust.md).
 
 Ce cadre fixe ce qui ne change pas d'ici le Greenlight de juillet 2027. Le travail de chaque semaine vit dans le [GitHub Project](https://github.com/orgs/NotitiaEIP/projects/10), et chaque choix technique dans une fiche de décision (ADR). Si une tâche contredit ce cadre, c'est la tâche qu'on corrige, ou alors on change le cadre selon la règle de la partie 9.
 
@@ -49,7 +49,8 @@ Ce sont les cinq règles produit de l'[AGENTS.md](https://github.com/NotitiaEIP/
 
 ## 6. Les choix d'architecture
 
-- Kotlin Multiplatform et Compose pour Android. L'iPhone et l'ordinateur suivent les fiches T-04 et T-05.
+- Un cœur Rust commun porte toute la logique : format `.notitia`, stockage chiffré, enregistrement, transcription, compte rendu, recherche, lien entre appareils. Kotlin et Swift l'appellent par UniFFI ([ADR 0002](../adr/0002-coeur-rust.md)).
+- Chaque famille d'appareils garde son interface : Compose pour Android et iPhone, SwiftUI pour le Mac, une interface web dans Tauri pour Windows et Linux, qui sortent ensemble.
 - Un seul format de réunion pour tous les appareils : versionné, avec un identifiant unique par réunion (T-07).
 - L'IA tourne sur l'appareil. En attendant nos modèles, la bêta peut s'appuyer sur Apple Intelligence et Gemini Nano là où ils existent, et sur un modèle ouvert ailleurs, tous derrière la même interface (T-06). Les modèles sont livrés par les stores, jamais dans le repo. Chacun a son numéro de version, et ne sort que s'il bat le précédent sur le jeu d'évaluation (T-91).
 - L'ordinateur capte le son de la visio et le micro en local.
@@ -84,10 +85,10 @@ Pendant la bêta, tout le monde est en Bibliotheca et personne ne paie. On ne co
 
 | Jalon | Fin | On montre |
 | --- | --- | --- |
-| M0 Fondations | 8 novembre | CI, package renommé, sauvegardes coupées, format commun et trois choix techniques écrits |
-| M1 Enregistrer partout | 6 décembre | Une réunion d'une heure enregistrée écran verrouillé sur Android et iPhone, en mode avion, puis transcrite |
-| M2 Compte rendu | 31 janvier | Le CR juste après la réunion, envoyé en clair ou verrouillé |
-| M3 Bêta | 14 février | L'app chez au moins 12 testeurs, le Beta Test Plan rendu |
+| M0 Fondations | 8 novembre | CI, sauvegardes coupées, format commun et trois choix techniques écrits. Le renommage du package attend un nom de domaine (T-01) |
+| M1 Enregistrer partout | 20 décembre | Une réunion d'une heure enregistrée écran verrouillé sur Android et iPhone, en mode avion, et gardée sur le disque par le cœur |
+| M2 Compte rendu | 31 janvier | La réunion transcrite sur l'appareil, puis le CR juste après, envoyé en clair ou verrouillé |
+| M3 Bêta | 14 février | L'app du téléphone chez au moins 12 testeurs, le Beta Test Plan rendu. L'ordinateur vient après |
 | M4 Actions et ordinateur | 28 mars | Les actions suivies, une visio enregistrée sans bot, le téléphone relié à l'ordinateur, le bilan de la bêta |
 | M5 Modèles maison | 16 mai | Nos modèles mesurés sur le jeu d'évaluation et livrés sur le téléphone |
 | M6 Greenlight | 4 juillet | La version publique en français et la soutenance |
@@ -105,6 +106,7 @@ Pendant la bêta, tout le monde est en Bibliotheca et personne ne paie. On ne co
   | IA et ordinateur | Alexandre | Modèles maison, jeu d'évaluation, recherche | E6, E9 |
   | IA et ordinateur | Amine | Client ordinateur, visios, organisations | E7, E11 |
 
+- Le cœur Rust, `core/`, est écrit par Clément et relu par Alexandre. Ce sont ses deux relecteurs dans CODEOWNERS, et d'autres se forment pour les rejoindre.
 - Un choix qui touche plusieurs domaines s'écrit dans une fiche ADR, relue par les responsables concernés.
 - Ce cadre ne change qu'à la revue de fin de jalon, par une PR que toute l'équipe relit. En cas de désaccord, Clément tranche et prévient le mentor.
 - Ce qui n'est pas dans le Project n'existe pas : une idée devient une issue, même en P2.
@@ -123,11 +125,12 @@ Pendant la bêta, tout le monde est en Bibliotheca et personne ne paie. On ne co
 
 ## 11. Questions ouvertes
 
+La techno de l'ordinateur est tranchée par l'[ADR 0002](../adr/0002-coeur-rust.md) : SwiftUI pour le Mac, Tauri pour Windows et Linux. T-05 garde la preuve de la capture d'une visio.
+
 | Question | Qui | Pour quand |
 | --- | --- | --- |
-| Comment coder l'app iOS | Lucas, Adam (T-04) | 8 novembre |
-| Quelle techno pour l'ordinateur | Amine, Alexandre (T-05) | 8 novembre |
-| Quel moteur IA pour la bêta, et quels téléphones minimum | Alexandre (T-06) | 8 novembre |
+| La coque de l'iPhone : native en SwiftUI, ou en Compose comme les écrans | Lucas, Adam (T-04), sur un vrai iPhone | Avant M3 |
+| Quel moteur IA pour la bêta, et quels téléphones minimum | Alexandre (T-06) | Début de M2, où entre la transcription |
 | Quels objectifs de track | Toute l'équipe (B-01) | Rendez-vous mentor |
 | Qui a un Mac, un iPhone, un Android milieu de gamme | Toute l'équipe | Début du sprint 1 |
 | Le compte Google Play de l'école est-il personnel ou d'organisation (probablement d'organisation) | Clément, avec l'école | Avant M3 |
