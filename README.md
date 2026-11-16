@@ -4,11 +4,13 @@ Notitia enregistre une réunion, la transcrit et en tire un compte rendu, sans q
 
 | Dossier | Ce qu'il contient |
 | --- | --- |
-| [`core/`](docs/03-coeur-rust.md) | Le cœur Rust : la logique commune à toutes les apps |
+| [`core/`](docs/architecture/coeur-rust.md) | Le cœur Rust : la logique commune à toutes les apps |
 | [`mobile/`](mobile/README.md) | L'app Android et iPhone, en Kotlin Multiplatform |
 | [`macos/`](macos/README.md) | L'app Mac, en Swift |
-| [`docs/`](docs/README.md) | Les choix techniques expliqués : architecture, benchmark, feuille de route |
+| [`docs/`](docs/README.md) | Toute la documentation : bien démarrer, le cadre, l'architecture, les décisions |
 
 Pour lancer l'app Android ou iPhone, une seule commande à la racine : `./notitia`.
 
-Le cadre de l'année est dans [CADRE.md](https://github.com/NotitiaEIP/notitia_documentation/blob/main/CADRE.md).
+Tu rejoins l'équipe ? Commence par [Bien démarrer](docs/demarrer.md).
+
+Le cadre de l'année est dans [docs/projet/cadre.md](docs/projet/cadre.md).

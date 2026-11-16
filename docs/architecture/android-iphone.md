@@ -1,8 +1,8 @@
-# 4. Android et iPhone
+# Android et iPhone
 
 Le téléphone garde ses écrans en Kotlin avec Compose, les mêmes sur Android et sur iPhone. Seul ce qui touche au système est écrit deux fois, et tout le travail descend dans le cœur.
 
-![L'app téléphone : des écrans partagés sur un cœur commun](schemas/08-telephone.svg)
+![L'app téléphone : des écrans partagés sur un cœur commun](../schemas/08-telephone.svg)
 
 ## Les options comparées
 
@@ -16,7 +16,7 @@ Le téléphone garde ses écrans en Kotlin avec Compose, les mêmes sur Android 
 ## Pourquoi garder Kotlin alors que le cœur passe en Rust
 
 - **Les écrans existent.** Environ 9 700 lignes de Compose : la liste des réunions, l'enregistrement, le compte rendu, les actions, la recherche.
-- **La charte y est déjà codée.** Le thème `NotitiaTheme` porte les couleurs, la police et les espacements de [DESIGN.md](../DESIGN.md).
+- **La charte y est déjà codée.** Le thème `NotitiaTheme` porte les couleurs, la police et les espacements de [DESIGN.md](../../DESIGN.md).
 - **Le changement se fait dessous.** L'app reçoit déjà son stockage, son micro et ses moteurs par des interfaces. On remplace ce qu'il y a derrière ces interfaces, pas les écrans.
 
 C'est comme changer le moteur d'une voiture en gardant le tableau de bord : le conducteur ne voit rien.

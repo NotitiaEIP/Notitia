@@ -1,12 +1,12 @@
-# 1. Vue d'ensemble
+# Vue d'ensemble
 
 Notitia tourne entièrement sur les appareils de l'utilisateur : le téléphone enregistre les réunions en présentiel, l'ordinateur les visios, et les deux se relient sans passer par un serveur.
 
-![Vue d'ensemble : tout se passe sur les appareils de l'utilisateur](schemas/01-vue-d-ensemble.svg)
+![Vue d'ensemble : tout se passe sur les appareils de l'utilisateur](../schemas/01-vue-d-ensemble.svg)
 
 ## Trois règles dessinent toute l'architecture
 
-Ces règles viennent du [cadre](https://github.com/NotitiaEIP/notitia_documentation/blob/main/CADRE.md) du projet. Chacune ferme des portes techniques, et c'est voulu.
+Ces règles viennent du [cadre](cadre.md) du projet. Chacune ferme des portes techniques, et c'est voulu.
 
 | La règle | Ce qu'elle impose à la technique |
 | --- | --- |
@@ -20,15 +20,15 @@ La troisième règle est celle qui pèse le plus. Un concurrent qui calcule dans
 
 C'est comme un restaurant avec une seule cuisine et plusieurs salles. La cuisine prépare tous les plats de la même façon. Chaque salle a sa propre décoration, adaptée à son quartier.
 
-![Une seule cuisine, plusieurs salles](schemas/02-architecture.svg)
+![Une seule cuisine, plusieurs salles](../schemas/02-architecture.svg)
 
 | Étage | Technologie | Pourquoi, en une ligne | Détail |
 | --- | --- | --- | --- |
-| Cœur | Rust | Un seul code pour les cinq systèmes, léger, qui parle directement aux moteurs d'IA | [Page 3](03-coeur-rust.md) |
-| Écrans Android et iPhone | Kotlin, Compose | Les écrans existent déjà et portent la charte | [Page 4](04-android-iphone.md) |
-| Écrans Mac | Swift, SwiftUI | L'app existe, et le Mac a un responsable | [Page 5](05-mac.md) |
-| Écrans Windows et Linux | Web, dans Tauri | Une interface pour deux systèmes, posée directement sur le cœur | [Page 6](06-windows-linux.md) |
-| Ponts | UniFFI | Traduit le cœur pour Kotlin et pour Swift, sans code écrit à la main | [Page 3](03-coeur-rust.md) |
+| Cœur | Rust | Un seul code pour les cinq systèmes, léger, qui parle directement aux moteurs d'IA | [Le cœur](../architecture/coeur-rust.md) |
+| Écrans Android et iPhone | Kotlin, Compose | Les écrans existent déjà et portent la charte | [Le téléphone](../architecture/android-iphone.md) |
+| Écrans Mac | Swift, SwiftUI | L'app existe, et le Mac a un responsable | [Le Mac](../architecture/mac.md) |
+| Écrans Windows et Linux | Web, dans Tauri | Une interface pour deux systèmes, posée directement sur le cœur | [Windows et Linux](../architecture/windows-linux.md) |
+| Ponts | UniFFI | Traduit le cœur pour Kotlin et pour Swift, sans code écrit à la main | [Le cœur](../architecture/coeur-rust.md) |
 
 ## Où vit le code
 
