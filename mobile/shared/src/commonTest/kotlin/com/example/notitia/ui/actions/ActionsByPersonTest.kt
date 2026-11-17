@@ -34,7 +34,7 @@ class ActionsByPersonTest {
         meetingAt: Instant = at(20),
     ): TrackedAction {
         val meeting = MeetingListItem(text, text, meetingAt, 30.minutes, emptyList(), MeetingStatus.Ready())
-        return TrackedAction(ActionId(meeting.id, 0), MinutesAction(text, owner, due, done), meeting)
+        return TrackedAction(ActionId(meeting.id, "0"), MinutesAction("0", text, owner, due, done), meeting)
     }
 
     private fun List<PersonActions>.names() = map { it.name }

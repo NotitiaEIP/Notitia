@@ -205,12 +205,12 @@ private val NudgeTargetSaver = Saver<NudgeTarget?, ArrayList<String>>(
     save = { target ->
         when (target) {
             null -> null
-            is NudgeTarget.Action -> arrayListOf(target.id.meetingId, target.id.index.toString())
+            is NudgeTarget.Action -> arrayListOf(target.id.meetingId, target.id.actionId)
             is NudgeTarget.Person -> arrayListOf(target.key)
         }
     },
     restore = { saved ->
-        if (saved.size == 2) NudgeTarget.Action(ActionId(saved[0], saved[1].toInt())) else NudgeTarget.Person(saved[0])
+        if (saved.size == 2) NudgeTarget.Action(ActionId(saved[0], saved[1])) else NudgeTarget.Person(saved[0])
     },
 )
 

@@ -3,7 +3,6 @@ package com.example.notitia.ui.actions
 import com.example.notitia.meeting.ActionId
 import com.example.notitia.meeting.MeetingStatus
 import com.example.notitia.meeting.MinutesAction
-import com.example.notitia.meeting.ownedBy
 import com.example.notitia.ui.meetings.MeetingListItem
 import com.example.notitia.ui.minutes.Minutes
 import kotlin.test.Test
@@ -22,8 +21,8 @@ class TrackedActionTest {
         speakers = listOf("Lucas", "Nathan"),
         decisions = emptyList(),
         actions = listOf(
-            MinutesAction("Corriger le contraste des badges", "Nathan", due = null, done = false),
-            MinutesAction("Fixer la date de la revue", "Adam", due = null, done = true),
+            MinutesAction("0", "Corriger le contraste des badges", "Nathan", due = null, done = false),
+            MinutesAction("6f1c2d3e", "Fixer la date de la revue", "Adam", due = null, done = true),
         ),
         summary = "",
     )
@@ -31,16 +30,8 @@ class TrackedActionTest {
     @Test
     fun eachActionKnowsItsMeeting() {
         val tracked = trackedActions(listOf(minutes))
-        assertEquals(listOf(ActionId("m1", 0), ActionId("m1", 1)), tracked.map { it.id })
+        assertEquals(listOf(ActionId("m1", "0"), ActionId("m1", "6f1c2d3e")), tracked.map { it.id })
         assertEquals(listOf(meeting, meeting), tracked.map { it.meeting })
-    }
-
-    @Test
-    fun aBlankOwnerOrOneWithSpacesIsTrimmed() {
-        val action = minutes.actions.first()
-        assertEquals(null, action.ownedBy("  ").owner)
-        assertEquals(null, action.ownedBy(null).owner)
-        assertEquals("Lucas", action.ownedBy(" Lucas ").owner)
     }
 
     @Test

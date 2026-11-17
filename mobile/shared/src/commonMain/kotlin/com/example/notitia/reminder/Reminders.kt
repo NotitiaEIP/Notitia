@@ -41,8 +41,8 @@ fun MinutesAction.hasReminder(today: LocalDate): Boolean = reminder && !done && 
 fun reminders(meetings: List<Meeting>, zone: TimeZone, today: LocalDate): List<Reminder> = meetings
     .flatMap { meeting ->
         val actions = (meeting.minutes as? MinutesState.Written)?.minutes?.actions.orEmpty()
-        actions.mapIndexedNotNull { index, action ->
-            action.due?.takeIf { action.hasReminder(today) }?.let { it to ActionId(meeting.id, index) }
+        actions.mapNotNull { action ->
+            action.due?.takeIf { action.hasReminder(today) }?.let { it to ActionId(meeting.id, action.id) }
         }
     }
     .groupBy({ it.first }, { it.second })

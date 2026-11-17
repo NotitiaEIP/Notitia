@@ -123,7 +123,7 @@ class MeetingFormatTest {
     fun aReadyMeetingGivesItsSummaryAndWhatIsLate() {
         val today = LocalDate(2026, 10, 26)
         val yesterday = LocalDate(2026, 10, 25)
-        fun action(due: LocalDate?, done: Boolean = false) = MinutesAction("Relire", owner = null, due = due, done = done)
+        fun action(due: LocalDate?, done: Boolean = false) = MinutesAction("0", "Relire", owner = null, due = due, done = done)
         val actions = listOf(action(yesterday), action(yesterday, done = true), action(today), action(null))
         val minutes = MinutesState.Written(WrittenMinutes("Démo validée.", decisions = emptyList(), actions = actions))
         assertEquals(MeetingStatus.Ready(summary = "Démo validée.", late = 1), minutes.status(today))

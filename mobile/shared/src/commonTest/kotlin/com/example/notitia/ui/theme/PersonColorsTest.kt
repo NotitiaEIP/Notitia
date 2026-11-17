@@ -13,7 +13,7 @@ class PersonColorsTest {
 
     private fun meeting(day: Int, speakers: List<String>, owners: List<String> = emptyList()): Meeting {
         val startedAt = Instant.parse("2026-10-${day}T10:00:00Z")
-        val actions = owners.map { MinutesAction("Relire", it, due = null, done = false) }
+        val actions = owners.map { MinutesAction("0", "Relire", it, due = null, done = false) }
         return Meeting(
             id = "m$day",
             startedAt = startedAt,

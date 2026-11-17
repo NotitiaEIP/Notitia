@@ -9,14 +9,10 @@ import com.example.notitia.ai.SpeechEngine
 import com.example.notitia.ai.SpeechSegment
 import com.example.notitia.ai.SpeechSegmenter
 import com.example.notitia.ai.pcmToWav
-import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MeetingStatus
-import com.example.notitia.meeting.MinutesState
+import com.example.notitia.meeting.MinutesDraft
 import com.example.notitia.meeting.TranscriptLine
-import com.example.notitia.meeting.WrittenMinutes
 import com.example.notitia.meeting.recordedMeetingId
-import com.example.notitia.ui.components.today
-import com.example.notitia.ui.meetings.status
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
 import kotlin.time.Instant
@@ -42,8 +38,8 @@ internal fun cleanTranscript(text: String): String {
     return if (madeUpSentences.any { it.containsMatchIn(cleaned) }) "" else cleaned
 }
 
-// Lives while the meeting is heard and transcribed: MeetingRecorder keeps a copy of it at each change. Without speech,
-// this build cannot transcribe: the meeting keeps its duration and no text.
+// Lives while the meeting is heard and transcribed: MeetingRecorder hands it over at each change. Without speech, this
+// build cannot transcribe: the meeting keeps its duration and no text.
 @Stable
 class MeetingTranscription(
     val startedAt: Instant,
@@ -56,7 +52,7 @@ class MeetingTranscription(
     var duration by mutableStateOf(Duration.ZERO)
     var lines by mutableStateOf(emptyList<TranscriptLine>())
         private set
-    var minutes by mutableStateOf<MinutesState>(MinutesState.Writing)
+    var minutes by mutableStateOf<MinutesDraft>(MinutesDraft.Writing)
         private set
 
     private val segmenter = SpeechSegmenter()
@@ -65,24 +61,16 @@ class MeetingTranscription(
     private var transcribed by mutableStateOf(Duration.ZERO)
     private var finished by mutableStateOf(false)
 
-    val status: MeetingStatus
+    // null once the minutes are settled: the kept meeting then says where it stands.
+    val progress: MeetingStatus?
         get() = when {
             !finished -> MeetingStatus.Transcribing(
                 progress = if (heard == Duration.ZERO) 0f else (transcribed / heard).toFloat().coerceIn(0f, 1f),
                 remaining = (heard - transcribed) / TRANSCRIPTION_SPEED,
             )
-            else -> minutes.status(today())
+            minutes == MinutesDraft.Writing -> MeetingStatus.WritingMinutes
+            else -> null
         }
-
-    fun toMeeting(device: String, now: Instant) = Meeting(
-        id = id,
-        startedAt = startedAt,
-        duration = duration,
-        modifiedAt = now,
-        device = device,
-        transcript = lines,
-        minutes = minutes,
-    )
 
     // Nothing is held for an engine that is not there.
     fun addAudio(pcm: ByteArray) {
@@ -117,16 +105,16 @@ class MeetingTranscription(
         transcribed += segment.length
     }
 
-    private suspend fun writeMinutes(): MinutesState {
-        if (speech == null) return MinutesState.Unavailable
-        val writer = writer ?: return MinutesState.Unavailable
-        if (lines.none { it.text != null }) return MinutesState.Written(WrittenMinutes("", emptyList(), emptyList()))
+    private suspend fun writeMinutes(): MinutesDraft {
+        if (speech == null) return MinutesDraft.Unavailable
+        val writer = writer ?: return MinutesDraft.Unavailable
+        if (lines.none { it.text != null }) return MinutesDraft.Written("", emptyList(), emptyList())
         return try {
-            MinutesState.Written(writer.write(lines, startedAt.toLocalDateTime(timeZone).date))
+            writer.write(lines, startedAt.toLocalDateTime(timeZone).date)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            MinutesState.Failed
+            MinutesDraft.Failed
         }
     }
 

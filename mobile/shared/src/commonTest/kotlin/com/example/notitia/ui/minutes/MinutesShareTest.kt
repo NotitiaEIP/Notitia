@@ -47,7 +47,7 @@ class MinutesShareTest {
     )
 
     private fun action(text: String, owner: String? = null, due: LocalDate? = null) =
-        MinutesAction(text, owner, due, done = false)
+        MinutesAction("0", text, owner, due, done = false)
 
     @Test
     fun theSummaryComesFirstThenTheDecisionsThenOneActionPerLine() {

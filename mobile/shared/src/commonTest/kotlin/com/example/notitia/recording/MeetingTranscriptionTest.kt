@@ -3,17 +3,17 @@ package com.example.notitia.recording
 import com.example.notitia.ai.MinutesWriter
 import com.example.notitia.ai.SpeechEngine
 import com.example.notitia.ai.audio
+import com.example.notitia.meeting.ActionDraft
 import com.example.notitia.meeting.MeetingStatus
-import com.example.notitia.meeting.MinutesAction
-import com.example.notitia.meeting.MinutesState
+import com.example.notitia.meeting.MinutesDraft
 import com.example.notitia.meeting.TranscriptLine
-import com.example.notitia.meeting.WrittenMinutes
 import com.example.notitia.ui.search.runNow
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -58,28 +58,13 @@ class MeetingTranscriptionTest {
     }
 
     @Test
-    fun theKeptMeetingHoldsWhatWasHeardAndWritten() {
-        val transcription = transcribed(FakeSpeech("Bonjour.", "On commence."), pieces = 2)
-        transcription.duration = 42.seconds
-        val now = Instant.fromEpochMilliseconds(90_000)
-        val meeting = transcription.toMeeting(device = "phone-1", now = now)
-        assertEquals(transcription.id, meeting.id)
-        assertEquals(startedAt, meeting.startedAt)
-        assertEquals(42.seconds, meeting.duration)
-        assertEquals(now, meeting.modifiedAt)
-        assertEquals("phone-1", meeting.device)
-        assertEquals(transcription.lines, meeting.transcript)
-        assertEquals(MinutesState.Unavailable, meeting.minutes)
-    }
-
-    @Test
     fun aFailedPieceIsMarkedAndTheNextOnesGoOn() {
         val transcription = transcribed(
             FakeSpeech("Bonjour.", IllegalStateException("HTTP 502"), "On continue."),
             pieces = 3,
         )
         assertEquals(listOf("Bonjour.", null, "On continue."), transcription.lines.map { it.text })
-        assertEquals(MeetingStatus.Ready(), transcription.status)
+        assertNull(transcription.progress)
     }
 
     @Test
@@ -88,7 +73,7 @@ class MeetingTranscriptionTest {
         transcription.addAudio(audio(3_000) + audio(800, level = 0))
         assertFailsWith<CancellationException> { runNow { transcription.transcribeAll() } }
         assertTrue(transcription.lines.isEmpty())
-        assertIs<MeetingStatus.Transcribing>(transcription.status)
+        assertIs<MeetingStatus.Transcribing>(transcription.progress)
     }
 
     @Test
@@ -117,27 +102,27 @@ class MeetingTranscriptionTest {
     }
 
     @Test
-    fun theStatusGoesFromTranscribingToReady() {
+    fun theProgressEndsOnceTheMinutesAreSettled() {
         val transcription = MeetingTranscription(startedAt, FakeSpeech("Bonjour."))
         transcription.addAudio(audio(3_000) + audio(800, level = 0))
         transcription.finishListening()
-        val before = assertIs<MeetingStatus.Transcribing>(transcription.status)
+        val before = assertIs<MeetingStatus.Transcribing>(transcription.progress)
         assertEquals(0f, before.progress)
         assertTrue(before.remaining > Duration.ZERO)
 
         runNow { transcription.transcribeAll() }
-        assertEquals(MeetingStatus.Ready(), transcription.status)
+        assertNull(transcription.progress)
     }
 
     // Writes one action per transcribed line, or throws failure.
     private class FakeWriter(private val failure: Exception? = null) : MinutesWriter {
         val received = mutableListOf<Pair<List<TranscriptLine>, LocalDate>>()
 
-        override suspend fun write(lines: List<TranscriptLine>, day: LocalDate): WrittenMinutes {
+        override suspend fun write(lines: List<TranscriptLine>, day: LocalDate): MinutesDraft.Written {
             received += lines to day
             failure?.let { throw it }
-            val actions = lines.mapNotNull { it.text }.map { MinutesAction(it, owner = null, due = null, done = false) }
-            return WrittenMinutes("Résumé.", emptyList(), actions)
+            val actions = lines.mapNotNull { it.text }.map { ActionDraft(it, owner = null, due = null) }
+            return MinutesDraft.Written("Résumé.", emptyList(), actions)
         }
     }
 
@@ -156,26 +141,26 @@ class MeetingTranscriptionTest {
         val (lines, day) = writer.received.single()
         assertEquals(transcription.lines, lines)
         assertEquals(LocalDate(1970, 1, 1), day)
-        val written = assertIs<MinutesState.Written>(transcription.minutes)
-        assertEquals("Résumé.", written.minutes.summary)
-        assertEquals(MeetingStatus.Ready(summary = "Résumé."), transcription.status)
+        val written = assertIs<MinutesDraft.Written>(transcription.minutes)
+        assertEquals("Résumé.", written.summary)
+        assertNull(transcription.progress)
     }
 
     @Test
     fun theStatusSaysTheMinutesAreBeingWrittenOnceTheTextIsDone() {
         val transcription = MeetingTranscription(startedAt, FakeSpeech("Bonjour."), FakeWriter())
         transcription.addAudio(audio(3_000) + audio(800, level = 0))
-        assertIs<MeetingStatus.Transcribing>(transcription.status)
-        assertEquals(MinutesState.Writing, transcription.minutes)
+        assertIs<MeetingStatus.Transcribing>(transcription.progress)
+        assertEquals(MinutesDraft.Writing, transcription.minutes)
     }
 
     @Test
     fun aFailedWriterKeepsTheTranscript() {
         val writer = FakeWriter(IllegalStateException("HTTP 502"))
         val transcription = transcribedWith(writer, FakeSpeech("Bonjour."), pieces = 1)
-        assertEquals(MinutesState.Failed, transcription.minutes)
+        assertEquals(MinutesDraft.Failed, transcription.minutes)
         assertEquals(listOf("Bonjour."), transcription.lines.map { it.text })
-        assertEquals(MeetingStatus.Ready(), transcription.status)
+        assertNull(transcription.progress)
     }
 
     @Test
@@ -185,7 +170,7 @@ class MeetingTranscriptionTest {
         transcription.addAudio(audio(3_000) + audio(800, level = 0))
         transcription.finishListening()
         assertFailsWith<CancellationException> { runNow { transcription.transcribeAll() } }
-        assertEquals(MinutesState.Writing, transcription.minutes)
+        assertEquals(MinutesDraft.Writing, transcription.minutes)
     }
 
     @Test
@@ -193,14 +178,14 @@ class MeetingTranscriptionTest {
         val writer = FakeWriter()
         val transcription = transcribedWith(writer, FakeSpeech(IllegalStateException("HTTP 502")), pieces = 1)
         assertTrue(writer.received.isEmpty())
-        assertEquals(MinutesState.Written(WrittenMinutes("", emptyList(), emptyList())), transcription.minutes)
+        assertEquals(MinutesDraft.Written("", emptyList(), emptyList()), transcription.minutes)
     }
 
     @Test
     fun withoutAWriterTheMinutesAreUnavailable() {
         val transcription = transcribed(FakeSpeech("Bonjour."), pieces = 1)
-        assertEquals(MinutesState.Unavailable, transcription.minutes)
-        assertEquals(MeetingStatus.Ready(), transcription.status)
+        assertEquals(MinutesDraft.Unavailable, transcription.minutes)
+        assertNull(transcription.progress)
     }
 
     @Test
@@ -211,6 +196,6 @@ class MeetingTranscriptionTest {
         transcription.finishListening()
         runNow { transcription.transcribeAll() }
         assertTrue(speech.wavs.isEmpty())
-        assertEquals(MeetingStatus.Ready(), transcription.status)
+        assertNull(transcription.progress)
     }
 }
