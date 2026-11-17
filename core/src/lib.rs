@@ -1,3 +1,4 @@
+pub mod audio;
 mod bridge;
 pub mod format;
 pub mod library;

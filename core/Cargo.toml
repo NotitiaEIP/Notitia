@@ -9,6 +9,8 @@ publish = false
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [dependencies]
+# Exact: a port of libopus that is not 1.0 yet, measured at this version (docs/adr/0005-audio.md).
+opus-rs = "=0.1.42"
 serde = { version = "1.0.229", features = ["derive"] }
 # raw_value: the version of a file is read before the meeting it wraps is.
 serde_json = { version = "1.0.154", features = ["raw_value"] }
