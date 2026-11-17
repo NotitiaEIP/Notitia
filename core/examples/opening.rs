@@ -1,7 +1,8 @@
 // How long the meetings of a folder take to open, without and with their index (T-75). Through the same calls as an
 // app, and optimised as an app is: cargo run --release --example opening
+// A folder given after `--` keeps the meetings, to push them to a phone and time its launch there.
 use std::error::Error;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 use std::{fs, thread};
@@ -88,25 +89,27 @@ fn millis(time: Duration) -> f64 {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let folder = tempfile::tempdir()?;
-    let library = Library::open(folder.path(), Arc::new(Screen::default()))?;
+    let temporary = tempfile::tempdir()?;
+    let kept = std::env::args_os().nth(1).map(PathBuf::from);
+    let folder = kept.as_deref().unwrap_or(temporary.path());
+    let library = Library::open(folder, Arc::new(Screen::default()))?;
     for meeting in 0..MEETINGS {
         library.apply(Change::Record(hour(meeting)?));
     }
     drop(library);
     let mut size = 0;
-    for file in fs::read_dir(folder.path())? {
+    for file in fs::read_dir(folder)? {
         size += file?.metadata()?.len();
     }
     println!("{MEETINGS} meetings of one hour, {} MB, their files still in the memory of the system", size / 1_000_000);
     // A file as recent as the index is read again: the meetings are left to age past that.
     thread::sleep(Duration::from_secs(3));
-    drop(open("without the index", folder.path())?);
-    let library = open("with the index", folder.path())?;
+    drop(open("without the index", folder)?);
+    let library = open("with the index", folder)?;
     for meeting in 0..CHANGED {
         library.apply(Change::Edit { meeting: id(meeting)?, edit: Edit::Rename { title: "Point produit".into() } });
     }
     drop(library);
-    drop(open(&format!("with the index, {CHANGED} meetings changed since"), folder.path())?);
+    drop(open(&format!("with the index, {CHANGED} meetings changed since"), folder)?);
     Ok(())
 }

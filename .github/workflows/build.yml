@@ -147,9 +147,10 @@ jobs:
         if: failure()
         run: |
           header=$(find mobile -name Shared.h | head -1)
-          [ -n "$header" ] && grep -nE -A8 'swift_name\("(NotitiaCore|CoreResult|CoreOk|CoreFailed|CoreFailure|HostProbe|MeetingSummary|MainViewControllerKt)"' "$header"
+          [ -n "$header" ] && grep -nE -A8 'swift_name\("(NotitiaCore|CoreListener|CoreReply|CoreFailure|MainViewControllerKt)"' "$header"
 
-      # The proof of the bridge on an iPhone: the app reads a meeting through Swift and Rust, and Rust calls Kotlin back.
+      # The proof of the bridge on an iPhone: a made-up meeting goes through Swift to the core and comes back, each
+      # step answered by the event Rust sends to Kotlin.
       - name: Run the bridge self-check on a simulator
         timeout-minutes: 10
         working-directory: mobile/iosApp
