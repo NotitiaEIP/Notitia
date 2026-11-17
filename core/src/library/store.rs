@@ -1,4 +1,5 @@
-use std::fs::{self, DirBuilder, OpenOptions};
+use std::collections::HashSet;
+use std::fs::{self, DirBuilder, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
@@ -12,11 +13,13 @@ use crate::meeting::{Meeting, MeetingId};
 // The names the Kotlin app gave: the core takes over the folder of a phone as it stands.
 const EXTENSION: &str = ".notitia";
 const DRAFT: &str = ".tmp";
+const AUDIO: &str = ".audio";
 const DEVICE: &str = "device";
 const INDEX: &str = "index";
 
 // The one place that touches the disk, one file per meeting: a damaged file loses one meeting and not all of them.
-// Every byte goes through read_file and write_file: US-81 encrypts there.
+// Every byte of a meeting goes through read_file and write_file: US-81 seals them there. Its audio is sealed
+// already, by src/audio, which is handed the file.
 pub(super) struct Store {
     directory: PathBuf,
 }
@@ -59,12 +62,18 @@ impl Store {
         let mut index = Index::read_at(now);
         let mut meetings = Vec::new();
         let mut trusted = 0;
+        let (mut audios, mut files) = (Vec::new(), HashSet::new());
         for entry in fs::read_dir(&self.directory)? {
             let name = entry?.file_name();
             let Some(name) = name.to_str() else { continue };
             if name.ends_with(DRAFT) {
                 let _ = fs::remove_file(self.directory.join(name));
-            } else if let Some(id) = name.strip_suffix(EXTENSION).and_then(|id| MeetingId::new(id).ok()) {
+            } else if name.ends_with(AUDIO) {
+                audios.push(name.to_owned());
+            } else if let Some(named) = name.strip_suffix(EXTENSION) {
+                // Read or not: a meeting a newer app wrote keeps its audio.
+                files.insert(named.to_owned());
+                let Ok(id) = MeetingId::new(named) else { continue };
                 // Its size and date before its words: a file that changes in between is kept newer than its date
                 // says, and the next launch reads it again. The other way round would hide the change.
                 let file = fs::metadata(self.directory.join(name)).ok().as_ref().and_then(Stat::of);
@@ -86,6 +95,11 @@ impl Store {
                 meetings.push(meeting);
             }
         }
+        // An audio whose meeting is gone: the app was killed between the two files of a deletion.
+        for audio in audios.iter().filter(|audio| !audio.strip_suffix(AUDIO).is_some_and(|named| files.contains(named)))
+        {
+            let _ = fs::remove_file(self.directory.join(audio));
+        }
         let unchanged = trusted == known.len() && trusted == index.len();
         Ok((meetings, (!unchanged).then_some(index)))
     }
@@ -106,11 +120,21 @@ impl Store {
         self.write_file(&file_of(&meeting.id), &bytes)
     }
 
-    // The draft too: an app killed mid-write leaves one, and it holds the meeting as well. US-81 deletes the audio
-    // here.
+    // The audio of a meeting, which only src/audio reads: opened to read, and to write when it is to be `made`, the
+    // first time or again.
+    pub fn audio(&self, id: &MeetingId, made: bool) -> io::Result<File> {
+        let file = owned().read(true).write(made).create(made).open(self.directory.join(audio_of(id)))?;
+        if made {
+            self.flush_folder();
+        }
+        Ok(file)
+    }
+
+    // The draft too: an app killed mid-write leaves one, and it holds the meeting as well. The audio last: killed
+    // before it, the app finds an audio without a meeting at its next launch, never a deleted meeting back.
     pub fn remove(&self, id: &MeetingId) -> io::Result<()> {
         let file = file_of(id);
-        for name in [draft_of(&file), file] {
+        for name in [draft_of(&file), file, audio_of(id)] {
             match fs::remove_file(self.directory.join(name)) {
                 Err(error) if error.kind() != io::ErrorKind::NotFound => return Err(error),
                 _ => {}
@@ -157,12 +181,20 @@ fn draft_of(name: &str) -> String {
     format!("{name}{DRAFT}")
 }
 
-fn write_flushed(path: &Path, bytes: &[u8]) -> io::Result<()> {
+fn audio_of(id: &MeetingId) -> String {
+    format!("{}{AUDIO}", id.as_str())
+}
+
+// A new file is for its owner alone, as the folder is.
+fn owned() -> OpenOptions {
     let mut file = OpenOptions::new();
-    file.write(true).create(true).truncate(true);
     #[cfg(unix)]
     std::os::unix::fs::OpenOptionsExt::mode(&mut file, 0o600);
-    let mut file = file.open(path)?;
+    file
+}
+
+fn write_flushed(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let mut file = owned().write(true).create(true).truncate(true).open(path)?;
     file.write_all(bytes)?;
     file.sync_all()
 }
@@ -287,6 +319,32 @@ mod tests {
     }
 
     #[test]
+    fn the_audio_of_a_meeting_is_made_once_and_goes_with_it() {
+        let (_folder, store) = store();
+        store.write(&meeting("recorded-1")).unwrap();
+        assert_eq!(store.audio(&id("recorded-1"), false).unwrap_err().kind(), io::ErrorKind::NotFound);
+        store.audio(&id("recorded-1"), true).unwrap().write_all(b"sealed").unwrap();
+        // Made again, it is the same file: a recording takes up what it wrote.
+        assert_eq!(store.audio(&id("recorded-1"), true).unwrap().metadata().unwrap().len(), 6);
+        store.remove(&id("recorded-1")).unwrap();
+        assert!(!store.directory.join("recorded-1.audio").exists());
+    }
+
+    #[test]
+    fn an_audio_without_the_file_of_its_meeting_is_removed_at_launch() {
+        let (_folder, store) = store();
+        store.write(&meeting("recorded-1")).unwrap();
+        // A meeting this app cannot read, as a newer one may write it.
+        fs::write(store.directory.join("recorded-2.notitia"), "{\"version\":").unwrap();
+        for recorded in ["recorded-1", "recorded-2", "recorded-3"] {
+            store.audio(&id(recorded), true).unwrap();
+        }
+        assert_eq!(ids(&store), ["recorded-1"]);
+        let kept = |recorded: &str| store.directory.join(format!("{recorded}.audio")).exists();
+        assert!(kept("recorded-1") && kept("recorded-2") && !kept("recorded-3"));
+    }
+
+    #[test]
     fn a_draft_left_by_a_killed_app_is_deleted_when_the_folder_is_read() {
         let (_folder, store) = store();
         store.write(&meeting("recorded-1")).unwrap();
@@ -321,10 +379,12 @@ mod tests {
 
         let (_folder, store) = store();
         store.write(&meeting("recorded-1")).unwrap();
+        store.audio(&id("recorded-1"), true).unwrap();
         opened(&store, OPENED);
         let mode = |path: PathBuf| fs::metadata(path).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode(store.directory.clone()), 0o700);
         assert_eq!(mode(store.directory.join(FILE)), 0o600);
+        assert_eq!(mode(store.directory.join("recorded-1.audio")), 0o600);
         // The index holds titles and minutes: it is written as a meeting is.
         assert_eq!(mode(store.directory.join(INDEX)), 0o600);
         assert!(!store.directory.join("index.tmp").exists());

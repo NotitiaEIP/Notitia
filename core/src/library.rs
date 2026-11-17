@@ -10,7 +10,9 @@ use std::{fmt, io, mem};
 use serde::Serialize;
 use time::UtcDateTime;
 
+use crate::audio::{self, AudioError};
 use crate::meeting::{Change, Meeting, MeetingId, Stamp, TranscriptLine};
+use crate::secret::Key;
 use store::Store;
 
 // Called on the thread that asked for the change, once the meetings have changed and before their file is written:
@@ -83,6 +85,8 @@ type Clock = Box<dyn Fn() -> UtcDateTime + Send + Sync>;
 // The meetings of a folder: the one place that holds them, changes them and writes them.
 pub struct Library {
     store: Store,
+    // The key of the app. Without one no audio is written nor read: none ever reaches the disk in clear.
+    key: Option<Key>,
     device: String,
     listener: Arc<dyn Listener>,
     clock: Clock,
@@ -95,11 +99,20 @@ pub struct Library {
 }
 
 impl Library {
-    pub fn open(directory: impl Into<PathBuf>, listener: Arc<dyn Listener>) -> Result<Self, LibraryError> {
-        Self::open_at(directory.into(), listener, Box::new(UtcDateTime::now))
+    pub fn open(
+        directory: impl Into<PathBuf>,
+        key: Option<Key>,
+        listener: Arc<dyn Listener>,
+    ) -> Result<Self, LibraryError> {
+        Self::open_at(directory.into(), key, listener, Box::new(UtcDateTime::now))
     }
 
-    fn open_at(directory: PathBuf, listener: Arc<dyn Listener>, clock: Clock) -> Result<Self, LibraryError> {
+    fn open_at(
+        directory: PathBuf,
+        key: Option<Key>,
+        listener: Arc<dyn Listener>,
+        clock: Clock,
+    ) -> Result<Self, LibraryError> {
         let read = |_: io::Error| LibraryError::Unreadable;
         let store = Store::open(directory).map_err(read)?;
         let device = store.device().map_err(read)?;
@@ -113,7 +126,7 @@ impl Library {
         if let Some(index) = index {
             store.keep(index);
         }
-        Ok(Self { store, device, listener, clock, behind: Mutex::default(), meetings: Mutex::new(meetings) })
+        Ok(Self { store, key, device, listener, clock, behind: Mutex::default(), meetings: Mutex::new(meetings) })
     }
 
     // The whole meeting, lines included.
@@ -138,6 +151,27 @@ impl Library {
         if *behind != were_behind {
             self.listener.on_event(&Event::Unsaved { meetings: behind.iter().cloned().collect() });
         }
+    }
+
+    // The audio of a meeting, to add sound to: made the first time, taken up where it stopped after that. A sample
+    // has none, nor a meeting the library does not keep.
+    pub fn record(&self, id: &MeetingId, tracks: usize) -> Result<audio::Writer, AudioError> {
+        let key = self.key.as_ref().ok_or(AudioError::Locked)?;
+        // Held as a change holds it: a meeting deleted meanwhile does not get an audio back.
+        let _changes = lock(&self.behind);
+        if !lock(&self.meetings).has_file(id) {
+            return Err(AudioError::Absent);
+        }
+        audio::Writer::open(self.store.audio(id, true)?, key, tracks)
+    }
+
+    pub fn audio(&self, id: &MeetingId) -> Result<audio::Reader, AudioError> {
+        let key = self.key.as_ref().ok_or(AudioError::Locked)?;
+        let file = self.store.audio(id, false).map_err(|error| match error.kind() {
+            io::ErrorKind::NotFound => AudioError::Absent,
+            _ => AudioError::Unreadable,
+        })?;
+        audio::Reader::open(file, key)
     }
 
     // The disk follows the memory: the file is written when the meeting is kept, removed when it is gone. Nothing
@@ -243,6 +277,10 @@ impl Meetings {
         Some((entry.meeting.clone(), lines))
     }
 
+    fn has_file(&self, id: &MeetingId) -> bool {
+        self.entries.iter().any(|entry| &entry.meeting.id == id && entry.file().is_some())
+    }
+
     // Its lines are in the file now: they leave the memory.
     fn written(&mut self, id: &MeetingId) {
         let entry = self.entries.iter_mut().find(|entry| &entry.meeting.id == id);
@@ -272,10 +310,12 @@ mod tests {
     use time::macros::{date, utc_datetime};
 
     use super::*;
+    use crate::audio::testing::chord;
     use crate::meeting::testing::{heard, id, line, meeting};
     use crate::meeting::{
         Action, ActionDraft, ActionId, ActionSource, Edit, Extra, Minutes, MinutesDraft, MinutesState, Snapshot,
     };
+    use crate::secret::testing::key;
 
     const NOW: UtcDateTime = utc_datetime!(2026-11-11 8:00);
     const LONG_BEFORE: UtcDateTime = utc_datetime!(2026-11-10 8:00);
@@ -346,7 +386,7 @@ mod tests {
 
     fn launch(folder: TempDir) -> Phone {
         let app = Arc::new(App { folder: folder.path().into(), ..App::default() });
-        let library = Library::open_at(folder.path().into(), app.clone(), Box::new(|| NOW)).unwrap();
+        let library = Library::open_at(folder.path().into(), Some(key(1)), app.clone(), Box::new(|| NOW)).unwrap();
         Phone { folder, app, library }
     }
 
@@ -473,7 +513,7 @@ mod tests {
     fn a_folder_that_cannot_be_made_is_an_error() {
         let folder = tempfile::tempdir().unwrap();
         fs::write(folder.path().join("taken"), "").unwrap();
-        let opened = Library::open(folder.path().join("taken").join("meetings"), Arc::new(App::default()));
+        let opened = Library::open(folder.path().join("taken").join("meetings"), None, Arc::new(App::default()));
         assert_eq!(opened.err(), Some(LibraryError::Unreadable));
     }
 
@@ -556,6 +596,47 @@ mod tests {
         phone.record(&["Bonjour à tous.", "Je prépare la démo."], one_action());
         assert_eq!(phone.list(), []);
         assert_eq!(phone.relaunched().list(), []);
+    }
+
+    #[test]
+    fn the_audio_of_a_meeting_is_written_beside_it_and_heard_again() {
+        let phone = phone(&[meeting("recorded-1")]);
+        let mut writer = phone.library.record(&id("recorded-1"), 1).unwrap();
+        chord(70).iter().for_each(|frame| writer.write(&[*frame]).unwrap());
+        writer.finish().unwrap();
+        assert!(phone.path("recorded-1.audio").exists());
+        let mut reader = phone.library.audio(&id("recorded-1")).unwrap();
+        assert_eq!((reader.duration_ms(), reader.read(0, 1_400).unwrap()[0].len()), (1_400, 22_400));
+        // The next launch keeps it, and deleting the meeting does not.
+        let phone = launch(phone.folder);
+        assert_eq!(phone.library.audio(&id("recorded-1")).unwrap().duration_ms(), 1_400);
+        phone.delete(&["recorded-1"]);
+        assert!(!phone.path("recorded-1.audio").exists());
+        assert_eq!(phone.library.audio(&id("recorded-1")).err(), Some(AudioError::Absent));
+    }
+
+    #[test]
+    fn only_a_meeting_that_has_a_file_gets_an_audio() {
+        let phone = phone(&[meeting("recorded-1")]);
+        phone.library.apply(Change::Lend { meetings: vec![meeting("sample-1")] });
+        phone.delete(&["recorded-1"]);
+        for without in ["sample-1", "recorded-1", "recorded-9"] {
+            assert_eq!(phone.library.record(&id(without), 1).err(), Some(AudioError::Absent));
+            assert_eq!(phone.library.audio(&id(without)).err(), Some(AudioError::Absent));
+            assert!(!phone.path(&format!("{without}.audio")).exists());
+        }
+    }
+
+    #[test]
+    fn without_the_key_of_the_app_no_audio_is_written_nor_read() {
+        let phone = phone(&[meeting("recorded-1")]);
+        phone.library.record(&id("recorded-1"), 1).unwrap().finish().unwrap();
+        let sealed = fs::read(phone.path("recorded-1.audio")).unwrap();
+        let app = Arc::new(App::default());
+        let keyless = Library::open_at(phone.folder.path().into(), None, app, Box::new(|| NOW)).unwrap();
+        assert_eq!(keyless.record(&id("recorded-1"), 1).err(), Some(AudioError::Locked));
+        assert_eq!(keyless.audio(&id("recorded-1")).err(), Some(AudioError::Locked));
+        assert_eq!(fs::read(phone.path("recorded-1.audio")).unwrap(), sealed);
     }
 
     #[test]
@@ -676,7 +757,7 @@ mod tests {
         let folder = tempfile::tempdir().unwrap();
         let store = Store::open(folder.path().into()).unwrap();
         [meeting("recorded-1"), meeting("recorded-2")].iter().for_each(|meeting| store.write(meeting).unwrap());
-        let library = Library::open_at(folder.path().into(), Arc::new(Failing), Box::new(|| NOW)).unwrap();
+        let library = Library::open_at(folder.path().into(), None, Arc::new(Failing), Box::new(|| NOW)).unwrap();
         let rename = Change::Edit { meeting: id("recorded-1"), edit: Edit::Rename { title: "Point produit".into() } };
         assert!(panic::catch_unwind(AssertUnwindSafe(|| library.apply(rename))).is_err());
         assert_eq!(on_disk(folder.path(), &id("recorded-1")), Some(meeting("recorded-1")));

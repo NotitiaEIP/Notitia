@@ -85,20 +85,10 @@ impl Decoder {
 
 #[cfg(test)]
 mod tests {
-    use std::f64::consts::TAU;
-
     use super::*;
+    use crate::audio::testing::{chord, likeness};
 
-    // Made up, like every sound of these tests: a chord that swells and fades four times a second.
-    fn chord(frames: usize) -> Vec<Frame> {
-        let sample = |at: usize| {
-            let time = at as f64 / SAMPLE_RATE as f64;
-            let notes: f64 = [220.0, 330.0, 550.0].iter().map(|note| (TAU * note * time).sin()).sum();
-            (notes * (TAU * 2.0 * time).sin().abs() * 5_000.0) as i16
-        };
-        (0..frames).map(|frame| std::array::from_fn(|at| sample(frame * FRAME_SAMPLES + at))).collect()
-    }
-
+    // Made up, like every sound of these tests.
     fn noise(frames: usize) -> Vec<Frame> {
         let mut state = 1u64;
         let mut sample = || {
@@ -112,12 +102,6 @@ mod tests {
         let (mut encoder, mut decoder) = (Encoder::new().unwrap(), Decoder::new().unwrap());
         let read = heard.iter().flat_map(|frame| decoder.decode(&encoder.encode(frame).unwrap()).unwrap()).collect();
         (read, encoder.delay())
-    }
-
-    // 1 for the same sound, 0 for two sounds with nothing in common.
-    fn likeness(heard: &[i16], read: &[i16]) -> f64 {
-        let dot = |a: &[i16], b: &[i16]| a.iter().zip(b).map(|(a, b)| f64::from(*a) * f64::from(*b)).sum::<f64>();
-        dot(heard, read) / (dot(heard, heard) * dot(read, read)).sqrt()
     }
 
     #[test]

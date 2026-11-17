@@ -9,15 +9,21 @@ publish = false
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [dependencies]
+# The cipher of what the core keeps, with getrandom, hkdf, sha2 and zeroize: only src/secret.rs knows the five.
+chacha20poly1305 = { version = "0.11.0", default-features = false, features = ["zeroize"] }
+getrandom = "0.4.3"
+hkdf = "0.13.0"
 # Exact: a port of libopus that is not 1.0 yet, measured at this version (docs/adr/0005-audio.md).
 opus-rs = "=0.1.42"
 serde = { version = "1.0.229", features = ["derive"] }
 # raw_value: the version of a file is read before the meeting it wraps is.
 serde_json = { version = "1.0.154", features = ["raw_value"] }
+sha2 = { version = "0.11.1", default-features = false }
 time = { version = "0.3.55", features = ["formatting", "macros", "parsing"] }
 # Exact: UniFFI is not 1.0 yet, and its generated code must match the library it talks to.
 uniffi = "=0.32.2"
 uuid = { version = "1.29.2", features = ["v4"] }
+zeroize = "1.9.1"
 
 [dev-dependencies]
 tempfile = "3.27.0"

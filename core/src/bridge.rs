@@ -65,7 +65,8 @@ impl Listener for Told {
 impl Bridge {
     #[uniffi::constructor]
     pub fn open(directory: String, listener: Arc<dyn BridgeListener>) -> Result<Self, BridgeError> {
-        Ok(Self { library: Library::open(directory, Arc::new(Told(listener)))? })
+        // No key yet, so no audio: T-58 brings the key of the app across.
+        Ok(Self { library: Library::open(directory, None, Arc::new(Told(listener)))? })
     }
 
     // The whole meeting, lines included, as its file holds it.
