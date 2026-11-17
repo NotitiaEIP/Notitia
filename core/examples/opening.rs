@@ -35,7 +35,7 @@ struct Screen {
 
 impl Listener for Screen {
     fn on_event(&self, event: &Event) {
-        if let Event::Listed(_) = event {
+        if let Event::Listed { .. } = event {
             let _ = self.listed.set(Instant::now());
         }
     }
