@@ -77,7 +77,7 @@ fn hour(meeting: u32) -> Result<Snapshot, InvalidId> {
 fn open(what: &str, folder: &Path) -> Result<Library, Box<dyn Error>> {
     let screen = Arc::new(Screen::default());
     let asked = Instant::now();
-    let library = Library::open(folder, screen.clone())?;
+    let library = Library::open(folder, None, screen.clone())?;
     let opened = asked.elapsed();
     let listed = screen.listed.get().map_or(opened, |listed| listed.duration_since(asked));
     println!("{what:<42} list after {:>7.1} ms, opened after {:>7.1} ms", millis(listed), millis(opened));
@@ -92,7 +92,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let temporary = tempfile::tempdir()?;
     let kept = std::env::args_os().nth(1).map(PathBuf::from);
     let folder = kept.as_deref().unwrap_or(temporary.path());
-    let library = Library::open(folder, Arc::new(Screen::default()))?;
+    let library = Library::open(folder, None, Arc::new(Screen::default()))?;
     for meeting in 0..MEETINGS {
         library.apply(Change::Record(hour(meeting)?));
     }

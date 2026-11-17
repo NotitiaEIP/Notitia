@@ -29,14 +29,17 @@ Un en-tête en clair, puis une seconde par enregistrement, toutes de la même ta
 
 | Partie | Contenu |
 | --- | --- |
-| En-tête | Marque, version, nombre de pistes, taille d'un paquet, sel. La version fixe le reste : Opus, 16 kHz, 20 ms |
-| Une seconde | Un nonce de 24 octets, puis scellés ensemble : le nombre de trames (50, sauf à la fin) et 50 paquets par piste. Enfin un sceau de 16 octets |
+| En-tête, 48 octets | La marque `NTTAUDIO` (8), la version (1), le nombre de pistes (1), la taille d'un paquet (2), quatre octets gardés pour plus tard, le sel (32). La version fixe le reste : Opus, 16 kHz, 20 ms |
+| Une seconde | Un nonce de 24 octets, puis scellés ensemble : le nombre de trames (50, sauf à la fin) et, trame après trame, un paquet par piste. Enfin un sceau de 16 octets |
 
-- **Chiffrement** : XChaCha20-Poly1305 (crate `chacha20poly1305`, Rust pur, MIT ou Apache 2.0). Une clé par fichier, tirée de la clé de l'app et du sel par HKDF.
+- **Chiffrement** : XChaCha20-Poly1305 (crate `chacha20poly1305`, Rust pur, MIT ou Apache 2.0). Une clé par fichier, tirée de la clé de l'app et du sel par HKDF-SHA256, sous l'étiquette `notitia audio 1`. Seul `core/src/secret.rs` connaît ces bibliothèques.
 - **Le nonce est tiré au hasard** à chaque seconde. Une seconde coupée par un plantage puis réécrite ne réutilise donc jamais un nonce.
 - **L'en-tête et le numéro de la seconde sont scellés avec elle** : deux secondes échangées, ou une seconde d'un autre fichier, sont refusées.
 - **Se déplacer** : la seconde `n` commence à l'octet `en-tête + n × taille`. Rien à parcourir, rien à déchiffrer avant.
-- **Ajout seul.** Une fin coupée se voit à la taille du fichier, et se retire à la réouverture.
+- **Ajout seul**, écrit sur le disque toutes les 10 secondes. Une app tuée ne perd rien de ce que le système a reçu.
+- **Une fin coupée** se retire à la réouverture : une seconde commencée, qui se voit à la taille du fichier, et après une coupure de courant les dernières secondes que le disque n'a jamais reçues, qui ne s'ouvrent pas. Pas plus de 20 : au-delà, c'est une mauvaise clé ou un fichier modifié, et rien n'est retiré. Une mauvaise clé ne vide donc jamais un fichier.
+- **Seule la dernière seconde peut être plus courte.** Rien ne s'écrit après elle : la seconde `n` reste à `n` secondes du début.
+- **Relire un passage** ouvre ses secondes, et celle d'avant quand le décodeur doit s'y lancer : il lui faut 80 ms de son avant le passage (RFC 7845).
 - **Taille** : 3 041 octets par seconde avec une piste, 6 041 avec deux.
 
 ## Options écartées
@@ -51,6 +54,7 @@ Un en-tête en clair, puis une seconde par enregistrement, toutes de la même ta
 | Opus en stéréo pour les deux pistes | Fait pour deux voies qui se ressemblent : il code d'abord ce qu'elles ont en commun |
 | Deux fichiers, un par piste | Deux fichiers à garder d'accord après un plantage |
 | Le numéro de la seconde comme nonce | Une seconde réécrite après un plantage serait chiffrée deux fois avec le même nonce |
+| La clé de l'app pour tous les fichiers | Confier une réunion à un appareil relié donnerait la clé de toutes les autres |
 
 ## Résultat de la preuve
 
@@ -74,6 +78,12 @@ La même voix de 82,8 secondes, encodée à 24 kbit/s puis relue par libopus :
 
 À débit égal, `opus-rs` rend le même son que libopus. La complexité 5 demande deux fois moins de calcul que la 9, sans différence mesurable.
 
+Le fichier scellé, mesuré le 17 novembre 2026 avec T-80 (#240), sur le même portable :
+
+- **Standard.** Pour la même clé, le même sel et le même nonce, `secret.rs` rend les mêmes octets que libsodium. Un test le garde.
+- **Une heure scellée et écrite** : 0,44 s, 360 écritures forcées sur le disque comprises, pour 10,9 Mo.
+- **Un passage de 30 secondes à la 59ᵉ minute** : ouvert, déchiffré et décodé en 18 ms.
+
 ## Conséquences
 
 **Ce qu'on gagne.** Un seul codec pour cinq systèmes, sans rien à installer. L'iPhone, le Mac et Windows se vérifient depuis Linux. Le fichier est simple : des secondes de taille fixe, où l'on se déplace par une multiplication.
@@ -81,6 +91,8 @@ La même voix de 82,8 secondes, encodée à 24 kbit/s puis relue par libopus :
 **Ce qu'on paie.** Un silence pèse autant qu'une phrase. La bibliothèque n'a pas un an et n'est pas en version 1.0 : sa version est fixée, et la monter demande de refaire ces mesures.
 
 **Ce qui nous protège.** L'Opus gardé est standard : libopus le relira toujours, et prendre sa place tient dans un fichier.
+
+**Ce qu'on ne voit pas.** Un fichier raccourci juste entre deux secondes ressemble à un enregistrement arrêté là. Le distinguer demande de sceller la durée ailleurs : US-81 (#37) le pourra en scellant le fichier `.notitia`.
 
 **Ce qui reste ouvert.**
 
