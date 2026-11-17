@@ -37,7 +37,7 @@ class NudgeTest {
         done: Boolean = false,
         meeting: MeetingListItem = meeting("Point produit", 20),
         index: Int = 0,
-    ) = TrackedAction(ActionId(meeting.id, index), MinutesAction(text, owner, due, done), meeting)
+    ) = TrackedAction(ActionId(meeting.id, "$index"), MinutesAction("$index", text, owner, due, done), meeting)
 
     private val words = NudgeWords(
         hello = "Bonjour %1\$s,",

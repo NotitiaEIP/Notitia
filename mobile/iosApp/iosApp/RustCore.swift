@@ -2,44 +2,67 @@ import Foundation
 import Shared
 
 // The core as the iPhone reaches it: Swift calls the Rust library through the code UniFFI generates, and the
-// shared Kotlin screens receive this object. Both sides have a MeetingSummary and a HostProbe: a bare name is
-// the one of UniFFI, the one of Kotlin is written Shared.
+// shared Kotlin code receives this object. Bridge, BridgeListener and BridgeError are UniFFI's; what Kotlin
+// declares is written Shared.
 final class RustCore: NSObject, Shared.NotitiaCore {
-    func meetingSummary(path: String) -> Shared.CoreResult<Shared.MeetingSummary> {
+    // Set once, by open, before any other call: Kotlin makes one call at a time.
+    private var bridge: Bridge?
+
+    func open(directory: String, listener: Shared.CoreListener) -> Shared.CoreFailure? {
         do {
-            let summary = try readMeetingSummary(path: path)
-            return Shared.CoreOk<Shared.MeetingSummary>(
-                value: Shared.MeetingSummary(id: summary.id, title: summary.title, startedAtMs: summary.startedAtMs)
-            )
-        } catch let error as CoreError {
-            return Shared.CoreFailed<Shared.MeetingSummary>(failure: failure(of: error))
+            bridge = try Bridge.open(directory: directory, listener: ListenerAdapter(listener))
+            return nil
         } catch {
-            return Shared.CoreFailed<Shared.MeetingSummary>(failure: .broken)
+            return failure(of: error)
         }
     }
 
-    func ask(host: Shared.HostProbe, question: String) -> String {
-        askHost(probe: HostProbeAdapter(host), question: question)
+    func meeting(id: String) -> Shared.CoreReply {
+        guard let bridge = bridge else {
+            return Shared.CoreReply(text: nil, failure: .broken)
+        }
+        do {
+            return Shared.CoreReply(text: try bridge.meeting(id: id), failure: nil)
+        } catch {
+            return Shared.CoreReply(text: nil, failure: failure(of: error))
+        }
     }
 
-    private func failure(of error: CoreError) -> Shared.CoreFailure {
+    func apply(change: String) -> Shared.CoreFailure? {
+        guard let bridge = bridge else {
+            return .broken
+        }
+        do {
+            try bridge.apply(change: change)
+            return nil
+        } catch {
+            return failure(of: error)
+        }
+    }
+
+    // Anything but a BridgeError is a fault of the bridge itself: a panic of the core, say.
+    private func failure(of error: Error) -> Shared.CoreFailure {
+        guard let error = error as? BridgeError else {
+            return .broken
+        }
         switch error {
+        case .NotFound: return .notfound
         case .Unreadable: return .unreadable
-        case .NotAMeeting: return .notameeting
-        case .NewerFormat: return .newerformat
+        case .Invalid: return .invalid
         }
     }
 }
 
-// Rust calls it from a thread of its own. Unchecked: the Kotlin object behind it may be called from any thread.
-private final class HostProbeAdapter: HostProbe, @unchecked Sendable {
-    private let host: Shared.HostProbe
+// Rust calls it on the thread Kotlin asked from. Unchecked: the Kotlin object behind it may be called from any
+// thread.
+private final class ListenerAdapter: BridgeListener, @unchecked Sendable {
+    private let listener: Shared.CoreListener
 
-    init(_ host: Shared.HostProbe) {
-        self.host = host
+    init(_ listener: Shared.CoreListener) {
+        self.listener = listener
     }
 
-    func answer(question: String) -> String {
-        host.answer(question: question)
+    func onEvent(event: String) {
+        listener.onEvent(event: event)
     }
 }

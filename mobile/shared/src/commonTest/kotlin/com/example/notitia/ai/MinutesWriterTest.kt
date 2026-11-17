@@ -1,9 +1,9 @@
 package com.example.notitia.ai
 
+import com.example.notitia.meeting.ActionDraft
 import com.example.notitia.meeting.ActionSource
-import com.example.notitia.meeting.MinutesAction
+import com.example.notitia.meeting.MinutesDraft
 import com.example.notitia.meeting.TranscriptLine
-import com.example.notitia.meeting.WrittenMinutes
 import com.example.notitia.ui.search.runNow
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -59,8 +59,8 @@ class MinutesWriterTest {
         assertEquals(listOf("La démo a lieu le 15 novembre.", "On garde le violet."), minutes.decisions)
         assertEquals(
             listOf(
-                MinutesAction("Préparer la démo", owner = "Lucas", due = LocalDate(2026, 11, 13), done = false),
-                MinutesAction("Réserver la salle", owner = null, due = null, done = false),
+                ActionDraft("Préparer la démo", owner = "Lucas", due = LocalDate(2026, 11, 13)),
+                ActionDraft("Réserver la salle", owner = null, due = null),
             ),
             minutes.actions,
         )
@@ -143,7 +143,7 @@ class MinutesWriterTest {
             ACTION: Aucune tâche attribuée.
             """.trimIndent(),
         )
-        assertEquals(WrittenMinutes("", emptyList(), emptyList()), minutes)
+        assertEquals(MinutesDraft.Written("", emptyList(), emptyList()), minutes)
     }
 
     @Test
@@ -164,7 +164,7 @@ class MinutesWriterTest {
 
     @Test
     fun aMeetingWithNothingToKeepGivesEmptyMinutes() {
-        assertEquals(WrittenMinutes("", emptyList(), emptyList()), parseMinutes(""))
+        assertEquals(MinutesDraft.Written("", emptyList(), emptyList()), parseMinutes(""))
     }
 
     @Test

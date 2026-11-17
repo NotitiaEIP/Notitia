@@ -65,14 +65,29 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }
+        // The Android flavour of JNA only knows phones: on the host, RustCoreTest needs the one for computers.
+        getByName("androidHostTest").dependencies {
+            implementation(libs.jna)
+        }
     }
+}
+
+// The core built for this machine, which RustCoreTest calls.
+val hostCore: Configuration by configurations.creating {
+    isCanBeConsumed = false
 }
 
 dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
+    hostCore(project(":coreAndroid", "hostCore"))
 }
 
-// ScreensBoundaryTest reads these sources: an import alone must be enough to run it again.
+// ScreensBoundaryTest reads these sources, BridgeContractTest the examples of the core, and RustCoreTest calls the
+// core itself: a change in any of them must be enough to run the tests again.
 tasks.withType<Test>().configureEach {
+    val core: FileCollection = hostCore
     inputs.dir("src/commonMain/kotlin").withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir("../../core/tests/fixtures").withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.files(core).withPathSensitivity(PathSensitivity.RELATIVE)
+    jvmArgumentProviders.add(CommandLineArgumentProvider { listOf("-Djna.library.path=${core.singleFile.path}") })
 }

@@ -203,6 +203,7 @@ fun App(
                             MinutesRoute(
                                 meeting = openedMeeting.first,
                                 item = openedMeeting.second,
+                                transcript = { meetingsModel.transcript(openedMeeting.first.id) },
                                 onSetDone = meetingsModel::setDone,
                                 onRename = { meetingsModel.rename(openedMeeting.first.id, it) },
                                 onDelete = {

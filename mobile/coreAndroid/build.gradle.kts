@@ -54,6 +54,30 @@ abstract class BuildCoreLibraries : CargoTask() {
     )
 }
 
+abstract class BuildCoreForHost : CargoTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val sources: ConfigurableFileCollection
+
+    @get:OutputDirectory
+    abstract val library: DirectoryProperty
+
+    @get:Inject
+    abstract val files: FileSystemOperations
+
+    // Built where `cargo test` builds, so nothing compiles twice, then copied to a folder that is Gradle's own.
+    @TaskAction
+    fun build() {
+        cargo(emptyMap(), "build")
+        files.sync {
+            from(coreDirectory.dir("target/debug")) {
+                include("libnotitia_core.so", "libnotitia_core.dylib", "notitia_core.dll")
+            }
+            into(library)
+        }
+    }
+}
+
 abstract class GenerateCoreBindings : CargoTask() {
     @get:InputDirectory
     @get:PathSensitive(PathSensitivity.RELATIVE)
@@ -83,12 +107,29 @@ val cargoPath = providers.environmentVariable("CARGO_HOME")
     .orElse(providers.systemProperty("user.home").map { "$it/.cargo" })
     .map { home -> listOf("cargo", "cargo.exe").map { File(home, "bin/$it") }.firstOrNull { it.exists() }?.path ?: "cargo" }
 
+val coreSources = core.asFileTree.matching { include("src/**", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml") }
+
 val buildCoreLibraries = tasks.register<BuildCoreLibraries>("buildCoreLibraries") {
     coreDirectory = core
     cargo = cargoPath
-    sources.from(core.asFileTree.matching { include("src/**", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml") })
+    sources.from(coreSources)
     ndk = androidComponents.sdkComponents.ndkDirectory.map { it.asFile.path }
 }
+
+// The core for the machine that builds: the host tests of the shared code call it through the bridge of the phone,
+// so the bridge is proved on every machine and in the CI, without a device.
+val buildCoreForHost = tasks.register<BuildCoreForHost>("buildCoreForHost") {
+    coreDirectory = core
+    cargo = cargoPath
+    sources.from(coreSources)
+    library = layout.buildDirectory.dir("hostCore")
+}
+
+val hostCore: Configuration by configurations.creating {
+    isCanBeResolved = false
+}
+
+artifacts.add(hostCore.name, buildCoreForHost.flatMap { it.library })
 
 val generateCoreBindings = tasks.register<GenerateCoreBindings>("generateCoreBindings") {
     coreDirectory = core

@@ -1,17 +1,24 @@
 package com.example.notitia.meeting
 
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 
-// A meeting as the phone keeps it: what every screen reads, and what a .notitia file holds.
+// A meeting as every screen reads it, and as the Rust core tells it: the names are those of version 2 of the
+// .notitia format (ADR 0003). Only the core changes and writes one.
 @Serializable
 data class Meeting(
     val id: String,
     val startedAt: Instant,
-    val duration: Duration,
+    @SerialName("durationMs") @Serializable(Milliseconds::class) val duration: Duration,
     // When and where it last changed, so two devices can be reconciled later (E10).
     val modifiedAt: Instant,
     val device: String,
@@ -19,26 +26,34 @@ data class Meeting(
     val title: String? = null,
     // Named by the user, meeting by meeting: no voiceprint links them across meetings (product rule 4).
     val speakers: List<String> = emptyList(),
-    val transcript: List<TranscriptLine> = emptyList(),
     val minutes: MinutesState,
+    // Empty in the list of meetings, which the core tells without their lines: Meetings.transcript reads them.
+    val transcript: List<TranscriptLine> = emptyList(),
 )
 
-// Minutes not written yet have no action to change.
-fun Meeting.withAction(index: Int, transform: (MinutesAction) -> MinutesAction): Meeting {
-    val written = (minutes as? MinutesState.Written)?.minutes ?: return this
-    val actions = written.actions.mapIndexed { i, action -> if (i == index) transform(action) else action }
-    return copy(minutes = MinutesState.Written(written.copy(actions = actions)))
+// The format counts time in whole milliseconds, which every language reads.
+object Milliseconds : KSerializer<Duration> {
+    override val descriptor = PrimitiveSerialDescriptor("Milliseconds", PrimitiveKind.LONG)
+
+    override fun serialize(encoder: Encoder, value: Duration) = encoder.encodeLong(value.inWholeMilliseconds)
+
+    override fun deserialize(decoder: Decoder): Duration = decoder.decodeLong().milliseconds
 }
 
-// An action is known by its place in the minutes of its meeting.
-data class ActionId(val meetingId: String, val index: Int) {
-    // Lazy lists keep their keys in an Android Bundle, which takes a string but not this class.
-    val key: String get() = "$meetingId/$index"
+// An action is known by its identifier in the minutes of its meeting.
+data class ActionId(val meetingId: String, val actionId: String) {
+    // Lazy lists keep their keys in an Android Bundle, which takes a string but not this class. A reminder already
+    // scheduled on a phone opens its action by this key: its shape cannot change.
+    val key: String get() = "$meetingId/$actionId"
 }
 
-// text is null for a passage the engine could not transcribe.
+// text is null for a passage the engine could not transcribe, speaker until the voices are told apart (E2).
 @Serializable
-data class TranscriptLine(val at: Duration, val text: String?)
+data class TranscriptLine(
+    @SerialName("atMs") @Serializable(Milliseconds::class) val at: Duration,
+    val text: String?,
+    val speaker: String? = null,
+)
 
 @Serializable
 data class WrittenMinutes(
@@ -69,6 +84,8 @@ sealed interface MinutesState {
 
 @Serializable
 data class MinutesAction(
+    // Drawn by the core when the minutes are written. A meeting kept before the core knows an action by its rank.
+    val id: String,
     val text: String,
     // A first name, as said in the meeting: null when nobody was named.
     val owner: String?,
@@ -80,12 +97,34 @@ data class MinutesAction(
     val reminder: Boolean = false,
 )
 
-// A title typed with spaces around it keeps only its words; a blank one names nothing, so the meeting keeps its own.
-fun Meeting.renamed(title: String): Meeting = title.trim().takeIf { it.isNotEmpty() }?.let { copy(title = it) } ?: this
-
-// A name typed with spaces around it, or left blank, is no owner.
-fun MinutesAction.ownedBy(name: String?): MinutesAction = copy(owner = name?.trim()?.takeIf { it.isNotEmpty() })
-
 // The sentence as transcribed, never as the model rewrote it. speaker is null until the voices are told apart (E2).
 @Serializable
-data class ActionSource(val quote: String, val speaker: String?, val at: Duration)
+data class ActionSource(
+    val quote: String,
+    val speaker: String?,
+    @SerialName("atMs") @Serializable(Milliseconds::class) val at: Duration,
+)
+
+// The minutes as their writer hands them over: an action as heard, before the core gives it an identifier and a
+// state.
+@Serializable
+sealed interface MinutesDraft {
+    @Serializable
+    @SerialName("writing")
+    data object Writing : MinutesDraft
+
+    @Serializable
+    @SerialName("written")
+    data class Written(val summary: String, val decisions: List<String>, val actions: List<ActionDraft>) : MinutesDraft
+
+    @Serializable
+    @SerialName("failed")
+    data object Failed : MinutesDraft
+
+    @Serializable
+    @SerialName("unavailable")
+    data object Unavailable : MinutesDraft
+}
+
+@Serializable
+data class ActionDraft(val text: String, val owner: String?, val due: LocalDate?, val source: ActionSource? = null)

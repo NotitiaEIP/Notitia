@@ -5,11 +5,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-// The screens reach the meetings through a few interfaces only, so the Rust core can replace what holds them
+// The screens reach the meetings through a few interfaces only, so what holds them, the Rust core today, can change
 // without a screen changing (ADR 0002). On the host, because only there can a test read the sources.
 class ScreensBoundaryTest {
     private val sources = File("src/commonMain/kotlin/com/example/notitia")
-    private val logic = Regex("""import com\.example\.notitia\.(storage|recording|ai)\..+""")
+    private val logic = Regex("""import com\.example\.notitia\.(bridge|recording|ai)\..+""")
 
     @Test
     fun noScreenImportsTheLogicBehindTheInterfaces() {

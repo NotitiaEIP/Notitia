@@ -6,11 +6,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import com.example.notitia.ai.MinutesWriter
 import com.example.notitia.ai.SpeechEngine
+import com.example.notitia.meeting.MeetingKeeper
 import com.example.notitia.meeting.MeetingStatus
-import com.example.notitia.meeting.MinutesState
+import com.example.notitia.meeting.MinutesDraft
 import com.example.notitia.meeting.RecorderState
 import com.example.notitia.meeting.Recording
-import com.example.notitia.storage.MeetingRepository
 import kotlin.concurrent.Volatile
 import kotlin.time.Clock
 import kotlin.time.Duration
@@ -24,13 +24,13 @@ import kotlinx.coroutines.launch
 // A meeting on disk at most this far behind what was heard, if the app is killed while it records.
 private const val SAVE_EVERY_SECONDS = 10
 
-// Hears a meeting, transcribes it as it goes and keeps it. One per process, held by Notitia: the screen and the
-// recording service read the same state.
+// Hears a meeting, transcribes it as it goes and hands it over to be kept. One per process, held by Notitia: the
+// screen and the recording service read the same state.
 class MeetingRecorder(
     microphone: Microphone?,
     private val speech: SpeechEngine?,
     private val writer: MinutesWriter?,
-    private val repository: MeetingRepository,
+    private val keeper: MeetingKeeper,
     private val scope: CoroutineScope,
     private val clock: Clock = Clock.System,
 ) : Recording {
@@ -44,7 +44,7 @@ class MeetingRecorder(
     @Volatile
     private var current: MeetingTranscription? = null
 
-    override fun progress(meetingId: String): MeetingStatus? = transcribing[meetingId]?.status
+    override fun progress(meetingId: String): MeetingStatus? = transcribing[meetingId]?.progress
 
     override fun start() {
         val transcription = MeetingTranscription(clock.now(), speech, writer)
@@ -78,8 +78,8 @@ class MeetingRecorder(
         }
     }
 
-    // Written at each new line, at the end, and every few seconds of audio: an app killed mid-meeting keeps what
-    // was heard and transcribed.
+    // Kept at each new line, at the end, and every few seconds of audio: an app killed mid-meeting keeps what was
+    // heard and transcribed. The core dates each one and leaves what the user gave meanwhile, a title say.
     private fun keep(transcription: MeetingTranscription) {
         scope.launch {
             state.takeWhile { it is RecorderState.Active }
@@ -89,8 +89,10 @@ class MeetingRecorder(
             snapshotFlow {
                 Triple(transcription.lines, transcription.minutes, transcription.duration.inWholeSeconds / SAVE_EVERY_SECONDS)
             }
-                .onEach { repository.save(transcription.toMeeting(repository.device, clock.now())) }
-                .first { (_, minutes) -> minutes != MinutesState.Writing }
+                .onEach { (lines, minutes) ->
+                    keeper.keep(transcription.id, transcription.startedAt, transcription.duration, lines, minutes)
+                }
+                .first { (_, minutes) -> minutes != MinutesDraft.Writing }
             transcribing -= transcription.id
         }
     }

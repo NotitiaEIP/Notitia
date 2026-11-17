@@ -45,8 +45,10 @@ private val sampleSummaries = mapOf(
 // no time.
 private fun sampleActions(meetingId: String, today: LocalDate): List<MinutesAction> {
     val (lucas, clement, nathan, adam) = sampleSpeakers
+    // Known by its place in the minutes, as the actions of a meeting kept before the core.
+    var rank = 0
     fun action(text: String, owner: String?, inDays: Int?, said: ActionSource?, done: Boolean = false) =
-        MinutesAction(text, owner, inDays?.let { today.plus(DatePeriod(days = it)) }, done, said)
+        MinutesAction((rank++).toString(), text, owner, inDays?.let { today.plus(DatePeriod(days = it)) }, done, said)
     fun said(quote: String, by: String, at: Duration) = ActionSource(quote, by, at)
     return when (meetingId) {
         "sample-1" -> listOf(

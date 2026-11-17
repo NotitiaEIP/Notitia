@@ -1,9 +1,17 @@
+use serde::Deserialize;
 use time::{Date, UtcDateTime};
 
-use super::{Action, ActionId, ActionSource, Extra, Meeting, MeetingId, Minutes, MinutesState, TranscriptLine};
+use super::{
+    Action, ActionId, ActionSource, Extra, Meeting, MeetingId, Minutes, MinutesState, TranscriptLine, civil_date,
+    instant,
+};
 
-// What an app or the recorder asks of the meetings. A value, never a function: it crosses the bridge as text.
-#[cfg_attr(test, derive(Debug))]
+// What an app or the recorder asks of the meetings. A value, never a function: it crosses the bridge as text, and
+// is read here as it stands. tests/fixtures/bridge/changes.json holds one of each kind, which every app writes in
+// its own tests: a change of shape here is a change of the bridge.
+#[derive(Deserialize)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
+#[serde(tag = "type", rename_all = "camelCase")]
 pub enum Change {
     Edit { meeting: MeetingId, edit: Edit },
     // For good, its file too.
@@ -13,27 +21,51 @@ pub enum Change {
     Lend { meetings: Vec<Meeting> },
 }
 
-#[cfg_attr(test, derive(Debug))]
+#[derive(Deserialize)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
+#[serde(tag = "type", rename_all = "camelCase")]
 pub enum Edit {
-    Rename { title: String },
-    SetDone { action: ActionId, done: bool },
-    SetOwner { action: ActionId, owner: Option<String> },
-    SetDue { action: ActionId, due: Option<Date> },
-    SetReminder { action: ActionId, on: bool },
+    Rename {
+        title: String,
+    },
+    SetDone {
+        action: ActionId,
+        done: bool,
+    },
+    // Left out, the owner is nobody and the date is none.
+    SetOwner {
+        action: ActionId,
+        owner: Option<String>,
+    },
+    SetDue {
+        action: ActionId,
+        #[serde(default, with = "civil_date")]
+        due: Option<Date>,
+    },
+    SetReminder {
+        action: ActionId,
+        on: bool,
+    },
 }
 
 // Where the recorder stands: sent at each new line, every few seconds of audio, and once the minutes are settled.
-#[cfg_attr(test, derive(Debug))]
+#[derive(Deserialize)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
+#[serde(rename_all = "camelCase")]
 pub struct Snapshot {
     pub id: MeetingId,
+    #[serde(with = "instant")]
     pub started_at: UtcDateTime,
     pub duration_ms: u64,
+    #[serde(default)]
     pub transcript: Vec<TranscriptLine>,
     pub minutes: MinutesDraft,
 }
 
 // The minutes as their writer hands them over: an action as heard, before it has an identifier or a state.
-#[cfg_attr(test, derive(Debug))]
+#[derive(Deserialize)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
+#[serde(tag = "type", rename_all = "lowercase")]
 pub enum MinutesDraft {
     Writing,
     Written { summary: String, decisions: Vec<String>, actions: Vec<ActionDraft> },
@@ -41,10 +73,12 @@ pub enum MinutesDraft {
     Unavailable,
 }
 
-#[cfg_attr(test, derive(Debug))]
+#[derive(Deserialize)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 pub struct ActionDraft {
     pub text: String,
     pub owner: Option<String>,
+    #[serde(default, with = "civil_date")]
     pub due: Option<Date>,
     pub source: Option<ActionSource>,
 }
@@ -179,7 +213,10 @@ mod tests {
     use time::macros::{date, utc_datetime};
 
     use super::*;
-    use crate::meeting::testing::{id, line, meeting, written};
+    use crate::meeting::testing::{heard, id, line, meeting, written};
+
+    // One change of each kind, as the apps write them.
+    const BY_THE_APPS: &str = include_str!("../../tests/fixtures/bridge/changes.json");
 
     const HERE: Stamp = Stamp { at: utc_datetime!(2026-11-11 8:00), device: "phone-2" };
 
@@ -356,5 +393,71 @@ mod tests {
         assert_eq!(writing.interrupted().minutes, MinutesState::Failed);
         assert_eq!(meeting("recorded-1").interrupted(), meeting("recorded-1"));
         assert_eq!(written(&[]), MinutesState::from(draft(&[])));
+    }
+
+    #[test]
+    fn the_changes_the_apps_write_are_read() {
+        let edit = |edit| Change::Edit { meeting: id("recorded-1"), edit };
+        let recorded = |duration_ms, transcript, minutes| {
+            Change::Record(Snapshot {
+                id: id("recorded-9"),
+                started_at: utc_datetime!(2026-11-11 7:00),
+                duration_ms,
+                transcript,
+                minutes,
+            })
+        };
+        let heard_and_written = MinutesDraft::Written {
+            summary: "Point sur la démo.".into(),
+            decisions: vec!["La démo a lieu le 15 novembre.".into()],
+            actions: vec![
+                ActionDraft {
+                    text: "Préparer la démo".into(),
+                    owner: Some("Lucas".into()),
+                    due: Some(date!(2026 - 11 - 14)),
+                    source: Some(ActionSource {
+                        quote: "Je prépare la démo.".into(),
+                        speaker: None,
+                        at_ms: 724_000,
+                        extra: Extra::new(),
+                    }),
+                },
+                ActionDraft { text: "Rédiger le registre RGPD".into(), owner: None, due: None, source: None },
+            ],
+        };
+        let silence = TranscriptLine { at_ms: 30_000, text: None, speaker: None, extra: Extra::new() };
+        let expected = vec![
+            edit(Edit::Rename { title: "Point produit".into() }),
+            edit(Edit::SetDone { action: first(), done: true }),
+            edit(Edit::SetOwner { action: first(), owner: Some("Nathan".into()) }),
+            edit(Edit::SetOwner { action: first(), owner: None }),
+            edit(Edit::SetDue { action: first(), due: Some(date!(2026 - 11 - 20)) }),
+            edit(Edit::SetDue { action: first(), due: None }),
+            edit(Edit::SetReminder { action: first(), on: true }),
+            Change::Delete { meetings: vec![id("recorded-1"), id("recorded-3")] },
+            recorded(60_000, Vec::new(), MinutesDraft::Writing),
+            recorded(90_000, vec![line(0, "Bonjour à tous."), silence], heard_and_written),
+            Change::Lend { meetings: vec![heard("sample-1")] },
+        ];
+        assert_eq!(serde_json::from_str::<Vec<Change>>(BY_THE_APPS).unwrap(), expected);
+    }
+
+    #[test]
+    fn what_is_not_a_change_is_refused() {
+        let edit = |edit: &str| format!("{{\"type\":\"edit\",\"meeting\":\"recorded-1\",\"edit\":{edit}}}");
+        for text in [
+            String::new(),
+            "[]".into(),
+            "{}".into(),
+            "{\"type\":\"forget\"}".into(),
+            "{\"type\":\"delete\"}".into(),
+            // An identifier names a file: one that would leave the folder never reaches the meetings.
+            "{\"type\":\"delete\",\"meetings\":[\"../recorded-1\"]}".into(),
+            edit("{\"type\":\"rename\"}"),
+            edit("{\"type\":\"setDone\",\"action\":\"0/1\",\"done\":true}"),
+            edit("{\"type\":\"setDue\",\"action\":\"0\",\"due\":\"demain\"}"),
+        ] {
+            assert!(serde_json::from_str::<Change>(&text).is_err(), "{text}");
+        }
     }
 }

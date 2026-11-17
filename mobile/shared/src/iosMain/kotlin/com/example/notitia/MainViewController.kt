@@ -6,9 +6,9 @@ import androidx.compose.ui.uikit.OnFocusBehavior
 import androidx.compose.ui.window.ComposeUIViewController
 import com.example.notitia.bridge.CoreSelfCheck
 import com.example.notitia.bridge.NotitiaCore
+import com.example.notitia.bridge.meetingsDirectory
 import com.example.notitia.reminder.NotificationReminderScheduler
 import com.example.notitia.reminder.reminderTaps
-import com.example.notitia.storage.phoneMeetingStore
 
 private var notitia: Notitia? = null
 
@@ -16,7 +16,7 @@ private var notitia: Notitia? = null
 // thread comes here.
 private fun notitia(core: NotitiaCore): Notitia = notitia ?: Notitia(
     core = core,
-    meetingStore = phoneMeetingStore(),
+    meetingsDirectory = meetingsDirectory(),
     reminderScheduler = NotificationReminderScheduler(),
 ).also { notitia = it }
 

@@ -27,7 +27,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -102,6 +104,7 @@ import notitia.shared.generated.resources.more_horiz
 import notitia.shared.generated.resources.participants
 import notitia.shared.generated.resources.transcript_empty
 import notitia.shared.generated.resources.transcript_failed
+import notitia.shared.generated.resources.transcript_unreadable
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.pluralStringResource
@@ -113,6 +116,7 @@ private const val SUMMARY_FOLDED_LINES = 3
 fun MinutesRoute(
     meeting: Meeting,
     item: MeetingListItem,
+    transcript: suspend () -> List<TranscriptLine>?,
     onSetDone: (ActionId, Boolean) -> Unit,
     onRename: (String) -> Unit,
     onDelete: () -> Unit,
@@ -142,7 +146,7 @@ fun MinutesRoute(
         backLabel = backLabel,
         backDescription = backDescription,
         onBack = onBack,
-        onToggleAction = { index -> onSetDone(ActionId(meeting.id, index), !minutes.actions[index].done) },
+        onToggleAction = { index -> minutes.actions[index].let { onSetDone(ActionId(meeting.id, it.id), !it.done) } },
         onRename = onRename,
         onDelete = onDelete,
         onShare = if (meeting.minutes is MinutesState.Written) {
@@ -150,12 +154,14 @@ fun MinutesRoute(
         } else {
             null
         },
-        transcript = meeting.transcript,
+        transcript = transcript,
+        revision = meeting.id to meeting.modifiedAt,
         modifier = modifier,
     )
 }
 
 // notice replaces the minutes when they are not written, and onShare is null then: there is nothing to send.
+// transcript reads the lines, null when it cannot: asked when their tab is shown, and again when revision changes.
 @Composable
 fun MinutesScreen(
     minutes: Minutes,
@@ -168,11 +174,14 @@ fun MinutesScreen(
     onDelete: () -> Unit,
     onShare: (() -> Unit)?,
     notice: StringResource? = null,
-    transcript: List<TranscriptLine> = emptyList(),
+    transcript: suspend () -> List<TranscriptLine>? = { emptyList() },
+    revision: Any? = null,
     modifier: Modifier = Modifier,
 ) {
     val spacing = NotitiaTheme.spacing
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    // Ticking an action on the other tab reads nothing; a line just transcribed shows as the meeting changes.
+    val lines = if (tab != 0) readTranscript(transcript, revision) else Transcript.Reading
     val meeting = minutes.meeting
     val focusManager = LocalFocusManager.current
     var renameRequests by remember { mutableIntStateOf(0) }
@@ -228,7 +237,7 @@ fun MinutesScreen(
                 }
             }
             when {
-                tab != 0 -> transcriptItems(transcript)
+                tab != 0 -> transcriptItems(lines)
                 notice != null -> item { Notice(stringResource(notice), Modifier.padding(top = spacing.xxl)) }
                 else -> item { Column { MinutesContent(minutes, onToggleAction) } }
             }
@@ -400,13 +409,36 @@ private fun Notice(text: String, modifier: Modifier = Modifier) {
     )
 }
 
-private fun LazyListScope.transcriptItems(lines: List<TranscriptLine>) {
-    if (lines.isEmpty()) {
-        item { Notice(stringResource(Res.string.transcript_empty), Modifier.padding(top = NotitiaTheme.spacing.xl)) }
-    }
-    itemsIndexed(lines) { index, line ->
-        val spacing = NotitiaTheme.spacing
-        TranscriptLineItem(line, Modifier.padding(top = if (index == 0) spacing.xl else spacing.m))
+private sealed interface Transcript {
+    // Nothing shows for that instant: « no word » would be wrong, and gone at once.
+    data object Reading : Transcript
+
+    data object Unreadable : Transcript
+
+    data class Read(val lines: List<TranscriptLine>) : Transcript
+}
+
+// The lines already shown stay until the new ones are read.
+@Composable
+private fun readTranscript(read: suspend () -> List<TranscriptLine>?, revision: Any?): Transcript {
+    val latest by rememberUpdatedState(read)
+    return produceState<Transcript>(Transcript.Reading, revision) {
+        value = latest()?.let(Transcript::Read) ?: Transcript.Unreadable
+    }.value
+}
+
+private fun LazyListScope.transcriptItems(transcript: Transcript) {
+    fun notice(text: StringResource) = item { Notice(stringResource(text), Modifier.padding(top = NotitiaTheme.spacing.xl)) }
+    when (transcript) {
+        Transcript.Reading -> Unit
+        Transcript.Unreadable -> notice(Res.string.transcript_unreadable)
+        is Transcript.Read -> {
+            if (transcript.lines.isEmpty()) notice(Res.string.transcript_empty)
+            itemsIndexed(transcript.lines) { index, line ->
+                val spacing = NotitiaTheme.spacing
+                TranscriptLineItem(line, Modifier.padding(top = if (index == 0) spacing.xl else spacing.m))
+            }
+        }
     }
 }
 

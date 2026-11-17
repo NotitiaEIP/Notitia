@@ -50,7 +50,7 @@ interface AudioRecorder {
 
 Préférer une interface injectée à `expect`/`actual` dès que l'implémentation garde un état.
 
-Le cœur se branche de la même façon : `NotitiaCore`, dans `commonMain` (`bridge/`), est tenue par `RustCore.kt` sur Android et par `RustCore.swift` sur l'iPhone. Swift ne sait ni suspendre ni lever nos exceptions : une interface tenue par le cœur n'a que des fonctions bloquantes et des valeurs simples (texte, nombres, pas d'`Instant`), et rend un échec comme une valeur, `CoreResult`. Kotlin l'enveloppe ensuite dans ses coroutines. Le cœur rend des données, jamais une phrase d'interface.
+Le cœur se branche de la même façon : `NotitiaCore`, dans `commonMain` (`bridge/`), est tenue par `RustCore.kt` sur Android et par `RustCore.swift` sur l'iPhone. Swift ne sait ni suspendre ni lever nos exceptions : une interface tenue par le cœur n'a que des fonctions bloquantes et des valeurs simples (texte, nombres, pas d'`Instant`), et rend un échec comme une valeur, `CoreFailure`. Kotlin l'enveloppe ensuite dans ses coroutines. Une réunion, une modification et un événement traversent en texte JSON (`docs/adr/0004-pont-json.md`) : en ajouter un ne touche ni `RustCore.kt` ni `RustCore.swift`, mais demande un exemple dans `core/tests/fixtures/bridge/`, que les tests Rust et Kotlin relisent. Le cœur rend des données, jamais une phrase d'interface.
 
 ## Commandes
 
@@ -74,7 +74,7 @@ Le cœur se branche de la même façon : `NotitiaCore`, dans `commonMain` (`brid
   ```
 
 - Commits au format Conventional Commits (voir « Le message de commit et la description de PR »). Une PR traite un seul sujet et se fusionne en squash.
-- La logique métier nouvelle s'écrit dans `core/` et se teste en Rust. Celle qui reste en Kotlin dans `commonMain` y part tâche par tâche (T-57 à T-61) et se teste d'ici là dans `commonTest`.
+- La logique métier nouvelle s'écrit dans `core/` et se teste en Rust. Celle qui reste en Kotlin dans `commonMain` y part tâche par tâche (T-58 à T-61) et se teste d'ici là dans `commonTest`.
 - Le Rust est formaté par `cargo fmt` et passe `cargo clippy` sans avertissement.
 - Une nouvelle dépendance passe par `mobile/gradle/libs.versions.toml`, ou par `core/Cargo.toml` pour le cœur, avec une licence vérifiée (Apache 2.0, MIT ou BSD de préférence).
 - Jamais de fichier de modèle IA dans le repo (`.gguf`, `.onnx`, `.tflite`, `.bin`...). Les modèles sont livrés par les stores (Play for On-device AI sur Android, Background Assets sur iOS).

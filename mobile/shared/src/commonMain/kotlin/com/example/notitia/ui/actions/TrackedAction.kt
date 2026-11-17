@@ -9,9 +9,9 @@ import com.example.notitia.ui.minutes.Minutes
 data class TrackedAction(val id: ActionId, val action: MinutesAction, val meeting: MeetingListItem)
 
 fun trackedActions(minutes: List<Minutes>): List<TrackedAction> = minutes.flatMap { meetingMinutes ->
-    meetingMinutes.actions.mapIndexed { index, action ->
+    meetingMinutes.actions.map { action ->
         TrackedAction(
-            id = ActionId(meetingMinutes.meeting.id, index),
+            id = ActionId(meetingMinutes.meeting.id, action.id),
             action = action,
             meeting = meetingMinutes.meeting,
         )

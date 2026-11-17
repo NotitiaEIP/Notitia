@@ -3,7 +3,6 @@ package com.example.notitia.ui.actions
 import com.example.notitia.meeting.ActionId
 import com.example.notitia.meeting.MeetingStatus
 import com.example.notitia.meeting.MinutesAction
-import com.example.notitia.meeting.ownedBy
 import com.example.notitia.ui.meetings.MeetingListItem
 import com.example.notitia.ui.meetings.sampleMinutes
 import kotlin.test.Test
@@ -37,7 +36,7 @@ class ActionScheduleTest {
         index: Int = 0,
     ): TrackedAction {
         val meeting = MeetingListItem(text, text, meetingAt, 30.minutes, emptyList(), MeetingStatus.Ready())
-        return TrackedAction(ActionId(meeting.id, index), MinutesAction(text, owner, due, done), meeting)
+        return TrackedAction(ActionId(meeting.id, "$index"), MinutesAction("$index", text, owner, due, done), meeting)
     }
 
     @Test
@@ -145,7 +144,7 @@ class ActionScheduleTest {
     @Test
     fun aCompletedActionJoinsItsGroup() {
         val toComplete = tracked("Réserver la salle", due = null, owner = null)
-        val withOwner = toComplete.copy(action = toComplete.action.ownedBy("Adam"))
+        val withOwner = toComplete.copy(action = toComplete.action.copy(owner = "Adam"))
         assertEquals(1, actionBoard(listOf(withOwner), today).toComplete.size)
         val board = actionBoard(listOf(withOwner.copy(action = withOwner.action.copy(due = inDays(1)))), today)
         assertEquals(emptyList(), board.toComplete)

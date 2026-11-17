@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::{fmt, io, mem};
 
+use serde::Serialize;
 use time::UtcDateTime;
 
 use crate::meeting::{Change, Meeting, MeetingId, Stamp, TranscriptLine};
@@ -18,17 +19,21 @@ pub trait Listener: Send + Sync {
     fn on_event(&self, event: &Event);
 }
 
-// A meeting comes without its lines: the list, the actions and the reminders do not read them.
+// A meeting comes without its lines: the list, the actions and the reminders do not read them. Crosses the bridge
+// as text, written here as it stands: tests/fixtures/bridge/events.json holds one of each kind, which every app
+// reads in its own tests.
+#[derive(Serialize)]
 #[cfg_attr(test, derive(Clone, Debug, PartialEq))]
 #[expect(clippy::large_enum_variant, reason = "an event lives for one call: a box would only add an allocation")]
+#[serde(tag = "type", rename_all = "camelCase")]
 pub enum Event {
     // Every meeting, the latest first: once the folder is read, and again when samples are lent.
-    Listed(Vec<Meeting>),
+    Listed { meetings: Vec<Meeting> },
     // New when the app does not know it yet.
-    Changed(Meeting),
-    Removed(Vec<MeetingId>),
+    Changed { meeting: Meeting },
+    Removed { meetings: Vec<MeetingId> },
     // The meetings whose file is behind what the app shows. Empty once every one is written.
-    Unsaved(Vec<MeetingId>),
+    Unsaved { meetings: Vec<MeetingId> },
 }
 
 #[derive(Debug, PartialEq)]
@@ -103,7 +108,7 @@ impl Library {
             stored.into_iter().map(|meeting| Entry { meeting: meeting.interrupted(), transcript: Transcript::Written });
         let mut meetings = Meetings { entries: entries.collect(), deleted: HashSet::new() };
         meetings.sort();
-        listener.on_event(&Event::Listed(meetings.list()));
+        listener.on_event(&Event::Listed { meetings: meetings.list() });
         // After the list: the first screen does not wait for a cache to reach the disk.
         if let Some(index) = index {
             store.keep(index);
@@ -124,13 +129,14 @@ impl Library {
         let stamp = Stamp { at: (self.clock)(), device: &self.device };
         let changed = lock(&self.meetings).apply(change, stamp);
         if let Some((event, files)) = changed {
-            self.listener.on_event(&event);
+            // Before the listener is told: one that panics leaves the files to the next change, never unwritten.
             behind.extend(files);
+            self.listener.on_event(&event);
         }
         // The files left behind by an earlier failure, a full disk say, are tried again with each change.
         behind.retain(|id| self.reconcile(id).is_err());
         if *behind != were_behind {
-            self.listener.on_event(&Event::Unsaved(behind.iter().cloned().collect()));
+            self.listener.on_event(&Event::Unsaved { meetings: behind.iter().cloned().collect() });
         }
     }
 
@@ -176,7 +182,7 @@ impl Meetings {
             Change::Edit { meeting, edit } => {
                 let entry = self.entries.iter_mut().find(|entry| entry.meeting.id == meeting)?;
                 let changed = edit.apply(&mut entry.meeting, stamp);
-                changed.then(|| (Event::Changed(entry.meeting.clone()), Vec::from_iter(entry.file())))
+                changed.then(|| (Event::Changed { meeting: entry.meeting.clone() }, Vec::from_iter(entry.file())))
             }
             Change::Delete { meetings } => {
                 let (gone, kept): (Vec<Entry>, Vec<Entry>) =
@@ -184,8 +190,8 @@ impl Meetings {
                 self.entries = kept;
                 self.deleted.extend(meetings);
                 let files = gone.iter().filter_map(Entry::file).collect();
-                let ids: Vec<MeetingId> = gone.into_iter().map(|entry| entry.meeting.id).collect();
-                (!ids.is_empty()).then_some((Event::Removed(ids), files))
+                let meetings: Vec<MeetingId> = gone.into_iter().map(|entry| entry.meeting.id).collect();
+                (!meetings.is_empty()).then_some((Event::Removed { meetings }, files))
             }
             Change::Record(snapshot) => {
                 if self.deleted.contains(&snapshot.id) {
@@ -197,7 +203,7 @@ impl Meetings {
                 let (meeting, lines) = snapshot.merge(known.map(|entry| entry.meeting), stamp);
                 let transcript = if lent { Transcript::Lent(lines) } else { Transcript::Unwritten(lines) };
                 let entry = Entry { meeting, transcript };
-                let told = (Event::Changed(entry.meeting.clone()), Vec::from_iter(entry.file()));
+                let told = (Event::Changed { meeting: entry.meeting.clone() }, Vec::from_iter(entry.file()));
                 self.entries.push(entry);
                 self.sort();
                 Some(told)
@@ -214,7 +220,7 @@ impl Meetings {
                     }
                 }
                 self.sort();
-                (self.entries.len() > known).then(|| (Event::Listed(self.list()), Vec::new()))
+                (self.entries.len() > known).then(|| (Event::Listed { meetings: self.list() }, Vec::new()))
             }
         }
     }
@@ -258,18 +264,24 @@ impl Entry {
 
 #[cfg(test)]
 mod tests {
+    use std::panic::{self, AssertUnwindSafe};
     use std::{fs, thread};
 
+    use serde_json::Value;
     use tempfile::TempDir;
-    use time::macros::utc_datetime;
+    use time::macros::{date, utc_datetime};
 
     use super::*;
     use crate::meeting::testing::{heard, id, line, meeting};
-    use crate::meeting::{ActionDraft, ActionId, Edit, MinutesDraft, MinutesState, Snapshot};
+    use crate::meeting::{
+        Action, ActionDraft, ActionId, ActionSource, Edit, Extra, Minutes, MinutesDraft, MinutesState, Snapshot,
+    };
 
     const NOW: UtcDateTime = utc_datetime!(2026-11-11 8:00);
     const LONG_BEFORE: UtcDateTime = utc_datetime!(2026-11-10 8:00);
     const V1_BY_KOTLIN: &str = include_str!("../tests/fixtures/meeting-v1.notitia");
+    // One event of each kind, as the apps read them.
+    const FOR_THE_APPS: &str = include_str!("../tests/fixtures/bridge/events.json");
 
     // The side of the app, in a few lines: its list is rebuilt from the events alone.
     #[derive(Default)]
@@ -289,18 +301,18 @@ mod tests {
             self.events.lock().unwrap().push(event.clone());
             let mut list = self.list.lock().unwrap();
             match event {
-                Event::Listed(meetings) => {
+                Event::Listed { meetings } => {
                     self.index_when_listed.lock().unwrap().push(self.folder.join("index").exists());
                     list.clone_from(meetings);
                 }
-                Event::Changed(meeting) => {
+                Event::Changed { meeting } => {
                     self.files_when_told.lock().unwrap().push(on_disk(&self.folder, &meeting.id));
                     list.retain(|known| known.id != meeting.id);
                     list.push(meeting.clone());
                     list.sort_by(latest_first);
                 }
-                Event::Removed(ids) => list.retain(|known| !ids.contains(&known.id)),
-                Event::Unsaved(ids) => self.unsaved.lock().unwrap().clone_from(ids),
+                Event::Removed { meetings } => list.retain(|known| !meetings.contains(&known.id)),
+                Event::Unsaved { meetings } => self.unsaved.lock().unwrap().clone_from(meetings),
             }
         }
     }
@@ -535,7 +547,7 @@ mod tests {
         phone.library.apply(Change::Lend { meetings: vec![meeting("sample-1")] });
         phone.delete(&["recorded-1", "recorded-3", "sample-1"]);
         assert_eq!(phone.ids(), ["recorded-2"]);
-        let removed = Event::Removed(vec![id("recorded-1"), id("recorded-3"), id("sample-1")]);
+        let removed = Event::Removed { meetings: vec![id("recorded-1"), id("recorded-3"), id("sample-1")] };
         assert_eq!(phone.app.events.lock().unwrap().last(), Some(&removed));
         assert_eq!(phone.unsaved(), []);
         assert_eq!(phone.relaunched().ids(), ["recorded-2"]);
@@ -631,5 +643,87 @@ mod tests {
         assert_eq!(phone.file("recorded-1"), Some(whole.clone()));
         assert_eq!(phone.list(), [Meeting { transcript: Vec::new(), ..whole }]);
         assert_eq!(phone.unsaved(), []);
+    }
+
+    // An app whose listener fails on a change, as a bridge does when the app throws.
+    struct Failing;
+
+    impl Listener for Failing {
+        fn on_event(&self, event: &Event) {
+            assert!(!matches!(event, Event::Changed { .. }), "the app failed");
+        }
+    }
+
+    #[test]
+    fn a_change_whose_listener_panics_is_written_with_the_next_one() {
+        let folder = tempfile::tempdir().unwrap();
+        let store = Store::open(folder.path().into()).unwrap();
+        [meeting("recorded-1"), meeting("recorded-2")].iter().for_each(|meeting| store.write(meeting).unwrap());
+        let library = Library::open_at(folder.path().into(), Arc::new(Failing), Box::new(|| NOW)).unwrap();
+        let rename = Change::Edit { meeting: id("recorded-1"), edit: Edit::Rename { title: "Point produit".into() } };
+        assert!(panic::catch_unwind(AssertUnwindSafe(|| library.apply(rename))).is_err());
+        assert_eq!(on_disk(folder.path(), &id("recorded-1")), Some(meeting("recorded-1")));
+        library.apply(Change::Delete { meetings: vec![id("recorded-2")] });
+        assert_eq!(on_disk(folder.path(), &id("recorded-1")).unwrap().title.as_deref(), Some("Point produit"));
+    }
+
+    #[test]
+    fn the_events_are_written_as_the_apps_read_them() {
+        let with = |name: &str, minutes| Meeting { minutes, ..meeting(name) };
+        let reviewed = Meeting {
+            modified_at: NOW,
+            device: "phone-2".into(),
+            title: Some("Revue de sprint".into()),
+            speakers: vec!["Lucas".into(), "Nathan".into()],
+            minutes: MinutesState::Written {
+                minutes: Minutes {
+                    summary: "Point sur la démo.".into(),
+                    decisions: vec!["La démo a lieu le 15 novembre.".into()],
+                    actions: vec![
+                        Action {
+                            id: first(),
+                            text: "Préparer la démo".into(),
+                            owner: Some("Lucas".into()),
+                            due: Some(date!(2026 - 11 - 14)),
+                            done: true,
+                            reminder: true,
+                            source: Some(ActionSource {
+                                quote: "Je prépare la démo.".into(),
+                                speaker: Some("Nathan".into()),
+                                at_ms: 724_000,
+                                extra: Extra::new(),
+                            }),
+                            extra: Extra::new(),
+                        },
+                        Action {
+                            id: ActionId::new("6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f").unwrap(),
+                            text: "Rédiger le registre RGPD".into(),
+                            owner: None,
+                            due: None,
+                            done: false,
+                            reminder: false,
+                            source: None,
+                            extra: Extra::new(),
+                        },
+                    ],
+                    extra: Extra::new(),
+                },
+            },
+            ..meeting("recorded-1")
+        };
+        let events = [
+            Event::Listed {
+                meetings: vec![
+                    with("recorded-2", MinutesState::Writing),
+                    with("recorded-3", MinutesState::Failed),
+                    with("recorded-4", MinutesState::Unavailable),
+                ],
+            },
+            Event::Changed { meeting: reviewed },
+            Event::Removed { meetings: vec![id("recorded-1"), id("recorded-3")] },
+            Event::Unsaved { meetings: vec![id("recorded-1")] },
+            Event::Unsaved { meetings: Vec::new() },
+        ];
+        assert_eq!(serde_json::to_value(events).unwrap(), serde_json::from_str::<Value>(FOR_THE_APPS).unwrap());
     }
 }

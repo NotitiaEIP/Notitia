@@ -26,8 +26,8 @@ Le code partagé du téléphone vit dans `mobile/shared/src/`, sous le paquet `c
 | Réutiliser un bouton, une carte, une ligne | `commonMain/…/ui/components/` |
 | Changer un texte affiché | `commonMain/composeResources/values/strings.xml`, en français, jamais en dur |
 | Toucher au micro, au widget, aux rappels | `androidMain/` pour Android, `iosMain/` et `mobile/iosApp/` pour l'iPhone |
-| Toucher au format `.notitia` ou aux réunions | [`core/src/`](../core/src/), en Rust : la logique encore en Kotlin y part tâche par tâche (T-57 à T-61) |
-| Appeler le cœur depuis l'app | `commonMain/…/bridge/NotitiaCore.kt`, tenu par `RustCore.kt` (Android) et `RustCore.swift` (iPhone) |
+| Toucher au format `.notitia` ou aux réunions | [`core/src/`](../core/src/), en Rust : la logique encore en Kotlin y part tâche par tâche (T-58 à T-61) |
+| Appeler le cœur depuis l'app | `commonMain/…/bridge/` : `CoreMeetings.kt` tient les réunions, `CoreWire.kt` le JSON du pont ([ADR 0004](adr/0004-pont-json.md)). `NotitiaCore.kt` est tenu par `RustCore.kt` (Android) et `RustCore.swift` (iPhone) |
 | Brancher un modèle d'IA | `commonMain/…/ai/` |
 | Ajouter une dépendance | [`mobile/gradle/libs.versions.toml`](../mobile/gradle/libs.versions.toml), ou [`core/Cargo.toml`](../core/Cargo.toml) pour le cœur |
 | Ajouter un test | `core/` (`cargo test`) pour le cœur, `commonTest/` pour le code partagé |

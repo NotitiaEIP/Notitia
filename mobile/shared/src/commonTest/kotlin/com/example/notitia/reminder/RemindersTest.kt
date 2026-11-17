@@ -5,7 +5,7 @@ import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MinutesAction
 import com.example.notitia.meeting.MinutesState
 import com.example.notitia.meeting.WrittenMinutes
-import com.example.notitia.storage.meeting
+import com.example.notitia.meeting.meeting
 import com.example.notitia.ui.search.runNow
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -20,7 +20,7 @@ class RemindersTest {
     private val now = Instant.parse("2026-11-11T10:00:00Z")
 
     private fun action(due: LocalDate?, reminder: Boolean = true, done: Boolean = false) =
-        MinutesAction("Préparer la démo", owner = null, due = due, done = done, reminder = reminder)
+        MinutesAction("0", "Préparer la démo", owner = null, due = due, done = done, reminder = reminder)
 
     private fun meetingWith(id: String, vararg actions: MinutesAction): Meeting =
         meeting(id, MinutesState.Written(WrittenMinutes("", emptyList(), actions.toList())))
@@ -51,7 +51,7 @@ class RemindersTest {
         )
         val reminders = reminders(meetings, paris, today)
         assertEquals(listOf("2026-11-14", "2026-11-20"), reminders.map { it.key })
-        assertEquals(listOf(ActionId("a", 0), ActionId("b", 0)), reminders.first().actions)
+        assertEquals(listOf(ActionId("a", "0"), ActionId("b", "0")), reminders.first().actions)
     }
 
     @Test
@@ -85,7 +85,7 @@ class RemindersTest {
     }
 
     private fun reminder(day: Int, vararg actions: Int) =
-        Reminder("2026-11-$day", Instant.parse("2026-11-${day - 1}T08:00:00Z"), actions.map { ActionId("a", it) })
+        Reminder("2026-11-$day", Instant.parse("2026-11-${day - 1}T08:00:00Z"), actions.map { ActionId("a", "$it") })
 
     private fun ReminderSync.syncNow(vararg wanted: Reminder) = runNow { sync(wanted.toList(), now) }
 

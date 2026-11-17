@@ -2,8 +2,11 @@ package com.example.notitia
 
 import com.example.notitia.ai.MinutesWriter
 import com.example.notitia.ai.SpeechEngine
+import com.example.notitia.bridge.CoreMeetings
 import com.example.notitia.bridge.NotitiaCore
+import com.example.notitia.meeting.MeetingKeeper
 import com.example.notitia.meeting.Meetings
+import com.example.notitia.meeting.PreviewMeetings
 import com.example.notitia.meeting.Recording
 import com.example.notitia.recording.MeetingRecorder
 import com.example.notitia.recording.Microphone
@@ -11,9 +14,6 @@ import com.example.notitia.reminder.NoReminderScheduler
 import com.example.notitia.reminder.ReminderScheduler
 import com.example.notitia.reminder.ReminderSync
 import com.example.notitia.reminder.reminders
-import com.example.notitia.storage.MeetingRepository
-import com.example.notitia.storage.MeetingStore
-import com.example.notitia.storage.NoMeetingStore
 import com.example.notitia.ui.meetings.sampleMeetings
 import com.example.notitia.ui.search.AnswerEngine
 import com.example.notitia.ui.search.SampleAnswerEngine
@@ -34,8 +34,9 @@ import org.jetbrains.compose.resources.getPluralString
 // Built once per process, by the platform: screens come and go, the meetings and what works on them stay. microphone
 // is null on a platform that cannot record yet, speechEngine when this build cannot transcribe, core in a preview.
 class Notitia(
-    val core: NotitiaCore? = null,
-    meetingStore: MeetingStore = NoMeetingStore,
+    core: NotitiaCore? = null,
+    // Chosen by the platform, which keeps it out of every backup (product rule 3).
+    meetingsDirectory: String = "",
     microphone: Microphone? = null,
     speechEngine: SpeechEngine? = null,
     minutesWriter: MinutesWriter? = null,
@@ -47,19 +48,21 @@ class Notitia(
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     // Made-up meetings beside the user's, so the app has something to show before a first recording.
-    private val repository = MeetingRepository(meetingStore, sampleMeetings(clock.now()), clock)
+    private val samples = sampleMeetings(clock.now())
+    private val kept = core?.let { CoreMeetings(it, meetingsDirectory, samples) }
 
     // All the screens know of the meetings and of a recording: what holds them can change without touching a screen.
-    val meetings: Meetings = repository
+    val meetings: Meetings = kept ?: PreviewMeetings(samples)
 
-    val recording: Recording = MeetingRecorder(microphone, speechEngine, minutesWriter, repository, scope, clock)
+    val recording: Recording =
+        MeetingRecorder(microphone, speechEngine, minutesWriter, kept ?: MeetingKeeper { _, _, _, _, _ -> }, scope, clock)
 
     // The reminders follow the meetings: ticking, moving or removing an action moves its notification too. A new line
     // of a transcription changes no reminder, so it schedules nothing.
     init {
         val sync = ReminderSync(reminderScheduler) { count -> getPluralString(Res.plurals.reminder_message, count, count) }
         scope.launch {
-            repository.meetings.filterNotNull()
+            meetings.meetings.filterNotNull()
                 .map { meetings ->
                     val zone = TimeZone.currentSystemDefault()
                     reminders(meetings, zone, clock.now().toLocalDateTime(zone).date)

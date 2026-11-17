@@ -1,9 +1,9 @@
 package com.example.notitia.ai
 
+import com.example.notitia.meeting.ActionDraft
 import com.example.notitia.meeting.ActionSource
-import com.example.notitia.meeting.MinutesAction
+import com.example.notitia.meeting.MinutesDraft
 import com.example.notitia.meeting.TranscriptLine
-import com.example.notitia.meeting.WrittenMinutes
 import com.example.notitia.ui.recording.timerText
 import kotlinx.datetime.LocalDate
 
@@ -27,11 +27,11 @@ private val MINUTES_INSTRUCTIONS = """
 
 interface MinutesWriter {
     // day is when the meeting took place, so "vendredi" becomes a date.
-    suspend fun write(lines: List<TranscriptLine>, day: LocalDate): WrittenMinutes
+    suspend fun write(lines: List<TranscriptLine>, day: LocalDate): MinutesDraft.Written
 }
 
 class LanguageModelMinutesWriter(private val model: LanguageModel) : MinutesWriter {
-    override suspend fun write(lines: List<TranscriptLine>, day: LocalDate): WrittenMinutes =
+    override suspend fun write(lines: List<TranscriptLine>, day: LocalDate): MinutesDraft.Written =
         parseMinutes(model.complete(MINUTES_INSTRUCTIONS, minutesPrompt(lines, day)), lines)
 }
 
@@ -52,10 +52,10 @@ private val nothingSaid = Regex(
 
 // Lines the model adds around the expected ones are dropped, and so is a date it wrote in another format.
 // lines is the transcript the model read: an action's time points to one of them.
-internal fun parseMinutes(reply: String, lines: List<TranscriptLine> = emptyList()): WrittenMinutes {
+internal fun parseMinutes(reply: String, lines: List<TranscriptLine> = emptyList()): MinutesDraft.Written {
     val summary = mutableListOf<String>()
     val decisions = mutableListOf<String>()
-    val actions = mutableListOf<MinutesAction>()
+    val actions = mutableListOf<ActionDraft>()
     withoutReasoning(reply).lines()
         .map { it.trim().trimStart('-', '*', '•', ' ') }
         .forEach { line ->
@@ -65,7 +65,7 @@ internal fun parseMinutes(reply: String, lines: List<TranscriptLine> = emptyList
                 line.startsWith(ACTION, ignoreCase = true) -> parseAction(line.substring(ACTION.length), lines)?.let { actions += it }
             }
         }
-    return WrittenMinutes(
+    return MinutesDraft.Written(
         summary = summary.filter { it.isNotEmpty() && it != NONE }.joinToString(" "),
         decisions = decisions.filter { it.isNotEmpty() && !nothingSaid.matches(it) },
         actions = actions.filterNot { nothingSaid.matches(it.text) },
@@ -73,16 +73,15 @@ internal fun parseMinutes(reply: String, lines: List<TranscriptLine> = emptyList
 }
 
 // A task may hold a bar of its own: the three fields asked of the model are always the last ones.
-private fun parseAction(line: String, lines: List<TranscriptLine>): MinutesAction? {
+private fun parseAction(line: String, lines: List<TranscriptLine>): ActionDraft? {
     val parts = line.split('|').map { it.trim() }
     val textParts = (parts.size - ACTION_FIELDS).coerceAtLeast(1)
     val text = parts.take(textParts).joinToString(" | ").takeIf { it.isNotEmpty() } ?: return null
     val fields = parts.drop(textParts)
-    return MinutesAction(
+    return ActionDraft(
         text = text,
         owner = fields.getOrNull(0)?.takeUnless { it.isEmpty() || it == NONE },
         due = fields.getOrNull(1)?.let(::parseDate),
-        done = false,
         source = fields.getOrNull(2)?.let { sourceAt(it, lines) },
     )
 }

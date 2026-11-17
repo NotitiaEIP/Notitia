@@ -1,40 +1,55 @@
 package com.example.notitia.bridge
 
-import com.example.notitia.core.CoreException
+import com.example.notitia.core.Bridge
+import com.example.notitia.core.BridgeException
+import com.example.notitia.core.BridgeListener
 import com.example.notitia.core.InternalException
-import com.example.notitia.core.askHost
-import com.example.notitia.core.readMeetingSummary
 import com.example.notitia.core.uniffiEnsureInitialized
 
 // The core as Android reaches it: through the Kotlin that UniFFI generates, which loads the library on first use.
 class RustCore : NotitiaCore {
-    // UniFFI generates a check of the library against the generated Kotlin, but on Android nothing runs it: a
-    // library that does not match would be called anyway, and corrupt memory instead of failing.
-    private fun checkBridge() = uniffiEnsureInitialized()
+    // Set once, by open, before any other call.
+    @Volatile
+    private var bridge: Bridge? = null
 
-    override fun meetingSummary(path: String): CoreResult<MeetingSummary> = try {
-        checkBridge()
-        val summary = readMeetingSummary(path)
-        CoreOk(MeetingSummary(summary.id, summary.title, summary.startedAtMs))
-    } catch (failure: CoreException) {
-        CoreFailed(
-            when (failure) {
-                is CoreException.Unreadable -> CoreFailure.Unreadable
-                is CoreException.NotAMeeting -> CoreFailure.NotAMeeting
-                is CoreException.NewerFormat -> CoreFailure.NewerFormat
+    override fun open(directory: String, listener: CoreListener): CoreFailure? = call {
+        bridge = Bridge.open(
+            directory,
+            object : BridgeListener {
+                override fun onEvent(event: String) = listener.onEvent(event)
+            },
+        )
+        null
+    }.failure
+
+    override fun meeting(id: String): CoreReply = opened { it.meeting(id) }
+
+    override fun apply(change: String): CoreFailure? = opened {
+        it.apply(change)
+        null
+    }.failure
+
+    private inline fun opened(ask: (Bridge) -> String?): CoreReply {
+        val bridge = bridge ?: return CoreReply(text = null, failure = CoreFailure.Broken)
+        return call { ask(bridge) }
+    }
+
+    // The one way into the core. UniFFI generates a check of the library against the generated Kotlin, but on
+    // Android nothing runs it: a library that does not match would be called anyway, and corrupt memory instead of
+    // failing.
+    private inline fun call(ask: () -> String?): CoreReply = try {
+        uniffiEnsureInitialized()
+        CoreReply(text = ask(), failure = null)
+    } catch (failure: BridgeException) {
+        CoreReply(
+            text = null,
+            failure = when (failure) {
+                is BridgeException.NotFound -> CoreFailure.NotFound
+                is BridgeException.Unreadable -> CoreFailure.Unreadable
+                is BridgeException.Invalid -> CoreFailure.Invalid
             },
         )
     } catch (_: InternalException) {
-        CoreFailed(CoreFailure.Broken)
-    }
-
-    override fun ask(host: HostProbe, question: String): String {
-        checkBridge()
-        return askHost(
-            object : com.example.notitia.core.HostProbe {
-                override fun answer(question: String) = host.answer(question)
-            },
-            question,
-        )
+        CoreReply(text = null, failure = CoreFailure.Broken)
     }
 }

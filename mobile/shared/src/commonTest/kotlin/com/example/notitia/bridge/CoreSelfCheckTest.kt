@@ -1,63 +1,49 @@
 package com.example.notitia.bridge
 
-import com.example.notitia.storage.MeetingCodec
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlinx.io.buffered
-import kotlinx.io.files.Path
-import kotlinx.io.files.SystemFileSystem
-import kotlinx.io.readByteArray
-
-// Answers as the Rust core must, with the Kotlin codec the core replaces.
-private open class KotlinCore : NotitiaCore {
-    override fun meetingSummary(path: String): CoreResult<MeetingSummary> {
-        val file = Path(path)
-        if (!SystemFileSystem.exists(file)) return CoreFailed(CoreFailure.Unreadable)
-        val bytes = SystemFileSystem.source(file).buffered().use { it.readByteArray() }
-        val meeting = MeetingCodec.decode(bytes) ?: return CoreFailed(CoreFailure.NewerFormat)
-        return CoreOk(MeetingSummary(meeting.id, meeting.title, meeting.startedAt.toEpochMilliseconds()))
-    }
-
-    override fun ask(host: HostProbe, question: String): String = host.answer(question)
-}
 
 class CoreSelfCheckTest {
 
     @Test
     fun aFaithfulCorePasses() {
-        assertEquals("core bridge: ok", CoreSelfCheck(KotlinCore()).run())
+        assertEquals("core bridge: ok", CoreSelfCheck(FakeCore()).run())
     }
 
     @Test
-    fun aCoreThatMisreadsTheMeetingFailsAtRead() {
-        val core = object : KotlinCore() {
-            override fun meetingSummary(path: String) = CoreOk(MeetingSummary("other", title = null, startedAtMs = 0))
-        }
-        assertEquals("core bridge: failed at read", CoreSelfCheck(core).run())
+    fun aFolderThatCannotBeOpenedFailsAtOpen() {
+        assertEquals("core bridge: failed at open", CoreSelfCheck(FakeCore(opens = false)).run())
     }
 
     @Test
-    fun aCoreThatReadsANewerFormatFailsThere() {
-        val core = object : KotlinCore() {
-            override fun meetingSummary(path: String) =
-                if (path.endsWith("newer.notitia")) CoreFailed(CoreFailure.NotAMeeting) else super.meetingSummary(path)
+    fun aCoreThatTellsNothingFailsAtTheFirstEventAwaited() {
+        val silent = object : FakeCore() {
+            override fun open(directory: String, listener: CoreListener): CoreFailure? = null
         }
-        assertEquals("core bridge: failed at newer format", CoreSelfCheck(core).run())
+        assertEquals("core bridge: failed at list", CoreSelfCheck(silent).run())
     }
 
     @Test
-    fun aCoreThatNeverCallsTheHostFailsAtHost() {
-        val core = object : KotlinCore() {
-            override fun ask(host: HostProbe, question: String) = question
+    fun aCoreThatLosesTheLinesFailsAtRead() {
+        val forgetful = object : FakeCore() {
+            override fun meeting(id: String) = CoreReply(text = null, CoreFailure.Unreadable)
         }
-        assertEquals("core bridge: failed at host", CoreSelfCheck(core).run())
+        assertEquals("core bridge: failed at read", CoreSelfCheck(forgetful).run())
+    }
+
+    @Test
+    fun aCoreThatTakesAnyTextForAChangeFailsThere() {
+        val lenient = object : FakeCore() {
+            override fun apply(change: String) = super.apply(change).takeUnless { it == CoreFailure.Invalid }
+        }
+        assertEquals("core bridge: failed at refused change", CoreSelfCheck(lenient).run())
     }
 
     @Test
     fun aCoreThatThrowsIsReportedNotRaised() {
-        val core = object : KotlinCore() {
-            override fun ask(host: HostProbe, question: String): String = error("bridge down")
+        val broken = object : FakeCore() {
+            override fun apply(change: String): CoreFailure? = error("bridge down")
         }
-        assertEquals("core bridge: failed at exception", CoreSelfCheck(core).run())
+        assertEquals("core bridge: failed at exception", CoreSelfCheck(broken).run())
     }
 }
