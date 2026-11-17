@@ -2,17 +2,16 @@ package com.example.notitia.recording
 
 import androidx.compose.runtime.snapshots.Snapshot
 import com.example.notitia.ai.audio
-import com.example.notitia.meeting.Meeting
+import com.example.notitia.meeting.MeetingKeeper
 import com.example.notitia.meeting.MicrophoneProblem
-import com.example.notitia.meeting.MinutesState
+import com.example.notitia.meeting.MinutesDraft
 import com.example.notitia.meeting.RecorderState
 import com.example.notitia.meeting.recordedMeetingId
-import com.example.notitia.storage.MeetingRepository
-import com.example.notitia.storage.NoMeetingStore
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.time.Clock
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 import kotlinx.coroutines.CoroutineScope
@@ -26,22 +25,25 @@ class MeetingRecorderTest {
     }
     private val microphone = FakeMicrophone()
 
-    // Unconfined runs the microphone, the transcription and each write at once, so each step shows right after it.
-    private val repository = MeetingRepository(NoMeetingStore, clock = clock, disk = Dispatchers.Unconfined)
+    // Where the recorder last stood, as the core receives it.
+    private class Kept(val id: String, val duration: Duration, val minutes: MinutesDraft)
 
+    private var kept: Kept? = null
+    private val keeper = MeetingKeeper { id, _, duration, _, minutes -> kept = Kept(id, duration, minutes) }
+
+    // Unconfined runs the microphone and the transcription at once, so each step shows right after it.
     private fun recorder(microphone: Microphone) =
-        MeetingRecorder(microphone, speech = null, writer = null, repository, CoroutineScope(Dispatchers.Unconfined), clock)
-
-    private fun kept(): Meeting? = repository.meetings.value?.firstOrNull { it.id == recordedMeetingId(now) }
+        MeetingRecorder(microphone, speech = null, writer = null, keeper, CoroutineScope(Dispatchers.Unconfined), clock)
 
     @Test
     fun theMeetingIsKeptAsSoonAsTheMicrophoneIsHeard() {
         val recorder = recorder(microphone)
         recorder.start()
-        assertNull(kept())
+        assertNull(kept)
         microphone.hear(audio(1_000))
-        assertEquals(1.seconds, kept()?.duration)
-        assertEquals(MinutesState.Writing, kept()?.minutes)
+        assertEquals(recordedMeetingId(now), kept?.id)
+        assertEquals(1.seconds, kept?.duration)
+        assertEquals(MinutesDraft.Writing, kept?.minutes)
     }
 
     @Test
@@ -55,9 +57,9 @@ class MeetingRecorderTest {
         microphone.hear(audio(500))
         recorder.stop()
         Snapshot.sendApplyNotifications()
-        assertEquals(1.5.seconds, kept()?.duration)
+        assertEquals(1.5.seconds, kept?.duration)
         // This build has no engine: the meeting keeps its duration and no text.
-        assertEquals(MinutesState.Unavailable, kept()?.minutes)
+        assertEquals(MinutesDraft.Unavailable, kept?.minutes)
         assertEquals(RecorderState.Idle, recorder.state.value)
     }
 
@@ -66,6 +68,6 @@ class MeetingRecorderTest {
         val recorder = recorder(FakeMicrophone(refusal = MicrophoneProblem.Denied))
         recorder.start()
         assertEquals(RecorderState.Failed(MicrophoneProblem.Denied), recorder.state.value)
-        assertNull(kept())
+        assertNull(kept)
     }
 }

@@ -64,7 +64,7 @@ fun sampleMeetings(now: Instant, timeZone: TimeZone = TimeZone.currentSystemDefa
     )
 }
 
-// For previews and tests, which show the samples without a repository.
+// For previews and tests, which show the samples without the core.
 fun sampleItems(now: Instant, timeZone: TimeZone = TimeZone.currentSystemDefault()): List<MeetingListItem> =
     sampleMeetings(now, timeZone).map { it.sampleItem(now, timeZone) }
 

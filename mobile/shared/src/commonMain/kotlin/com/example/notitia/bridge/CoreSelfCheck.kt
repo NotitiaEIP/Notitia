@@ -1,71 +1,95 @@
 package com.example.notitia.bridge
 
+import com.example.notitia.meeting.ActionDraft
+import com.example.notitia.meeting.ActionSource
 import com.example.notitia.meeting.Meeting
+import com.example.notitia.meeting.MinutesDraft
 import com.example.notitia.meeting.MinutesState
-import com.example.notitia.storage.MEETING_FORMAT_VERSION
-import com.example.notitia.storage.MeetingCodec
+import com.example.notitia.meeting.TranscriptLine
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
-import kotlinx.io.buffered
+import kotlinx.datetime.LocalDate
 import kotlinx.io.files.FileSystem
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
 import kotlinx.io.files.SystemTemporaryDirectory
 
-private const val STARTED_AT_MS = 1_794_303_000_000
+private const val ID = "core-self-check"
+private const val SAID = "Self-check"
+private const val TITLE = "Checked"
 
-// The core reads formats the Kotlin codec does not write yet: only a version far ahead is newer for both.
-private const val FORMAT_NO_APP_READS = 1_000
-
-// Made up, so the marker and the file say nothing of a real meeting.
-private val sample = Meeting(
-    id = "core-self-check",
-    startedAt = Instant.fromEpochMilliseconds(STARTED_AT_MS),
+// Made up, so the marker and the folder say nothing of a real meeting. An action with every field, so each kind of
+// value crosses both ways: a date, a time in the audio, a text that may be absent.
+private val heard = Change.Record(
+    id = ID,
+    startedAt = Instant.fromEpochMilliseconds(1_794_303_000_000),
     duration = 30.minutes,
-    modifiedAt = Instant.fromEpochMilliseconds(STARTED_AT_MS),
-    device = "core-self-check",
-    title = "Self-check",
-    minutes = MinutesState.Unavailable,
+    transcript = listOf(TranscriptLine(Duration.ZERO, SAID)),
+    minutes = MinutesDraft.Written(
+        summary = SAID,
+        decisions = listOf(SAID),
+        actions = listOf(ActionDraft(SAID, owner = SAID, due = LocalDate(2026, 11, 20), ActionSource(SAID, speaker = null, Duration.ZERO))),
+    ),
 )
 
-// Proves the bridge on a device, the same way on Android and on the iPhone, until the storage runs on the core
-// (T-57): the core reads a file the Kotlin codec wrote, refuses what it must, and calls the app back.
+// Proves the bridge where the app runs: a made-up meeting goes to the core and comes back, each step answered by
+// its event. On the iPhone it is the only proof there is: the CI runs it on a simulator, since the Swift that holds
+// the core is written on machines that cannot compile it.
 class CoreSelfCheck(
     private val core: NotitiaCore,
-    private val directory: Path = SystemTemporaryDirectory,
+    private val directory: Path = Path(SystemTemporaryDirectory, ID),
     private val files: FileSystem = SystemFileSystem,
 ) {
-    // Fixed words, safe to log: the name of a step, never what a file holds.
+    // As they crossed: read after the call, since nothing may be thrown back into the core.
+    private val events = mutableListOf<String>()
+
+    // Fixed words, safe to log: the name of a step, never what a meeting holds.
     fun run(): String = firstFailure()?.let { "core bridge: failed at $it" } ?: "core bridge: ok"
 
-    private fun firstFailure(): String? {
-        val meeting = Path(directory, "core-self-check.notitia")
-        val newer = Path(directory, "core-self-check-newer.notitia")
-        return try {
-            val written = MeetingCodec.encode(sample)
-            write(meeting, written)
-            write(
-                newer,
-                written.decodeToString()
-                    .replace("\"version\":$MEETING_FORMAT_VERSION", "\"version\":$FORMAT_NO_APP_READS")
-                    .encodeToByteArray(),
-            )
-            val expected = MeetingSummary(sample.id, sample.title, STARTED_AT_MS)
-            when {
-                core.meetingSummary(meeting.toString()) != CoreOk(expected) -> "read"
-                core.meetingSummary(newer.toString()) != CoreFailed<MeetingSummary>(CoreFailure.NewerFormat) -> "newer format"
-                core.meetingSummary(Path(directory, "core-self-check-missing.notitia").toString()) !=
-                    CoreFailed<MeetingSummary>(CoreFailure.Unreadable) -> "missing file"
-                core.ask({ question -> "$question pong" }, "ping") != "ping pong" -> "host"
-                else -> null
-            }
-        } catch (_: Exception) {
-            "exception"
-        } finally {
-            files.delete(meeting, mustExist = false)
-            files.delete(newer, mustExist = false)
+    private fun firstFailure(): String? = try {
+        clear()
+        when {
+            core.open(directory.toString()) { events += it } != null -> "open"
+            told() != CoreEvent.Listed(emptyList()) -> "list"
+            send(heard) != null -> "record"
+            else -> afterRecording(told())
+        }
+    } catch (_: Exception) {
+        "exception"
+    } finally {
+        clear()
+    }
+
+    private fun afterRecording(recorded: CoreEvent?): String? {
+        val action = (recorded as? CoreEvent.Changed)?.meeting?.takeIf { it.id == ID }?.actions()?.singleOrNull()
+        return when {
+            action == null || action.id.isEmpty() || action.due != LocalDate(2026, 11, 20) -> "recorded"
+            send(Change.Edit(ID, MeetingEdit.Rename(TITLE))) != null || changed()?.title != TITLE -> "rename"
+            send(Change.Edit(ID, MeetingEdit.SetDone(action.id, done = true))) != null ||
+                changed()?.actions()?.singleOrNull()?.done != true -> "tick"
+            read()?.takeIf { it.title == TITLE }?.transcript?.singleOrNull()?.text != SAID -> "read"
+            core.meeting("$ID-missing").failure != CoreFailure.NotFound -> "missing meeting"
+            core.apply("{") != CoreFailure.Invalid -> "refused change"
+            send(Change.Delete(setOf(ID))) != null || told() != CoreEvent.Removed(setOf(ID)) -> "delete"
+            else -> null
         }
     }
 
-    private fun write(file: Path, bytes: ByteArray) = files.sink(file).buffered().use { it.write(bytes) }
+    private fun send(change: Change): CoreFailure? = core.apply(CoreJson.encodeToString(Change.serializer(), change))
+
+    // What the last call told, and nothing kept for the next.
+    private fun told(): CoreEvent? = events.lastOrNull()?.let { CoreJson.decodeFromString<CoreEvent>(it) }.also { events.clear() }
+
+    private fun changed(): Meeting? = (told() as? CoreEvent.Changed)?.meeting
+
+    private fun read(): Meeting? = core.meeting(ID).text?.let { CoreJson.decodeFromString<Meeting>(it) }
+
+    private fun Meeting.actions() = (minutes as? MinutesState.Written)?.minutes?.actions
+
+    private fun clear() {
+        if (!files.exists(directory)) return
+        files.list(directory).forEach { files.delete(it, mustExist = false) }
+        files.delete(directory, mustExist = false)
+    }
 }
