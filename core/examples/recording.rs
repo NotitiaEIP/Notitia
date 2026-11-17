@@ -1,5 +1,5 @@
-// What an hour of sound costs to encode and to decode, and the room it takes (T-79). Optimised as an app is:
-// cargo run --release --example recording
+// What an hour of sound costs to encode, to seal and to read back, and the room it takes (T-79, T-80). Optimised as
+// an app is: cargo run --release --example recording
 // A file given after `--` receives a minute of that sound as Ogg Opus, for ffmpeg or any player: the proof that what
 // the core keeps is standard Opus.
 use std::error::Error;
@@ -8,7 +8,8 @@ use std::time::Instant;
 use std::{env, fs};
 
 use notitia_core::audio::opus::{CodecError, Decoder, Encoder, PACKET_BYTES, Packet};
-use notitia_core::audio::{FRAME_SAMPLES, FRAMES_PER_SECOND, Frame, SAMPLE_RATE};
+use notitia_core::audio::{FRAME_SAMPLES, FRAMES_PER_SECOND, Frame, Reader, SAMPLE_RATE, sealed};
+use notitia_core::secret::Key;
 
 const HOUR: usize = 3_600 * FRAMES_PER_SECOND;
 const WITNESS: usize = 60 * FRAMES_PER_SECOND;
@@ -112,6 +113,28 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("an hour of sound: {:.1} MB", (packets.len() * PACKET_BYTES) as f64 / 1e6);
     println!("encoded in {encoded:>5.1} s, {:>4.0} times faster than it is heard", 3_600.0 / encoded);
     println!("decoded in {decoded:>5.1} s, {:>4.0} times faster than it is heard", 3_600.0 / decoded);
+
+    // The same hour as the core keeps it, under a made-up key, in a folder that goes when this ends.
+    let folder = tempfile::tempdir()?;
+    let path = folder.path().join("hour.audio");
+    let open = || fs::OpenOptions::new().read(true).write(true).create(true).truncate(false).open(&path);
+    let key = Key::new(&[7; 32])?;
+    let started = Instant::now();
+    let mut writer = sealed::Writer::open(open()?, &key, 1)?;
+    for second in packets.chunks(FRAMES_PER_SECOND) {
+        writer.append(second)?;
+    }
+    writer.flush()?;
+    let kept = started.elapsed().as_secs_f64();
+    println!(
+        "sealed and written in {:.0} ms: {:.1} MB on the disk",
+        kept * 1e3,
+        fs::metadata(&path)?.len() as f64 / 1e6
+    );
+    let started = Instant::now();
+    let passage = Reader::open(open()?, &key)?.read(59 * 60_000, 30_000)?;
+    let read = started.elapsed().as_secs_f64();
+    println!("30 s read from the 59th minute in {:.0} ms ({} samples)", read * 1e3, passage[0].len());
     if let Some(file) = env::args_os().nth(1) {
         fs::write(file, witness(&spoken)?)?;
     }
