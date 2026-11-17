@@ -95,7 +95,7 @@ class BridgeContractTest {
                     meeting("recorded-4", MinutesState.Unavailable),
                 ),
             ),
-            CoreEvent.Changed(reviewed),
+            CoreEvent.Changed(reviewed, at = 1),
             CoreEvent.Removed(setOf("recorded-1", "recorded-3")),
             CoreEvent.Unsaved(setOf("recorded-1")),
             CoreEvent.Unsaved(emptySet()),

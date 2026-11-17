@@ -82,13 +82,17 @@ class CoreMeetingsTest {
     }
 
     @Test
-    fun aNewMeetingTakesItsPlaceTheLatestFirstThenByIdentifier() {
+    fun aMeetingTakesThePlaceTheCoreGivesIt() {
         val core = FakeCore(meeting("recorded-2"))
         val kept = meetings(core)
-        core.tell(CoreEvent.Changed(meeting("recorded-3")))
-        core.tell(CoreEvent.Changed(meeting("recorded-1")))
-        core.tell(CoreEvent.Changed(later("recorded-4")))
+        core.tell(CoreEvent.Changed(meeting("recorded-3"), at = 1))
+        core.tell(CoreEvent.Changed(meeting("recorded-1"), at = 0))
+        core.tell(CoreEvent.Changed(later("recorded-4"), at = 0))
         assertEquals(listOf("recorded-4", "recorded-1", "recorded-2", "recorded-3"), kept.ids())
+        // Known already: it leaves its place for the new one. A place past the end is the end.
+        core.tell(CoreEvent.Changed(meeting("recorded-4"), at = 9))
+        assertEquals(listOf("recorded-1", "recorded-2", "recorded-3", "recorded-4"), kept.ids())
+        core.tell(CoreEvent.Changed(later("recorded-4"), at = 0))
         core.tell(CoreEvent.Removed(setOf("recorded-1", "recorded-3")))
         assertEquals(listOf("recorded-4", "recorded-2"), kept.ids())
     }

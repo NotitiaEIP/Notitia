@@ -20,9 +20,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.LocalDate
 
-// The order of the core, which tells a new meeting without its place in the list.
-private val latestFirst = compareByDescending<Meeting> { it.startedAt }.thenBy { it.id }
-
 // The meetings as the core holds them: a change goes in, an event comes back, the screens follow. Nothing is changed
 // here, where no rule lives: a tick shows at once because the core tells it before it writes the file.
 class CoreMeetings(
@@ -106,7 +103,10 @@ class CoreMeetings(
         }
         when (read) {
             is CoreEvent.Listed -> told = read.meetings
-            is CoreEvent.Changed -> told = (told.filterNot { it.id == read.meeting.id } + read.meeting).sortedWith(latestFirst)
+            is CoreEvent.Changed -> told = told.filterNot { it.id == read.meeting.id }.toMutableList().apply {
+                // Bounded: after an event this app could not read, a place past the end must not throw into the core.
+                add(read.at.coerceIn(0, size), read.meeting)
+            }
             is CoreEvent.Removed -> told = told.filterNot { it.id in read.meetings }
             is CoreEvent.Unsaved -> behind.value = read.meetings
         }

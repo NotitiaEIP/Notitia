@@ -43,7 +43,7 @@ fun interface CoreListener { fun onEvent(event: String) }               // un é
 | Événement (`type`) | Champs |
 | --- | --- |
 | `listed` | `meetings` : toutes les réunions, la plus récente d'abord, sans leurs lignes |
-| `changed` | `meeting` : une réunion modifiée ou nouvelle, sans ses lignes |
+| `changed` | `meeting` : une réunion modifiée ou nouvelle, sans ses lignes. `at` : son rang dans la liste, que l'app n'a donc pas à trier |
 | `removed` | `meetings` : des identifiants |
 | `unsaved` | `meetings` : les réunions dont le fichier est en retard, vide quand tout est écrit |
 

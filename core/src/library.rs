@@ -29,8 +29,8 @@ pub trait Listener: Send + Sync {
 pub enum Event {
     // Every meeting, the latest first: once the folder is read, and again when samples are lent.
     Listed { meetings: Vec<Meeting> },
-    // New when the app does not know it yet.
-    Changed { meeting: Meeting },
+    // New when the app does not know it yet. `at` is its place in the list once changed: no app sorts.
+    Changed { meeting: Meeting, at: usize },
     Removed { meetings: Vec<MeetingId> },
     // The meetings whose file is behind what the app shows. Empty once every one is written.
     Unsaved { meetings: Vec<MeetingId> },
@@ -180,9 +180,9 @@ impl Meetings {
     fn apply(&mut self, change: Change, stamp: Stamp) -> Option<(Event, Vec<MeetingId>)> {
         match change {
             Change::Edit { meeting, edit } => {
-                let entry = self.entries.iter_mut().find(|entry| entry.meeting.id == meeting)?;
+                let (at, entry) = self.entries.iter_mut().enumerate().find(|(_, entry)| entry.meeting.id == meeting)?;
                 let changed = edit.apply(&mut entry.meeting, stamp);
-                changed.then(|| (Event::Changed { meeting: entry.meeting.clone() }, Vec::from_iter(entry.file())))
+                changed.then(|| (Event::Changed { meeting: entry.meeting.clone(), at }, Vec::from_iter(entry.file())))
             }
             Change::Delete { meetings } => {
                 let (gone, kept): (Vec<Entry>, Vec<Entry>) =
@@ -203,9 +203,9 @@ impl Meetings {
                 let (meeting, lines) = snapshot.merge(known.map(|entry| entry.meeting), stamp);
                 let transcript = if lent { Transcript::Lent(lines) } else { Transcript::Unwritten(lines) };
                 let entry = Entry { meeting, transcript };
-                let told = (Event::Changed { meeting: entry.meeting.clone() }, Vec::from_iter(entry.file()));
-                self.entries.push(entry);
-                self.sort();
+                let at = self.entries.partition_point(|kept| latest_first(&kept.meeting, &entry.meeting).is_lt());
+                let told = (Event::Changed { meeting: entry.meeting.clone(), at }, Vec::from_iter(entry.file()));
+                self.entries.insert(at, entry);
                 Some(told)
             }
             Change::Lend { meetings } => {
@@ -283,7 +283,7 @@ mod tests {
     // One event of each kind, as the apps read them.
     const FOR_THE_APPS: &str = include_str!("../tests/fixtures/bridge/events.json");
 
-    // The side of the app, in a few lines: its list is rebuilt from the events alone.
+    // The side of the app, in a few lines: its list is rebuilt from the events alone, and never sorted.
     #[derive(Default)]
     struct App {
         folder: PathBuf,
@@ -305,11 +305,10 @@ mod tests {
                     self.index_when_listed.lock().unwrap().push(self.folder.join("index").exists());
                     list.clone_from(meetings);
                 }
-                Event::Changed { meeting } => {
+                Event::Changed { meeting, at } => {
                     self.files_when_told.lock().unwrap().push(on_disk(&self.folder, &meeting.id));
                     list.retain(|known| known.id != meeting.id);
-                    list.push(meeting.clone());
-                    list.sort_by(latest_first);
+                    list.insert(*at, meeting.clone());
                 }
                 Event::Removed { meetings } => list.retain(|known| !meetings.contains(&known.id)),
                 Event::Unsaved { meetings } => self.unsaved.lock().unwrap().clone_from(meetings),
@@ -532,6 +531,24 @@ mod tests {
     }
 
     #[test]
+    fn a_change_tells_the_place_of_its_meeting_in_the_list() {
+        let earlier = Meeting { started_at: utc_datetime!(2026-11-09 9:30), ..meeting("recorded-1") };
+        let phone = phone(&[earlier, meeting("recorded-3")]);
+        // Begun when recorded-3 was: the identifier then decides.
+        phone.library.apply(Change::Record(Snapshot {
+            id: id("recorded-5"),
+            started_at: meeting("recorded-3").started_at,
+            duration_ms: 60_000,
+            transcript: Vec::new(),
+            minutes: MinutesDraft::Writing,
+        }));
+        phone.rename("recorded-1", "Point produit");
+        let place = |event: &Event| if let Event::Changed { at, .. } = event { Some(*at) } else { None };
+        assert_eq!(phone.app.events.lock().unwrap().iter().filter_map(place).collect::<Vec<_>>(), [1, 2]);
+        assert_eq!(phone.ids(), ["recorded-3", "recorded-5", "recorded-1"]);
+    }
+
+    #[test]
     fn a_meeting_deleted_while_it_is_transcribed_does_not_come_back() {
         let phone = phone(&[]);
         phone.record(&["Bonjour à tous."], MinutesDraft::Writing);
@@ -719,7 +736,7 @@ mod tests {
                     with("recorded-4", MinutesState::Unavailable),
                 ],
             },
-            Event::Changed { meeting: reviewed },
+            Event::Changed { meeting: reviewed, at: 1 },
             Event::Removed { meetings: vec![id("recorded-1"), id("recorded-3")] },
             Event::Unsaved { meetings: vec![id("recorded-1")] },
             Event::Unsaved { meetings: Vec::new() },

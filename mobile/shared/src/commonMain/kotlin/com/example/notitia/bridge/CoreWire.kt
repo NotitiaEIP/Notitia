@@ -77,10 +77,10 @@ internal sealed interface CoreEvent {
     @SerialName("listed")
     data class Listed(val meetings: List<Meeting>) : CoreEvent
 
-    // New when the app does not know it yet.
+    // New when the app does not know it yet. at is its place in the list once changed: the core alone sorts.
     @Serializable
     @SerialName("changed")
-    data class Changed(val meeting: Meeting) : CoreEvent
+    data class Changed(val meeting: Meeting, val at: Int) : CoreEvent
 
     @Serializable
     @SerialName("removed")
