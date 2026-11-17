@@ -20,6 +20,8 @@ class MeetingsViewModel(
 
     fun progress(id: String): MeetingStatus? = recorder.progress(id)
 
+    suspend fun transcript(id: String) = kept.transcript(id)
+
     fun setDone(id: ActionId, done: Boolean) = kept.setDone(id, done)
 
     fun setOwner(id: ActionId, owner: String?) = kept.setOwner(id, owner)

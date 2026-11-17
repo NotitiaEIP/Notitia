@@ -98,6 +98,7 @@
     <string name="minutes_tab_transcript">Transcription</string>
     <string name="transcript_empty">Aucune parole transcrite pour l’instant.</string>
     <string name="transcript_failed">Passage non transcrit.</string>
+    <string name="transcript_unreadable">La transcription n’a pas pu être lue.</string>
     <string name="minutes_decisions">Décisions</string>
     <string name="minutes_actions">Actions</string>
     <string name="minutes_summary">Résumé</string>
