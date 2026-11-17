@@ -67,7 +67,7 @@ internal open class FakeCore(vararg stored: Meeting, private val opens: Boolean 
 
     private fun keep(meeting: Meeting) {
         kept[meeting.id] = meeting
-        tell(CoreEvent.Changed(meeting.copy(transcript = emptyList())))
+        tell(CoreEvent.Changed(meeting.copy(transcript = emptyList()), at = listed().indexOfFirst { it.id == meeting.id }))
     }
 }
 
