@@ -99,6 +99,7 @@ mod tests {
         Meeting {
             id: MeetingId::new("recorded-1").unwrap(),
             started_at: utc_datetime!(2026-11-10 9:30),
+            offset_minutes: None,
             duration_ms: 42 * 60_000,
             modified_at: utc_datetime!(2026-11-10 10:15),
             device: "phone-1".into(),
@@ -222,6 +223,14 @@ mod tests {
         let mut meeting = sprint_review();
         meeting.transcript[0].speaker = Some("Lucas".into());
         assert_eq!(read(&written(&meeting)), meeting);
+    }
+
+    #[test]
+    fn the_offset_of_a_recording_is_written_after_its_start() {
+        let meeting = Meeting { offset_minutes: Some(-210), ..sprint_review() };
+        let text = written(&meeting);
+        assert!(text.contains("\"startedAt\":\"2026-11-10T09:30:00Z\",\"offsetMinutes\":-210,"));
+        assert_eq!(read(&text), meeting);
     }
 
     #[test]

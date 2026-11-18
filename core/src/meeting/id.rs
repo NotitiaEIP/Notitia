@@ -59,6 +59,12 @@ macro_rules! identifier {
 identifier!(MeetingId);
 identifier!(ActionId);
 
+impl MeetingId {
+    pub fn random() -> Self {
+        Self(Uuid::new_v4().to_string())
+    }
+}
+
 impl ActionId {
     pub fn random() -> Self {
         Self(Uuid::new_v4().to_string())

@@ -11,7 +11,7 @@ use serde::Serialize;
 use time::UtcDateTime;
 
 use crate::audio::{self, AudioError};
-use crate::meeting::{Change, Meeting, MeetingId, Stamp, TranscriptLine};
+use crate::meeting::{Change, Meeting, MeetingId, MinutesState, Stamp, TranscriptLine};
 use crate::secret::Key;
 use store::Store;
 
@@ -107,7 +107,7 @@ impl Library {
         Self::open_at(directory.into(), key, listener, Box::new(UtcDateTime::now))
     }
 
-    fn open_at(
+    pub(crate) fn open_at(
         directory: PathBuf,
         key: Option<Key>,
         listener: Arc<dyn Listener>,
@@ -117,16 +117,36 @@ impl Library {
         let store = Store::open(directory).map_err(read)?;
         let device = store.device().map_err(read)?;
         let (stored, index) = store.load(clock()).map_err(read)?;
+        // A recording the app did not live to stop lasts as long as its audio. Only those audios are opened: a
+        // launch does not read three hundred of them.
+        let lasted: Vec<Change> = stored
+            .iter()
+            .filter(|meeting| meeting.minutes == MinutesState::Writing)
+            .filter_map(|meeting| {
+                let duration_ms = open_audio(&store, key.as_ref(), &meeting.id).ok()?.duration_ms();
+                Some(Change::Lasted { meeting: meeting.id.clone(), duration_ms })
+            })
+            .collect();
         let entries =
             stored.into_iter().map(|meeting| Entry { meeting: meeting.interrupted(), transcript: Transcript::Written });
         let mut meetings = Meetings { entries: entries.collect(), deleted: HashSet::new() };
         meetings.sort();
+        let stamp = Stamp { at: clock(), device: &device };
+        let behind: BTreeSet<MeetingId> = lasted
+            .into_iter()
+            .filter_map(|change| meetings.apply(change, stamp))
+            .flat_map(|(_, files)| files)
+            .collect();
         listener.on_event(&Event::Listed { meetings: meetings.list() });
-        // After the list: the first screen does not wait for a cache to reach the disk.
+        // After the list: the first screen does not wait for a cache, nor for the meetings that lasted, to reach the
+        // disk.
         if let Some(index) = index {
             store.keep(index);
         }
-        Ok(Self { store, key, device, listener, clock, behind: Mutex::default(), meetings: Mutex::new(meetings) })
+        let library =
+            Self { store, key, device, listener, clock, behind: Mutex::new(behind), meetings: Mutex::new(meetings) };
+        library.catch_up(&mut lock(&library.behind), &BTreeSet::new());
+        Ok(library)
     }
 
     // The whole meeting, lines included.
@@ -146,9 +166,14 @@ impl Library {
             behind.extend(files);
             self.listener.on_event(&event);
         }
-        // The files left behind by an earlier failure, a full disk say, are tried again with each change.
+        self.catch_up(&mut behind, &were_behind);
+    }
+
+    // The files of the meetings just changed, and those left behind by an earlier failure, a full disk say, which
+    // are tried again with each change.
+    fn catch_up(&self, behind: &mut BTreeSet<MeetingId>, were_behind: &BTreeSet<MeetingId>) {
         behind.retain(|id| self.reconcile(id).is_err());
-        if *behind != were_behind {
+        if behind != were_behind {
             self.listener.on_event(&Event::Unsaved { meetings: behind.iter().cloned().collect() });
         }
     }
@@ -166,12 +191,7 @@ impl Library {
     }
 
     pub fn audio(&self, id: &MeetingId) -> Result<audio::Reader, AudioError> {
-        let key = self.key.as_ref().ok_or(AudioError::Locked)?;
-        let file = self.store.audio(id, false).map_err(|error| match error.kind() {
-            io::ErrorKind::NotFound => AudioError::Absent,
-            _ => AudioError::Unreadable,
-        })?;
-        audio::Reader::open(file, key)
+        open_audio(&self.store, self.key.as_ref(), id)
     }
 
     // The disk follows the memory: the file is written when the meeting is kept, removed when it is gone. Nothing
@@ -199,6 +219,15 @@ impl Library {
     }
 }
 
+fn open_audio(store: &Store, key: Option<&Key>, id: &MeetingId) -> Result<audio::Reader, AudioError> {
+    let key = key.ok_or(AudioError::Locked)?;
+    let file = store.audio(id, false).map_err(|error| match error.kind() {
+        io::ErrorKind::NotFound => AudioError::Absent,
+        _ => AudioError::Unreadable,
+    })?;
+    audio::Reader::open(file, key)
+}
+
 // Then by identifier: the order of the folder is the system's, not ours.
 fn latest_first(a: &Meeting, b: &Meeting) -> Ordering {
     b.started_at.cmp(&a.started_at).then_with(|| a.id.cmp(&b.id))
@@ -214,9 +243,8 @@ impl Meetings {
     fn apply(&mut self, change: Change, stamp: Stamp) -> Option<(Event, Vec<MeetingId>)> {
         match change {
             Change::Edit { meeting, edit } => {
-                let (at, entry) = self.entries.iter_mut().enumerate().find(|(_, entry)| entry.meeting.id == meeting)?;
-                let changed = edit.apply(&mut entry.meeting, stamp);
-                changed.then(|| (Event::Changed { meeting: entry.meeting.clone(), at }, Vec::from_iter(entry.file())))
+                let (at, entry) = self.find(&meeting)?;
+                edit.apply(&mut entry.meeting, stamp).then(|| entry.told(at))
             }
             Change::Delete { meetings } => {
                 let (gone, kept): (Vec<Entry>, Vec<Entry>) =
@@ -236,11 +264,33 @@ impl Meetings {
                 let lent = matches!(known, Some(Entry { transcript: Transcript::Lent(_), .. }));
                 let (meeting, lines) = snapshot.merge(known.map(|entry| entry.meeting), stamp);
                 let transcript = if lent { Transcript::Lent(lines) } else { Transcript::Unwritten(lines) };
-                let entry = Entry { meeting, transcript };
-                let at = self.entries.partition_point(|kept| latest_first(&kept.meeting, &entry.meeting).is_lt());
-                let told = (Event::Changed { meeting: entry.meeting.clone(), at }, Vec::from_iter(entry.file()));
-                self.entries.insert(at, entry);
-                Some(told)
+                Some(self.insert(Entry { meeting, transcript }))
+            }
+            Change::Transcribed { meeting, transcript, minutes } => {
+                let (at, entry) = self.find(&meeting)?;
+                minutes.settle(&mut entry.meeting);
+                stamp.mark(&mut entry.meeting);
+                entry.transcript = match entry.transcript {
+                    Transcript::Lent(_) => Transcript::Lent(transcript),
+                    Transcript::Written | Transcript::Unwritten(_) => Transcript::Unwritten(transcript),
+                };
+                Some(entry.told(at))
+            }
+            Change::Begin { id, started_at, offset_minutes } => {
+                if self.deleted.contains(&id) || self.find(&id).is_some() {
+                    return None;
+                }
+                let meeting = Meeting::begun(id, started_at, Some(offset_minutes), stamp);
+                Some(self.insert(Entry { meeting, transcript: Transcript::Unwritten(Vec::new()) }))
+            }
+            Change::Lasted { meeting, duration_ms } => {
+                let (at, entry) = self.find(&meeting)?;
+                if entry.meeting.duration_ms == duration_ms {
+                    return None;
+                }
+                entry.meeting.duration_ms = duration_ms;
+                stamp.mark(&mut entry.meeting);
+                Some(entry.told(at))
             }
             Change::Lend { meetings } => {
                 let known = self.entries.len();
@@ -261,6 +311,18 @@ impl Meetings {
 
     fn sort(&mut self) {
         self.entries.sort_by(|a, b| latest_first(&a.meeting, &b.meeting));
+    }
+
+    fn find(&mut self, id: &MeetingId) -> Option<(usize, &mut Entry)> {
+        self.entries.iter_mut().enumerate().find(|(_, entry)| &entry.meeting.id == id)
+    }
+
+    // At its place in the list.
+    fn insert(&mut self, entry: Entry) -> (Event, Vec<MeetingId>) {
+        let at = self.entries.partition_point(|kept| latest_first(&kept.meeting, &entry.meeting).is_lt());
+        let told = entry.told(at);
+        self.entries.insert(at, entry);
+        told
     }
 
     fn list(&self) -> Vec<Meeting> {
@@ -291,6 +353,10 @@ impl Meetings {
 }
 
 impl Entry {
+    fn told(&self, at: usize) -> (Event, Vec<MeetingId>) {
+        (Event::Changed { meeting: self.meeting.clone(), at }, Vec::from_iter(self.file()))
+    }
+
     // The file to bring up to date after a change: none for a sample.
     fn file(&self) -> Option<MeetingId> {
         match self.transcript {
@@ -442,6 +508,21 @@ mod tests {
             }));
         }
 
+        // As the recorder begins a meeting at its first sound, after the stored ones.
+        fn begin(&self, meeting: &str) {
+            let started_at = utc_datetime!(2026-11-11 7:00);
+            self.library.apply(Change::Begin { id: id(meeting), started_at, offset_minutes: 60 });
+        }
+
+        fn lasted(&self, meeting: &str, duration_ms: u64) {
+            self.library.apply(Change::Lasted { meeting: id(meeting), duration_ms });
+        }
+
+        fn transcribed(&self, meeting: &str, lines: &[&str], minutes: MinutesDraft) {
+            let transcript = lines.iter().map(|text| line(0, text)).collect();
+            self.library.apply(Change::Transcribed { meeting: id(meeting), transcript, minutes });
+        }
+
         // The app is killed, then opened again on the same folder.
         fn relaunched(self) -> Phone {
             drop(self.library);
@@ -456,6 +537,12 @@ mod tests {
 
     fn first() -> ActionId {
         ActionId::new("0").unwrap()
+    }
+
+    // Drawn when the minutes were written.
+    fn first_of(meeting: &Meeting) -> ActionId {
+        let MinutesState::Written { minutes } = &meeting.minutes else { panic!("not written") };
+        minutes.actions[0].id.clone()
     }
 
     fn done(meeting: &Meeting) -> Vec<bool> {
@@ -596,6 +683,66 @@ mod tests {
         phone.record(&["Bonjour à tous.", "Je prépare la démo."], one_action());
         assert_eq!(phone.list(), []);
         assert_eq!(phone.relaunched().list(), []);
+    }
+
+    #[test]
+    fn a_meeting_begun_by_the_recorder_is_written_at_once_and_lasts_as_told() {
+        let phone = phone(&[meeting("recorded-1")]);
+        phone.begin("recorded-9");
+        let begun = Meeting {
+            started_at: utc_datetime!(2026-11-11 7:00),
+            offset_minutes: Some(60),
+            duration_ms: 0,
+            modified_at: NOW,
+            device: phone.device(),
+            minutes: MinutesState::Writing,
+            ..meeting("recorded-9")
+        };
+        assert_eq!((phone.list()[0].clone(), phone.file("recorded-9")), (begun.clone(), Some(begun)));
+        phone.lasted("recorded-9", 10_000);
+        let told = phone.told();
+        phone.lasted("recorded-9", 10_000);
+        phone.lasted("recorded-7", 10_000);
+        phone.begin("recorded-9");
+        assert_eq!(phone.told(), told);
+        assert_eq!(phone.file("recorded-9").unwrap().duration_ms, 10_000);
+        assert_eq!(phone.ids(), ["recorded-9", "recorded-1"]);
+    }
+
+    #[test]
+    fn a_transcription_changes_the_lines_and_the_minutes_of_a_known_meeting_only() {
+        let phone = phone(&[]);
+        phone.begin("recorded-9");
+        phone.lasted("recorded-9", 60_000);
+        phone.rename("recorded-9", "Point produit");
+        phone.transcribed("recorded-9", &["Bonjour à tous."], MinutesDraft::Writing);
+        phone.transcribed("recorded-9", &["Bonjour à tous.", "Je prépare la démo."], one_action());
+        phone.edit("recorded-9", Edit::SetDone { action: first_of(&phone.list()[0]), done: true });
+        phone.transcribed("recorded-9", &["Bonjour à tous."], MinutesDraft::Failed);
+        let kept = phone.file("recorded-9").unwrap();
+        assert_eq!((kept.title.as_deref(), kept.duration_ms, done(&kept)), (Some("Point produit"), 60_000, vec![true]));
+        assert_eq!(kept.transcript, [line(0, "Bonjour à tous.")]);
+        // Neither a meeting it does not know, nor one deleted while it was transcribed.
+        phone.transcribed("recorded-7", &["Bonjour à tous."], MinutesDraft::Writing);
+        phone.delete(&["recorded-9"]);
+        phone.transcribed("recorded-9", &["Bonjour à tous."], one_action());
+        phone.begin("recorded-9");
+        assert_eq!((phone.list(), phone.file("recorded-7"), phone.file("recorded-9")), (vec![], None, None));
+    }
+
+    #[test]
+    fn a_recording_cut_by_a_crash_lasts_as_long_as_its_audio() {
+        let phone = phone(&[meeting("recorded-1")]);
+        phone.begin("recorded-9");
+        let mut writer = phone.library.record(&id("recorded-9"), 1).unwrap();
+        chord(130).iter().for_each(|frame| writer.write(&[*frame]).unwrap());
+        // Killed: the last 30 frames were only in memory.
+        drop(writer);
+        let phone = phone.relaunched();
+        let kept = Meeting { duration_ms: 2_000, minutes: MinutesState::Failed, ..phone.file("recorded-9").unwrap() };
+        assert_eq!(phone.file("recorded-9"), Some(kept.clone()));
+        assert_eq!(phone.list()[0], kept);
+        assert_eq!(phone.list()[1], meeting("recorded-1"));
     }
 
     #[test]
