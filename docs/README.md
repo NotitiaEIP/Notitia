@@ -38,6 +38,7 @@ Une fiche se lit en deux minutes et ne change plus : pour revenir sur un choix, 
 | [0003](adr/0003-format-notitia-v2.md) | Le format `.notitia` version 2 : un identifiant par action, le temps en millisecondes, les champs inconnus gardés | Proposée le 16 novembre 2026 |
 | [0004](adr/0004-pont-json.md) | Le pont entre le cœur et les apps : trois fonctions, un écouteur, du JSON | Proposée le 17 novembre 2026 |
 | [0005](adr/0005-audio.md) | L'audio d'une réunion : Opus à débit constant, dans un fichier scellé seconde par seconde | Proposée le 17 novembre 2026 |
+| [0006](adr/0006-enregistreur.md) | L'enregistrement tenu par le cœur, sur un fil à lui : une file bornée, la réunion au premier son | Proposée le 18 novembre 2026 |
 
 ## Ailleurs dans le repo
 
