@@ -13,12 +13,39 @@ use super::{
 #[cfg_attr(test, derive(Debug, PartialEq))]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Change {
-    Edit { meeting: MeetingId, edit: Edit },
+    Edit {
+        meeting: MeetingId,
+        edit: Edit,
+    },
     // For good, its file too.
-    Delete { meetings: Vec<MeetingId> },
+    Delete {
+        meetings: Vec<MeetingId>,
+    },
     Record(Snapshot),
+    // What the app has transcribed of a meeting the recorder began, the whole of it each time as a snapshot was,
+    // and its minutes once written. Makes no meeting.
+    Transcribed {
+        meeting: MeetingId,
+        #[serde(default)]
+        transcript: Vec<TranscriptLine>,
+        minutes: MinutesDraft,
+    },
     // Samples: changed like the others for as long as the app runs, never written.
-    Lend { meetings: Vec<Meeting> },
+    Lend {
+        meetings: Vec<Meeting>,
+    },
+    // The recorder's own, at its first sound and then as the audio grows: never read from an app.
+    #[serde(skip)]
+    Begin {
+        id: MeetingId,
+        started_at: UtcDateTime,
+        offset_minutes: i16,
+    },
+    #[serde(skip)]
+    Lasted {
+        meeting: MeetingId,
+        duration_ms: u64,
+    },
 }
 
 #[derive(Deserialize)]
@@ -91,7 +118,7 @@ pub(crate) struct Stamp<'a> {
 }
 
 impl Stamp<'_> {
-    fn mark(self, meeting: &mut Meeting) {
+    pub(crate) fn mark(self, meeting: &mut Meeting) {
         meeting.modified_at = self.at;
         self.device.clone_into(&mut meeting.device);
     }
@@ -143,25 +170,20 @@ fn correct(meeting: &mut Meeting, id: &ActionId, correction: impl FnOnce(&mut Ac
 impl Snapshot {
     // The meeting to keep and, apart, its lines. `known` is the meeting as kept so far, None the first time.
     pub(crate) fn merge(self, known: Option<Meeting>, stamp: Stamp) -> (Meeting, Vec<TranscriptLine>) {
-        let mut meeting = known.unwrap_or_else(|| Meeting {
-            id: self.id,
-            started_at: self.started_at,
-            duration_ms: 0,
-            modified_at: stamp.at,
-            device: String::new(),
-            title: None,
-            speakers: Vec::new(),
-            minutes: MinutesState::Writing,
-            transcript: Vec::new(),
-            extra: Extra::new(),
-        });
+        let mut meeting = known.unwrap_or_else(|| Meeting::begun(self.id, self.started_at, None, stamp));
         meeting.duration_ms = self.duration_ms;
-        // What the user gave while the meeting was transcribed stays: its title, and minutes already corrected.
-        if !matches!(meeting.minutes, MinutesState::Written { .. }) {
-            meeting.minutes = self.minutes.into();
-        }
+        self.minutes.settle(&mut meeting);
         stamp.mark(&mut meeting);
         (meeting, self.transcript)
+    }
+}
+
+impl MinutesDraft {
+    // What the user gave while the meeting was transcribed stays: its title, and minutes already corrected.
+    pub(crate) fn settle(self, meeting: &mut Meeting) {
+        if !matches!(meeting.minutes, MinutesState::Written { .. }) {
+            meeting.minutes = self.into();
+        }
     }
 }
 
@@ -199,6 +221,25 @@ impl From<ActionDraft> for Action {
 }
 
 impl Meeting {
+    // Heard for the first time: nothing transcribed yet.
+    pub(crate) fn begun(id: MeetingId, started_at: UtcDateTime, offset_minutes: Option<i16>, stamp: Stamp) -> Self {
+        let mut meeting = Meeting {
+            id,
+            started_at,
+            offset_minutes,
+            duration_ms: 0,
+            modified_at: stamp.at,
+            device: String::new(),
+            title: None,
+            speakers: Vec::new(),
+            minutes: MinutesState::Writing,
+            transcript: Vec::new(),
+            extra: Extra::new(),
+        };
+        stamp.mark(&mut meeting);
+        meeting
+    }
+
     // Minutes left writing belong to an app that was killed: without the audio, nothing can resume them.
     pub(crate) fn interrupted(mut self) -> Self {
         if self.minutes == MinutesState::Writing {
@@ -451,6 +492,12 @@ mod tests {
             "{}".into(),
             "{\"type\":\"forget\"}".into(),
             "{\"type\":\"delete\"}".into(),
+            // The recorder's own: an app that sends them is refused.
+            "{\"type\":\"begin\",\"id\":\"recorded-1\",\"startedAt\":\"2026-11-11T07:00:00Z\",\"offsetMinutes\":60}"
+                .into(),
+            "{\"type\":\"lasted\",\"meeting\":\"recorded-1\",\"durationMs\":60000}".into(),
+            "{\"type\":\"lasted\",\"meeting\":\"recorded-1\",\"duration_ms\":60000}".into(),
+            "{\"type\":\"transcribed\",\"meeting\":\"recorded-1\"}".into(),
             // An identifier names a file: one that would leave the folder never reaches the meetings.
             "{\"type\":\"delete\",\"meetings\":[\"../recorded-1\"]}".into(),
             edit("{\"type\":\"rename\"}"),

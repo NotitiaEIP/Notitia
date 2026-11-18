@@ -12,6 +12,7 @@ use opus::{Decoder, Encoder, Packet};
 pub const SAMPLE_RATE: usize = 16_000;
 pub const FRAMES_PER_SECOND: usize = 50;
 pub const FRAME_SAMPLES: usize = SAMPLE_RATE / FRAMES_PER_SECOND;
+pub const FRAME_MS: u64 = 1_000 / FRAMES_PER_SECOND as u64;
 
 pub type Frame = [i16; FRAME_SAMPLES];
 
@@ -93,6 +94,11 @@ impl Writer {
         self.seal_when_full()
     }
 
+    // Every frame given, those not sealed yet included: what the audio holds once finished.
+    pub fn frames(&self) -> u64 {
+        self.sealed.frames() + (self.second.len() / self.encoders.len()) as u64
+    }
+
     // The last second, short as it may be. Nothing is written after it.
     pub fn finish(mut self) -> Result<(), AudioError> {
         if !self.second.is_empty() {
@@ -112,7 +118,6 @@ impl Writer {
 
 // What a decoder must hear before a passage to give it back as it was recorded (RFC 7845): 80 ms.
 const WARM_UP: u64 = 4;
-const FRAME_MS: u64 = 1_000 / FRAMES_PER_SECOND as u64;
 const SAMPLES_PER_MS: u64 = SAMPLE_RATE as u64 / 1_000;
 
 pub struct Reader {
@@ -281,7 +286,9 @@ mod tests {
         // Killed: the 20 frames of the third second were only in memory.
         drop(writer);
         let mut writer = Writer::open(file(&folder), &key(1), 1).unwrap();
+        assert_eq!(writer.frames(), 100);
         heard[100..].iter().for_each(|frame| writer.write(&[*frame]).unwrap());
+        assert_eq!(writer.frames(), 150);
         writer.finish().unwrap();
         let mut reader = Reader::open(file(&folder), &key(1)).unwrap();
         assert_eq!(reader.duration_ms(), 3_000);

@@ -74,6 +74,10 @@ pub struct Meeting {
     pub id: MeetingId,
     #[serde(with = "instant")]
     pub started_at: UtcDateTime,
+    // Ahead of UTC where it was recorded, given by the app: its day on the calendar is then the same on every
+    // device. None for a meeting recorded before the core held the recordings.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offset_minutes: Option<i16>,
     // The audio actually heard, pauses left out.
     pub duration_ms: u64,
     // When and where it last changed, so two devices can be reconciled later (E10).
@@ -179,6 +183,7 @@ pub(crate) mod testing {
         Meeting {
             id: id(text),
             started_at: utc_datetime!(2026-11-10 9:30),
+            offset_minutes: None,
             duration_ms: 30 * 60_000,
             modified_at: utc_datetime!(2026-11-10 10:00),
             device: "phone-1".into(),
