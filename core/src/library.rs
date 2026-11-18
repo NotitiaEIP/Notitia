@@ -194,6 +194,16 @@ impl Library {
         open_audio(&self.store, self.key.as_ref(), id)
     }
 
+    // Without it nothing is recorded: no audio reaches the disk in clear.
+    pub(crate) fn has_key(&self) -> bool {
+        self.key.is_some()
+    }
+
+    // A recording is dated by the clock its changes are.
+    pub(crate) fn now(&self) -> UtcDateTime {
+        (self.clock)()
+    }
+
     // The disk follows the memory: the file is written when the meeting is kept, removed when it is gone. Nothing
     // is replayed, so a write that failed can never overwrite a later one.
     fn reconcile(&self, id: &MeetingId) -> io::Result<()> {

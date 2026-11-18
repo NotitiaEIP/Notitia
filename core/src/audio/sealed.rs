@@ -119,11 +119,17 @@ impl Shape {
     }
 }
 
+// Every second is whole but the last.
+fn frames_in(seconds: u64, last: usize) -> u64 {
+    seconds.checked_sub(1).map_or(0, |whole| whole * FRAMES_PER_SECOND as u64 + last as u64)
+}
+
 // Adds seconds to the audio of a meeting, and takes up a file an earlier launch left.
 pub struct Writer {
     file: File,
     shape: Shape,
     seconds: u64,
+    frames: u64,
     // A second shorter than the others closes the audio: one written after it would not be where its number says.
     ended: bool,
 }
@@ -138,7 +144,7 @@ impl Writer {
             file.seek(SeekFrom::Start(0))?;
             file.write_all(&shape.header)?;
             file.sync_all()?;
-            return Ok(Self { file, shape, seconds: 0, ended: false });
+            return Ok(Self { file, shape, seconds: 0, frames: 0, ended: false });
         }
         let shape = Shape::of(&mut file, key)?;
         if shape.tracks != tracks {
@@ -146,11 +152,15 @@ impl Writer {
         }
         let (seconds, last) = shape.kept(&mut file)?;
         file.set_len(shape.place(seconds))?;
-        Ok(Self { file, shape, seconds, ended: last < FRAMES_PER_SECOND })
+        Ok(Self { file, shape, seconds, frames: frames_in(seconds, last), ended: last < FRAMES_PER_SECOND })
     }
 
     pub fn seconds(&self) -> u64 {
         self.seconds
+    }
+
+    pub fn frames(&self) -> u64 {
+        self.frames
     }
 
     pub fn tracks(&self) -> usize {
@@ -172,6 +182,7 @@ impl Writer {
         }
         written?;
         self.seconds += 1;
+        self.frames += (packets.len() / self.shape.tracks) as u64;
         self.ended = packets.len() < FRAMES_PER_SECOND * self.shape.tracks;
         // A killed app loses nothing the system was given. Only a power cut does, and no more than these seconds.
         if self.ended || self.seconds.is_multiple_of(FLUSH_EVERY) { self.flush() } else { Ok(()) }
@@ -201,10 +212,7 @@ impl Reader {
     }
 
     pub fn frames(&self) -> u64 {
-        match self.seconds {
-            0 => 0,
-            seconds => (seconds - 1) * FRAMES_PER_SECOND as u64 + self.last as u64,
-        }
+        frames_in(self.seconds, self.last)
     }
 
     // Nothing past the last second kept: what a crash cut is never read as a sound.
@@ -348,8 +356,9 @@ mod tests {
         open(&path).set_len(HEADER + 2 * ONE_TRACK + 1_000).unwrap();
         assert_eq!(read(&path), [second(0), second(1)]);
         let mut writer = Writer::open(open(&path), &key(1), 1).unwrap();
-        assert_eq!((writer.seconds(), size(&path)), (2, HEADER + 2 * ONE_TRACK));
+        assert_eq!((writer.seconds(), writer.frames(), size(&path)), (2, 100, HEADER + 2 * ONE_TRACK));
         writer.append(&second(9)).unwrap();
+        assert_eq!(writer.frames(), 150);
         assert_eq!(read(&path), [second(0), second(1), second(9)]);
     }
 
@@ -381,7 +390,8 @@ mod tests {
         let mut writer = Writer::open(open(&path), &key(1), 1).unwrap();
         writer.append(&packets(1, 20)).unwrap();
         assert_eq!(writer.append(&second(2)), Err(AudioError::Ended));
-        assert_eq!(Writer::open(open(&path), &key(1), 1).unwrap().append(&second(2)), Err(AudioError::Ended));
+        let mut ended = Writer::open(open(&path), &key(1), 1).unwrap();
+        assert_eq!((ended.frames(), ended.append(&second(2))), (70, Err(AudioError::Ended)));
         assert_eq!(size(&path), HEADER + 2 * ONE_TRACK);
         let mut reader = Reader::open(open(&path), &key(1)).unwrap();
         assert_eq!(reader.frames(), 70);
