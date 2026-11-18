@@ -1,20 +1,26 @@
-// What an hour of sound costs to encode, to seal and to read back, and the room it takes (T-79, T-80). Optimised as
-// an app is: cargo run --release --example recording
+// What an hour of sound costs to encode, to seal and to read back, and the room it takes (T-79, T-80), and what the
+// recorder costs the microphone (T-81). Optimised as an app is: cargo run --release --example recording
 // A file given after `--` receives a minute of that sound as Ogg Opus, for ffmpeg or any player: the proof that what
 // the core keeps is standard Opus.
 use std::error::Error;
 use std::f64::consts::TAU;
-use std::time::Instant;
+use std::sync::{Arc, Mutex, mpsc};
+use std::time::{Duration, Instant};
 use std::{env, fs};
 
 use notitia_core::audio::opus::{CodecError, Decoder, Encoder, PACKET_BYTES, Packet};
 use notitia_core::audio::{FRAME_SAMPLES, FRAMES_PER_SECOND, Frame, Reader, SAMPLE_RATE, sealed};
+use notitia_core::recorder::{Command, State};
 use notitia_core::secret::Key;
+use notitia_core::session::{Event, Listener, Request, Session};
 
 const HOUR: usize = 3_600 * FRAMES_PER_SECOND;
 const WITNESS: usize = 60 * FRAMES_PER_SECOND;
 // Five seconds of voice and one of silence, heard again and again.
 const SPOKEN: usize = 6 * FRAMES_PER_SECOND;
+const THROUGH_THE_RECORDER: usize = 10 * 60 * FRAMES_PER_SECOND;
+// As a phone's microphone gives it: 100 ms a read.
+const READ: usize = FRAMES_PER_SECOND / 10;
 
 // Made up: no meeting was recorded for this. A voice as a machine draws one: a pitch that wanders, the three
 // resonances of a vowel, four syllables a second.
@@ -99,6 +105,49 @@ fn witness(spoken: &[Frame]) -> Result<Vec<u8>, CodecError> {
     Ok(ogg.bytes)
 }
 
+// How far the recorder has gone.
+struct Recorded(Mutex<mpsc::Sender<u64>>);
+
+impl Listener for Recorded {
+    fn on_event(&self, event: &Event) {
+        if let Event::Recorder(State::Recording { progress, .. }) = event {
+            let _ = self.0.lock().map(|told| told.send(progress.recorded_ms));
+        }
+    }
+}
+
+// The time the microphone's thread spends in `hear`, and how fast the recorder keeps up, the disk included.
+fn through_the_recorder(spoken: &[Frame]) -> Result<(), Box<dyn Error>> {
+    let folder = tempfile::tempdir()?;
+    let (told, recorded) = mpsc::channel();
+    let session = Session::open(folder.path(), Some(Key::new(&[7; 32])?), Arc::new(Recorded(Mutex::new(told))))?;
+    session.apply(Request::Recorder(Command::Start { tracks: 1, offset_minutes: 60 }));
+    let heard: Vec<u8> =
+        spoken.iter().cycle().take(THROUGH_THE_RECORDER).flatten().flat_map(|sample| sample.to_le_bytes()).collect();
+    let (mut held, mut longest) = (Duration::ZERO, Duration::ZERO);
+    let started = Instant::now();
+    for (read, pcm) in heard.chunks(READ * FRAME_SAMPLES * 2).enumerate() {
+        let handing = Instant::now();
+        session.hear(0, pcm);
+        let took = handing.elapsed();
+        (held, longest) = (held + took, longest.max(took));
+        // A microphone is never more than the queue ahead of the recorder: here, every five seconds, none.
+        if read % 50 == 49 {
+            let given = (read as u64 + 1) * 100;
+            while recorded.recv()? < given {}
+        }
+    }
+    let kept = started.elapsed().as_secs_f64();
+    let reads = THROUGH_THE_RECORDER / READ;
+    println!("ten minutes through the recorder in {kept:.1} s, {:.0} times faster than they are heard", 600.0 / kept);
+    println!(
+        "a read of 100 ms handed over in {:.1} µs on average, {:.0} µs at most",
+        held.as_secs_f64() * 1e6 / reads as f64,
+        longest.as_secs_f64() * 1e6
+    );
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let spoken = voice();
     let (mut encoder, mut decoder) = (Encoder::new()?, Decoder::new()?);
@@ -135,6 +184,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let passage = Reader::open(open()?, &key)?.read(59 * 60_000, 30_000)?;
     let read = started.elapsed().as_secs_f64();
     println!("30 s read from the 59th minute in {:.0} ms ({} samples)", read * 1e3, passage[0].len());
+    through_the_recorder(&spoken)?;
     if let Some(file) = env::args_os().nth(1) {
         fs::write(file, witness(&spoken)?)?;
     }
