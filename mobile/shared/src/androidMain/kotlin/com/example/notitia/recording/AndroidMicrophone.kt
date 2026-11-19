@@ -12,7 +12,7 @@ import android.media.MediaRecorder
 import android.media.audiofx.AutomaticGainControl
 import android.media.audiofx.NoiseSuppressor
 import android.os.Build
-import com.example.notitia.meeting.MicrophoneProblem
+import com.example.notitia.meeting.RecordingProblem
 import java.util.concurrent.Executor
 import kotlin.concurrent.Volatile
 import kotlin.math.max
@@ -41,18 +41,18 @@ class AndroidMicrophone(context: Context) : Microphone {
     @SuppressLint("MissingPermission")
     override suspend fun listen(isPaused: () -> Boolean, onAudio: (ByteArray) -> Unit) = withContext(Dispatchers.IO) {
         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            throw MicrophoneException(MicrophoneProblem.Denied)
+            throw MicrophoneException(RecordingProblem.Denied)
         }
         // Since Android 10 a call does not refuse the microphone to other apps, it hands them silence: the timer would
         // run on an empty recording.
-        if (audio.mode in CALL_MODES) throw MicrophoneException(MicrophoneProblem.Busy)
+        if (audio.mode in CALL_MODES) throw MicrophoneException(RecordingProblem.Busy)
         val encoding = AudioFormat.ENCODING_PCM_16BIT
         val channel = AudioFormat.CHANNEL_IN_MONO
         val bufferBytes = max(AudioRecord.getMinBufferSize(SAMPLE_RATE, channel, encoding), READ_BYTES * 2)
         val recorder = AudioRecord(MediaRecorder.AudioSource.MIC, SAMPLE_RATE, channel, encoding, bufferBytes)
         if (recorder.state != AudioRecord.STATE_INITIALIZED) {
             recorder.release()
-            throw MicrophoneException(MicrophoneProblem.Unavailable)
+            throw MicrophoneException(RecordingProblem.Unavailable)
         }
         val gain = if (AutomaticGainControl.isAvailable()) AutomaticGainControl.create(recorder.audioSessionId) else null
         val noise = if (NoiseSuppressor.isAvailable()) NoiseSuppressor.create(recorder.audioSessionId) else null
@@ -71,15 +71,15 @@ class AndroidMicrophone(context: Context) : Microphone {
                     recorder.startRecording()
                     // Another app holding the microphone, a call say, keeps it from starting.
                     if (recorder.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
-                        throw MicrophoneException(MicrophoneProblem.Busy)
+                        throw MicrophoneException(RecordingProblem.Busy)
                     }
                 }
                 val read = recorder.read(buffer, 0, buffer.size)
                 // A call that comes in, or the app sent to the background, silences the microphone without an error.
-                if (silence.silenced) throw MicrophoneException(MicrophoneProblem.Busy)
+                if (silence.silenced) throw MicrophoneException(RecordingProblem.Busy)
                 when {
                     read > 0 -> onAudio(buffer.copyOf(read))
-                    read < 0 -> throw MicrophoneException(MicrophoneProblem.Busy)
+                    read < 0 -> throw MicrophoneException(RecordingProblem.Busy)
                 }
             }
         } finally {

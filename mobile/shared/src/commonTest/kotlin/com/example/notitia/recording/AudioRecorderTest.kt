@@ -1,8 +1,8 @@
 package com.example.notitia.recording
 
 import com.example.notitia.ai.audio
-import com.example.notitia.meeting.MicrophoneProblem
 import com.example.notitia.meeting.RecorderState
+import com.example.notitia.meeting.RecordingProblem
 import com.example.notitia.ui.search.runNow
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -78,9 +78,9 @@ class AudioRecorderTest {
 
     @Test
     fun aRefusedMicrophoneFailsWithoutATimer() {
-        val recorder = recorder(FakeMicrophone(refusal = MicrophoneProblem.Denied))
+        val recorder = recorder(FakeMicrophone(refusal = RecordingProblem.Denied))
         recorder.start(now) {}
-        assertEquals(RecorderState.Failed(MicrophoneProblem.Denied), recorder.state.value)
+        assertEquals(RecorderState.Failed(RecordingProblem.Denied), recorder.state.value)
         assertNull(runNow { recorder.stop() })
         recorder.dismissFailure()
         assertEquals(RecorderState.Idle, recorder.state.value)
@@ -90,7 +90,7 @@ class AudioRecorderTest {
     fun withoutAMicrophoneTheRecordingIsUnavailable() {
         val recorder = recorder(microphone = null)
         recorder.start(now) {}
-        assertEquals(RecorderState.Failed(MicrophoneProblem.Unavailable), recorder.state.value)
+        assertEquals(RecorderState.Failed(RecordingProblem.Unavailable), recorder.state.value)
     }
 
     @Test
@@ -99,7 +99,7 @@ class AudioRecorderTest {
         val recorder = recorder(microphone)
         recorder.start(now) {}
         microphone.hear(audio(1_000))
-        microphone.cutOff(MicrophoneProblem.Busy)
+        microphone.cutOff(RecordingProblem.Busy)
         assertEquals(RecorderState.Interrupted(now, 1.seconds), recorder.state.value)
         recorder.togglePause()
         assertEquals(2, microphone.listens)

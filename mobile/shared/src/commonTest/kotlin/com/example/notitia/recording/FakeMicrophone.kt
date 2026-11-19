@@ -1,15 +1,15 @@
 package com.example.notitia.recording
 
-import com.example.notitia.meeting.MicrophoneProblem
+import com.example.notitia.meeting.RecordingProblem
 import kotlinx.coroutines.CompletableDeferred
 
 // Stands in for the phone's microphone: the test says what is heard, and when the microphone is taken away.
-class FakeMicrophone(private val refusal: MicrophoneProblem? = null) : Microphone {
+class FakeMicrophone(private val refusal: RecordingProblem? = null) : Microphone {
     var listens = 0
         private set
     private var isPaused: () -> Boolean = { true }
     private var onAudio: ((ByteArray) -> Unit)? = null
-    private var cut = CompletableDeferred<MicrophoneProblem>()
+    private var cut = CompletableDeferred<RecordingProblem>()
 
     val paused: Boolean get() = isPaused()
 
@@ -18,7 +18,7 @@ class FakeMicrophone(private val refusal: MicrophoneProblem? = null) : Microphon
         if (!isPaused()) onAudio?.invoke(pcm)
     }
 
-    fun cutOff(problem: MicrophoneProblem) {
+    fun cutOff(problem: RecordingProblem) {
         cut.complete(problem)
     }
 

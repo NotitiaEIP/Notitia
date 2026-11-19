@@ -1,7 +1,7 @@
 package com.example.notitia.recording
 
-import com.example.notitia.meeting.MicrophoneProblem
 import com.example.notitia.meeting.RecorderState
+import com.example.notitia.meeting.RecordingProblem
 import kotlin.concurrent.Volatile
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
@@ -72,18 +72,18 @@ class AudioRecorder(private val microphone: Microphone?, private val scope: Coro
 
     private fun listen() {
         paused = false
-        val microphone = microphone ?: return cut(MicrophoneProblem.Unavailable)
+        val microphone = microphone ?: return cut(RecordingProblem.Unavailable)
         listening = scope.launch {
             val problem = try {
                 microphone.listen({ paused }, ::heard)
-                MicrophoneProblem.Unavailable
+                RecordingProblem.Unavailable
             } catch (e: MicrophoneException) {
                 e.problem
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
                 // A microphone failing in a way nobody foresaw shows an alert, it does not crash a meeting.
-                MicrophoneProblem.Unavailable
+                RecordingProblem.Unavailable
             }
             ensureActive()
             cut(problem)
@@ -103,7 +103,7 @@ class AudioRecorder(private val microphone: Microphone?, private val scope: Coro
         }
     }
 
-    private fun cut(problem: MicrophoneProblem) = mutableState.update {
+    private fun cut(problem: RecordingProblem) = mutableState.update {
         if (it is RecorderState.Active && it.recorded > Duration.ZERO) {
             RecorderState.Interrupted(it.startedAt, it.recorded)
         } else {

@@ -3,9 +3,9 @@ package com.example.notitia.recording
 import androidx.compose.runtime.snapshots.Snapshot
 import com.example.notitia.ai.audio
 import com.example.notitia.meeting.MeetingKeeper
-import com.example.notitia.meeting.MicrophoneProblem
 import com.example.notitia.meeting.MinutesDraft
 import com.example.notitia.meeting.RecorderState
+import com.example.notitia.meeting.RecordingProblem
 import com.example.notitia.meeting.recordedMeetingId
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -65,9 +65,9 @@ class MeetingRecorderTest {
 
     @Test
     fun aRefusedMicrophoneLeavesNoMeeting() {
-        val recorder = recorder(FakeMicrophone(refusal = MicrophoneProblem.Denied))
+        val recorder = recorder(FakeMicrophone(refusal = RecordingProblem.Denied))
         recorder.start()
-        assertEquals(RecorderState.Failed(MicrophoneProblem.Denied), recorder.state.value)
+        assertEquals(RecorderState.Failed(RecordingProblem.Denied), recorder.state.value)
         assertNull(kept)
     }
 }

@@ -1,6 +1,6 @@
 package com.example.notitia.recording
 
-import com.example.notitia.meeting.MicrophoneProblem
+import com.example.notitia.meeting.RecordingProblem
 
 // The only part of a recording each platform writes: AudioRecorder keeps the state, the duration and the level.
 interface Microphone {
@@ -9,4 +9,4 @@ interface Microphone {
     suspend fun listen(isPaused: () -> Boolean, onAudio: (ByteArray) -> Unit)
 }
 
-class MicrophoneException(val problem: MicrophoneProblem) : Exception(problem.name)
+class MicrophoneException(val problem: RecordingProblem) : Exception(problem.name)

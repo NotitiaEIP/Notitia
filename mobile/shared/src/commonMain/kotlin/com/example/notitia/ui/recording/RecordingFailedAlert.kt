@@ -5,7 +5,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import com.example.notitia.meeting.MicrophoneProblem
+import com.example.notitia.meeting.RecordingProblem
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
 import notitia.shared.generated.resources.Res
@@ -24,10 +24,10 @@ import org.jetbrains.compose.resources.stringResource
 // A recording that could not start waits for an answer, like the system's own recorders: a message that fades away
 // could leave someone thinking their meeting is being kept.
 @Composable
-fun RecordingFailedAlert(problem: MicrophoneProblem, onOpenSettings: () -> Unit, onDismiss: () -> Unit) {
+fun RecordingFailedAlert(problem: RecordingProblem, onOpenSettings: () -> Unit, onDismiss: () -> Unit) {
     val (title, message) = problem.texts()
     val buttons = ButtonDefaults.textButtonColors(contentColor = NotitiaTheme.colors.accentContent)
-    val canBeAllowed = problem == MicrophoneProblem.Denied
+    val canBeAllowed = problem == RecordingProblem.Denied
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(title), style = NotitiaTheme.typography.title3) },
@@ -58,14 +58,14 @@ fun RecordingFailedAlert(problem: MicrophoneProblem, onOpenSettings: () -> Unit,
     )
 }
 
-private fun MicrophoneProblem.texts(): Pair<StringResource, StringResource> = when (this) {
-    MicrophoneProblem.Denied -> Res.string.recording_denied_title to Res.string.recording_denied_message
-    MicrophoneProblem.Busy -> Res.string.recording_busy_title to Res.string.recording_busy_message
-    MicrophoneProblem.Unavailable -> Res.string.recording_unavailable_title to Res.string.recording_unavailable_message
+private fun RecordingProblem.texts(): Pair<StringResource, StringResource> = when (this) {
+    RecordingProblem.Denied -> Res.string.recording_denied_title to Res.string.recording_denied_message
+    RecordingProblem.Busy -> Res.string.recording_busy_title to Res.string.recording_busy_message
+    RecordingProblem.Unavailable -> Res.string.recording_unavailable_title to Res.string.recording_unavailable_message
 }
 
 @NotitiaPreviews
 @Composable
 private fun RecordingFailedAlertPreview() = NotitiaTheme {
-    RecordingFailedAlert(MicrophoneProblem.Denied, onOpenSettings = {}, onDismiss = {})
+    RecordingFailedAlert(RecordingProblem.Denied, onOpenSettings = {}, onDismiss = {})
 }

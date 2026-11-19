@@ -27,7 +27,7 @@ sealed interface RecorderState {
     data object Idle : RecorderState
 
     // Nothing was recorded: the attempt is over, and the screen says why.
-    data class Failed(val problem: MicrophoneProblem) : RecorderState
+    data class Failed(val problem: RecordingProblem) : RecorderState
 
     sealed interface Active : RecorderState {
         val startedAt: Instant
@@ -48,4 +48,4 @@ sealed interface RecorderState {
     data class Interrupted(override val startedAt: Instant, override val recorded: Duration) : Active
 }
 
-enum class MicrophoneProblem { Denied, Busy, Unavailable }
+enum class RecordingProblem { Denied, Busy, Unavailable }
