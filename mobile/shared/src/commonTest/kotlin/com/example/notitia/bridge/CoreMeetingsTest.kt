@@ -2,7 +2,6 @@ package com.example.notitia.bridge
 
 import com.example.notitia.meeting.ActionId
 import com.example.notitia.meeting.Meeting
-import com.example.notitia.meeting.MinutesDraft
 import com.example.notitia.meeting.TranscriptLine
 import com.example.notitia.meeting.meeting
 import com.example.notitia.ui.search.runNow
@@ -12,7 +11,6 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
-import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.datetime.LocalDate
 
@@ -49,15 +47,12 @@ class CoreMeetingsTest {
         val kept = meetings(core)
         val action = ActionId("recorded-1", "0")
         val day = LocalDate(2026, 11, 20)
-        val started = meeting("recorded-9").startedAt
-        val lines = listOf(TranscriptLine(Duration.ZERO, "Bonjour à tous."))
         kept.rename("recorded-1", "Point produit")
         kept.setDone(action, true)
         kept.setOwner(action, "Nathan")
         kept.setDue(action, day)
         kept.setReminder(action, true)
-        kept.keep("recorded-9", started, 1.minutes, lines, MinutesDraft.Writing)
-        kept.delete(setOf("recorded-1", "recorded-9"))
+        kept.delete(setOf("recorded-1"))
         fun edit(edit: MeetingEdit) = Change.Edit("recorded-1", edit)
         assertEquals(
             listOf<CoreRequest>(
@@ -66,8 +61,7 @@ class CoreMeetingsTest {
                 edit(MeetingEdit.SetOwner("0", "Nathan")),
                 edit(MeetingEdit.SetDue("0", day)),
                 edit(MeetingEdit.SetReminder("0", true)),
-                Change.Record("recorded-9", started, 1.minutes, lines, MinutesDraft.Writing),
-                Change.Delete(setOf("recorded-1", "recorded-9")),
+                Change.Delete(setOf("recorded-1")),
             ),
             core.applied,
         )

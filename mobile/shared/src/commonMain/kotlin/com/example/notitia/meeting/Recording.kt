@@ -2,11 +2,12 @@ package com.example.notitia.meeting
 
 import kotlin.time.Duration
 import kotlin.time.Instant
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-// What the screens ask of a recording. The Kotlin recorder holds it today, the Rust core will once it records (T-58).
+// What the screens ask of a recording, which the Rust core holds: its state is the core's, as the core tells it.
 interface Recording {
     val state: StateFlow<RecorderState>
 
@@ -23,8 +24,6 @@ interface Recording {
     fun progress(meetingId: String): MeetingStatus?
 }
 
-fun recordedMeetingId(startedAt: Instant) = "recorded-${startedAt.toEpochMilliseconds()}"
-
 sealed interface RecorderState {
     data object Idle : RecorderState
 
@@ -34,20 +33,49 @@ sealed interface RecorderState {
     sealed interface Active : RecorderState {
         val startedAt: Instant
 
-        // The audio actually heard, pauses left out: what the meeting keeps as its duration.
+        // The audio kept, pauses left out: the duration the meeting will have.
         val recorded: Duration
 
-        // The meeting this recording becomes: the list leaves it to the mini bar until it stops.
-        val meetingId: String get() = recordedMeetingId(startedAt)
+        // Made by the core at the first sound, null before: a recording refused leaves no meeting. The list leaves
+        // it to the mini bar until it stops.
+        val meetingId: String?
     }
 
-    // level is the loudness of the last read, from 0 (silence) to 1.
-    data class Recording(override val startedAt: Instant, override val recorded: Duration, val level: Float) : Active
+    // level is the loudness of the last 100 ms, from 0 (silence) to 1.
+    data class Recording(
+        override val startedAt: Instant,
+        override val recorded: Duration,
+        val level: Float,
+        override val meetingId: String? = null,
+    ) : Active
 
-    data class Paused(override val startedAt: Instant, override val recorded: Duration) : Active
+    data class Paused(
+        override val startedAt: Instant,
+        override val recorded: Duration,
+        override val meetingId: String? = null,
+    ) : Active
 
-    // The microphone stopped on its own (a call, another app): what was heard stays, and resuming listens again.
-    data class Interrupted(override val startedAt: Instant, override val recorded: Duration) : Active
+    // The microphone, the disk or the core stopped it: what was heard stays, and resuming goes on with the same audio.
+    data class Interrupted(
+        override val startedAt: Instant,
+        override val recorded: Duration,
+        override val meetingId: String? = null,
+    ) : Active
+}
+
+// For previews, which have no core: nothing records.
+object PreviewRecording : Recording {
+    override val state: StateFlow<RecorderState> = MutableStateFlow(RecorderState.Idle)
+
+    override fun start() = Unit
+
+    override fun togglePause() = Unit
+
+    override fun stop() = Unit
+
+    override fun dismissFailure() = Unit
+
+    override fun progress(meetingId: String): MeetingStatus? = null
 }
 
 // As the core names them. Storage: no key to seal the audio with, so none is written.

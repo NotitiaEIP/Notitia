@@ -97,10 +97,11 @@ fun App(
     val recorder = meetingsModel.recording.collectAsStateWithLifecycle()
     // The microphone moves the recorder ten times per second: the screens follow only a recording that starts, stops
     // or fails, and the sheet reads the rest.
+    val recordingStart by remember { derivedStateOf { (recorder.value as? RecorderState.Active)?.startedAt } }
     val recordingId by remember { derivedStateOf { (recorder.value as? RecorderState.Active)?.meetingId } }
     val failure by remember { derivedStateOf { (recorder.value as? RecorderState.Failed)?.problem } }
-    // The meeting being recorded is the mini bar's: it joins the list once stopped, and its saves every few seconds
-    // leave the list as it is.
+    // The meeting being recorded is the mini bar's from its first sound: it joins the list once stopped, and its
+    // changes while it records leave the list as it is.
     val listed by remember { derivedStateOf { kept.value?.filterNot { it.id == recordingId } } }
     val people = remember(listed) { personColors(listed.orEmpty()) }
     NotitiaTheme(darkTheme = darkTheme, people = people) {
@@ -145,16 +146,17 @@ fun App(
         }
         // Each touch on the home screen widget starts a recording, unless one already runs.
         LaunchedEffect(recordRequests) {
-            if (recordRequests > 0 && recordingId == null) startRecording()
+            if (recordRequests > 0 && recordingStart == null) startRecording()
         }
-        // A new recording gets a new sheet, which rises from the mini bar to the full screen.
-        val player = rememberSaveable(recordingId, saver = RecordingPlayerState.Saver) {
+        // A new recording gets a new sheet, which rises from the mini bar to the full screen. Known by its start: its
+        // meeting comes only with the first sound.
+        val player = rememberSaveable(recordingStart, saver = RecordingPlayerState.Saver) {
             RecordingPlayerState(PlayerPosition.Collapsed, openOnStart = true)
         }
 
         // Over everything, tab bar included, as a modal: nothing behind the veil can be touched, or read.
         // The gesture only exists on the search screen, and not over a recording shown full screen.
-        val onSearch = tab == Tab.Search && openedMeeting == null && !(recordingId != null && player.isExpanded)
+        val onSearch = tab == Tab.Search && openedMeeting == null && !(recordingStart != null && player.isExpanded)
         ModalNavigationDrawer(
             drawerState = historyDrawer,
             gesturesEnabled = historyDrawer.isOpen || onSearch,
@@ -227,7 +229,7 @@ fun App(
                             when (tab) {
                                 Tab.Meetings -> MeetingsScreen(
                                     meetings = meetings,
-                                    recording = recordingId != null,
+                                    recording = recordingStart != null,
                                     selection = selection,
                                     onOpen = { openedMeetingId = it.id },
                                     onRecord = ::startRecording,

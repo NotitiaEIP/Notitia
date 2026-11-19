@@ -1,7 +1,5 @@
 package com.example.notitia.ui.recording
 
-import com.example.notitia.ai.audio
-import com.example.notitia.recording.loudness
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -37,9 +35,9 @@ class RecordingFormatTest {
 
     @Test
     fun aShoutStandsWellAboveAVoice() {
-        // About -20 dBFS for a voice at arm's length, -8 dBFS for a shout.
-        val voice = waveBarLevel(loudness(audio(100, level = 3_300)))
-        val shout = waveBarLevel(loudness(audio(100, level = 13_000)))
+        // The levels the core tells for a voice at arm's length, about -20 dBFS, and for a shout, about -8 dBFS.
+        val voice = waveBarLevel(0.68f)
+        val shout = waveBarLevel(0.95f)
         assertTrue(shout > voice * 1.4f, "voice: $voice, shout: $shout")
         assertTrue(voice in 0.5f..0.7f, "voice: $voice")
     }

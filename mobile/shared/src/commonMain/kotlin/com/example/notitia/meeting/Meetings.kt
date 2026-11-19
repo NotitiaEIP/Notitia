@@ -1,7 +1,5 @@
 package com.example.notitia.meeting
 
-import kotlin.time.Duration
-import kotlin.time.Instant
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.datetime.LocalDate
@@ -30,12 +28,6 @@ interface Meetings {
     fun setDue(id: ActionId, due: LocalDate?)
 
     fun setReminder(id: ActionId, on: Boolean)
-}
-
-// What the recorder asks of the meetings until the core records by itself (T-58): to keep where it stands, at each
-// new line, every few seconds of audio, and once the minutes are settled.
-fun interface MeetingKeeper {
-    fun keep(id: String, startedAt: Instant, duration: Duration, transcript: List<TranscriptLine>, minutes: MinutesDraft)
 }
 
 // For previews, which have no core: the meetings they are given, which nothing changes.

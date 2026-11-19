@@ -3,6 +3,7 @@ package com.example.notitia.bridge
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.Milliseconds
 import com.example.notitia.meeting.MinutesDraft
+import com.example.notitia.meeting.RecorderState
 import com.example.notitia.meeting.RecordingProblem
 import com.example.notitia.meeting.TranscriptLine
 import kotlin.time.Duration
@@ -159,6 +160,16 @@ internal sealed interface CoreEvent {
         @SerialName("recordedMs") @Serializable(Milliseconds::class) val recorded: Duration = Duration.ZERO,
         val level: Float = 0f,
     ) : CoreEvent {
+        // As the screens read it. null for a state without the fields it needs, which the core never tells: skipped,
+        // like any event this app cannot read.
+        fun toState(): RecorderState? = when (state) {
+            Phase.Idle -> RecorderState.Idle
+            Phase.Failed -> problem?.let(RecorderState::Failed)
+            Phase.Recording -> startedAt?.let { RecorderState.Recording(it, recorded, level, meeting) }
+            Phase.Paused -> startedAt?.let { RecorderState.Paused(it, recorded, meeting) }
+            Phase.Interrupted -> startedAt?.let { RecorderState.Interrupted(it, recorded, meeting) }
+        }
+
         @Serializable
         enum class Phase {
             @SerialName("idle")

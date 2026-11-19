@@ -3,13 +3,13 @@ package com.example.notitia
 import com.example.notitia.ai.MinutesWriter
 import com.example.notitia.ai.SpeechEngine
 import com.example.notitia.bridge.CoreMeetings
+import com.example.notitia.bridge.CoreRecording
 import com.example.notitia.bridge.CoreSession
 import com.example.notitia.bridge.NotitiaCore
-import com.example.notitia.meeting.MeetingKeeper
 import com.example.notitia.meeting.Meetings
 import com.example.notitia.meeting.PreviewMeetings
+import com.example.notitia.meeting.PreviewRecording
 import com.example.notitia.meeting.Recording
-import com.example.notitia.recording.MeetingRecorder
 import com.example.notitia.recording.Microphone
 import com.example.notitia.reminder.NoReminderScheduler
 import com.example.notitia.reminder.ReminderScheduler
@@ -53,13 +53,12 @@ class Notitia(
     // Made-up meetings beside the user's, so the app has something to show before a first recording.
     private val samples = sampleMeetings(clock.now())
     private val session = core?.let { CoreSession(it, meetingsDirectory, meetingsKey, samples) }
-    private val kept = session?.let(::CoreMeetings)
 
     // All the screens know of the meetings and of a recording: what holds them can change without touching a screen.
-    val meetings: Meetings = kept ?: PreviewMeetings(samples)
+    val meetings: Meetings = session?.let(::CoreMeetings) ?: PreviewMeetings(samples)
 
     val recording: Recording =
-        MeetingRecorder(microphone, speechEngine, minutesWriter, kept ?: MeetingKeeper { _, _, _, _, _ -> }, scope, clock)
+        session?.let { CoreRecording(it, microphone, speechEngine, minutesWriter, clock) } ?: PreviewRecording
 
     // The reminders follow the meetings: ticking, moving or removing an action moves its notification too. A new line
     // of a transcription changes no reminder, so it schedules nothing.
