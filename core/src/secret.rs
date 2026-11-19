@@ -53,6 +53,11 @@ impl Key {
         <[u8; KEY_BYTES]>::try_from(bytes).map(|key| Self(Zeroizing::new(key))).map_err(|_| SecretError::KeySize)
     }
 
+    // As an app hands it over: the bytes it was given are wiped, whether they make a key or not.
+    pub fn take(bytes: Vec<u8>) -> Result<Self, SecretError> {
+        Self::new(&Zeroizing::new(bytes))
+    }
+
     // A key of its own for each file, and for each kind of file: handing one meeting to a linked device then gives
     // that key away and never this one.
     pub(crate) fn derive(&self, purpose: &str, salt: &[u8; SALT_BYTES]) -> Result<Seal, SecretError> {
@@ -174,5 +179,12 @@ mod tests {
         for length in [0, KEY_BYTES - 1, KEY_BYTES + 1] {
             assert_eq!(Key::new(&vec![1; length]).err(), Some(SecretError::KeySize));
         }
+    }
+
+    #[test]
+    fn a_key_handed_over_is_the_key_of_its_bytes() {
+        let taken = Key::take(vec![1; KEY_BYTES]).unwrap().derive("notitia test 1", &SALT).unwrap();
+        assert_eq!(taken.open(b"", &seal().seal(b"", CLEAR).unwrap()).unwrap(), CLEAR);
+        assert_eq!(Key::take(vec![1; KEY_BYTES - 1]).err(), Some(SecretError::KeySize));
     }
 }

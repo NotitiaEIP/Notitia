@@ -49,7 +49,7 @@ internal class CoreSession(
 
     init {
         scope.launch {
-            opened = core.open(directory) { follow(it) } == null
+            opened = core.open(directory, null) { follow(it) } == null
             if (opened && samples.isNotEmpty()) apply(Change.Lend(samples))
             // Shown once, the samples in: the list does not grow under the eye at launch. A folder that cannot be
             // read must not hold the app on its splash screen: it then starts with no meeting.
@@ -59,8 +59,8 @@ internal class CoreSession(
     }
 
     // After every call asked before it.
-    fun send(change: Change) {
-        scope.launch { if (opened) apply(change) }
+    fun send(request: CoreRequest) {
+        scope.launch { if (opened) apply(request) }
     }
 
     // The whole meeting, lines included. null when it cannot be read.
@@ -72,19 +72,14 @@ internal class CoreSession(
         }
     }
 
-    private fun apply(change: Change) {
-        core.apply(CoreJson.encodeToString(Change.serializer(), change))
+    private fun apply(request: CoreRequest) {
+        core.apply(CoreJson.encodeToString(CoreRequest.serializer(), request))
     }
 
-    // Nothing here calls the core, which would wait for itself. Catching IllegalArgumentException covers
-    // SerializationException: an event this app cannot read is skipped, never thrown back into the core.
+    // Nothing here calls the core, which would wait for itself.
     private fun follow(event: String) {
-        val read = try {
-            CoreJson.decodeFromString<CoreEvent>(event)
-        } catch (_: IllegalArgumentException) {
-            return
-        }
-        when (read) {
+        when (val read = readEvent(event)) {
+            null -> Unit
             is CoreEvent.Listed -> list { read.meetings }
             is CoreEvent.Changed -> list { told ->
                 told.filterNot { it.id == read.meeting.id }.toMutableList().apply {
@@ -95,6 +90,8 @@ internal class CoreSession(
             }
             is CoreEvent.Removed -> list { told -> told.filterNot { it.id in read.meetings } }
             is CoreEvent.Unsaved -> behind.value = read.meetings
+            // Followed once the app records through the core.
+            is CoreEvent.Recorder -> Unit
         }
     }
 

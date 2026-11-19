@@ -11,6 +11,9 @@ use crate::secret::Key;
 
 // The core as a whole: what the bridge of the phones and the computer's app call, the same functions for both.
 
+// A player asks for passages: a minute at most per call, so no call holds an hour of sound in memory.
+pub const SOUND_MS: u64 = 60_000;
+
 // What an app asks, of the recorder or of the meetings.
 #[cfg_attr(test, derive(Debug, PartialEq))]
 pub enum Request {
@@ -85,7 +88,7 @@ impl Session {
     }
 
     // The one function called from any thread, the microphone's: it returns at once.
-    pub fn hear(&self, track: u8, pcm: &[u8]) {
+    pub fn hear(&self, track: u8, pcm: Vec<u8>) {
         self.recorder.hear(track, pcm);
     }
 
@@ -94,14 +97,21 @@ impl Session {
         self.library.meeting(id)
     }
 
-    // Ready to play: one channel, the tracks added together. No app needs a track alone.
+    // Ready to play: one channel, the tracks added together. No app needs a track alone. Shorter than asked past
+    // SOUND_MS, as where the audio ends.
     pub fn sound(&self, id: &MeetingId, from_ms: u64, length_ms: u64) -> Result<Vec<i16>, AudioError> {
-        let mut tracks = self.library.audio(id)?.read(from_ms, length_ms)?.into_iter();
+        let mut tracks = self.library.audio(id)?.read(from_ms, length_ms.min(SOUND_MS))?.into_iter();
         let first = tracks.next().unwrap_or_default();
         Ok(tracks.fold(first, |mut mixed, track| {
             mixed.iter_mut().zip(track).for_each(|(sample, added)| *sample = sample.saturating_add(added));
             mixed
         }))
+    }
+
+    // Once the recorder has done all it was asked: its events are told by then.
+    #[cfg(test)]
+    pub(crate) fn settled(&self) {
+        self.recorder.forget(&[]);
     }
 }
 
@@ -115,6 +125,7 @@ mod tests {
     use time::macros::{date, utc_datetime};
 
     use super::*;
+    use crate::audio::{FRAME_SAMPLES, FRAMES_PER_SECOND};
     use crate::meeting::testing::{id, line};
     use crate::meeting::{ActionDraft, ActionSource, Extra, MinutesDraft, TranscriptLine};
     use crate::recorder::testing::sound;
@@ -166,10 +177,6 @@ mod tests {
         session.apply(Request::read(text).unwrap());
     }
 
-    fn settled(session: &Session) {
-        session.recorder.forget(&[]);
-    }
-
     fn files(folder: &TempDir) -> Vec<String> {
         let names = fs::read_dir(folder.path()).unwrap().map(|entry| entry.unwrap().file_name());
         names
@@ -189,15 +196,15 @@ mod tests {
         let folder = tempfile::tempdir().unwrap();
         let (app, session) = opened(&folder);
         ask(&session, "{\"type\":\"start\",\"tracks\":1,\"offsetMinutes\":60}");
-        session.hear(0, &sound(1_200, 5_000.0, 440.0));
-        settled(&session);
+        session.hear(0, sound(1_200, 5_000.0, 440.0));
+        session.settled();
         let meeting = app.recorded();
         assert_eq!(files(&folder).len(), 2);
         ask(&session, &format!("{{\"type\":\"delete\",\"meetings\":[\"{}\"]}}", meeting.as_str()));
         assert_eq!(app.last_state()["state"], "idle");
         assert!(files(&folder).is_empty());
-        session.hear(0, &sound(1_200, 5_000.0, 440.0));
-        settled(&session);
+        session.hear(0, sound(1_200, 5_000.0, 440.0));
+        session.settled();
         assert_eq!((app.last_state()["state"].as_str(), files(&folder)), (Some("idle"), vec![]));
         assert_eq!(session.meeting(&meeting).err(), Some(LibraryError::NotFound));
         drop(session);
@@ -211,15 +218,51 @@ mod tests {
         let (app, session) = opened(&folder);
         ask(&session, "{\"type\":\"start\",\"tracks\":2,\"offsetMinutes\":60}");
         // As loud as each other and in step: added, they go past full scale.
-        session.hear(0, &sound(1_000, 30_000.0, 440.0));
-        session.hear(1, &sound(1_000, 30_000.0, 440.0));
+        session.hear(0, sound(1_000, 30_000.0, 440.0));
+        session.hear(1, sound(1_000, 30_000.0, 440.0));
         ask(&session, "{\"type\":\"stop\"}");
-        settled(&session);
+        session.settled();
         let meeting = app.recorded();
         let played = session.sound(&meeting, 0, 1_000).unwrap();
         assert_eq!(played.len(), 16_000);
         assert_eq!(played.iter().max(), Some(&i16::MAX));
         assert_eq!(session.sound(&id("recorded-1"), 0, 1_000), Err(AudioError::Absent));
+    }
+
+    #[test]
+    fn the_meeting_being_recorded_is_told_before_the_meetings_list_it() {
+        let folder = tempfile::tempdir().unwrap();
+        let (app, session) = opened(&folder);
+        ask(&session, "{\"type\":\"start\",\"tracks\":1,\"offsetMinutes\":60}");
+        session.hear(0, sound(100, 5_000.0, 440.0));
+        session.settled();
+        let meeting = app.recorded();
+        let told = app.told();
+        let at = |found: &dyn Fn(&Value) -> bool| told.iter().position(found).unwrap();
+        let named = at(&|event| event["type"] == "recorder" && event["meeting"] == meeting.as_str());
+        let listed = at(&|event| event["type"] == "changed" && event["meeting"]["id"] == meeting.as_str());
+        assert!(named < listed, "{told:?}");
+    }
+
+    #[test]
+    fn the_sound_of_a_meeting_comes_back_a_minute_at_most() {
+        let folder = tempfile::tempdir().unwrap();
+        let (_, session) = opened(&folder);
+        let meeting = id("recorded-9");
+        session.library.apply(Change::Begin {
+            id: meeting.clone(),
+            started_at: utc_datetime!(2026-11-18 9:00),
+            offset_minutes: 60,
+        });
+        let mut writer = session.library.record(&meeting, 1).unwrap();
+        // Silence encodes fast: a minute and a second of it, without the recorder.
+        for _ in 0..61 * FRAMES_PER_SECOND {
+            writer.write(&[[0; FRAME_SAMPLES]]).unwrap();
+        }
+        writer.finish().unwrap();
+        let played = session.sound(&meeting, 0, u64::MAX).unwrap();
+        assert_eq!(played.len() as u64, SOUND_MS * 16);
+        assert_eq!(session.sound(&meeting, 30_000, 2 * SOUND_MS).unwrap().len() as u64, 31_000 * 16);
     }
 
     #[test]

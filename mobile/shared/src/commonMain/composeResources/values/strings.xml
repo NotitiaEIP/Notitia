@@ -83,6 +83,8 @@
     <string name="recording_busy_message">Un appel ou une autre app utilise le micro. Réessayez une fois qu’il est libre.</string>
     <string name="recording_unavailable_title">Enregistrement indisponible</string>
     <string name="recording_unavailable_message">Cet appareil ne peut pas encore enregistrer.</string>
+    <string name="recording_storage_title">Enregistrement impossible</string>
+    <string name="recording_storage_message">Notitia chiffre chaque enregistrement, et la clé de cet appareil est indisponible. Rien n’a été enregistré.</string>
     <string name="ok">OK</string>
     <string name="on_device">Sur l’appareil</string>
     <string name="minutes_back_description">Retour aux réunions</string>

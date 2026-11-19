@@ -3,6 +3,8 @@ package com.example.notitia.meeting
 import kotlin.time.Duration
 import kotlin.time.Instant
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
 // What the screens ask of a recording. The Kotlin recorder holds it today, the Rust core will once it records (T-58).
 interface Recording {
@@ -48,4 +50,18 @@ sealed interface RecorderState {
     data class Interrupted(override val startedAt: Instant, override val recorded: Duration) : Active
 }
 
-enum class RecordingProblem { Denied, Busy, Unavailable }
+// As the core names them. Storage: no key to seal the audio with, so none is written.
+@Serializable
+enum class RecordingProblem {
+    @SerialName("denied")
+    Denied,
+
+    @SerialName("busy")
+    Busy,
+
+    @SerialName("unavailable")
+    Unavailable,
+
+    @SerialName("storage")
+    Storage,
+}

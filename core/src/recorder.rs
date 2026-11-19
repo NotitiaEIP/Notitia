@@ -155,9 +155,10 @@ impl Recorder {
     }
 
     // 16-bit little-endian samples at 16 kHz, as the microphone reads them: an odd byte waits for the next read.
-    // Returns at once, without a lock. Sound that finds the queue full is thrown away and the recording is
-    // interrupted, so a meeting never has a silent hole nobody was told about.
-    pub fn hear(&self, track: u8, pcm: &[u8]) {
+    // Returns at once, without a lock, and keeps the bytes it is given rather than copy them. Sound that finds the
+    // queue full is thrown away and the recording is interrupted, so a meeting never has a silent hole nobody was
+    // told about.
+    pub fn hear(&self, track: u8, pcm: Vec<u8>) {
         let queue = &self.queue;
         if pcm.is_empty() || queue.lost.load(Ordering::Acquire) {
             return;
@@ -170,7 +171,7 @@ impl Recorder {
             }
             return;
         }
-        self.send(Message::Sound { track, pcm: pcm.to_vec() });
+        self.send(Message::Sound { track, pcm });
     }
 
     // Waits until the recorder lets go of the audio of these meetings: a system that refuses to delete an open
@@ -314,11 +315,12 @@ impl Actor {
         take.add(track, pcm);
         if progress.meeting.is_none() {
             let id = MeetingId::random();
-            let started_at = progress.started_at;
             progress.meeting = Some(id.clone());
-            self.library.apply(Change::Begin { id, started_at, offset_minutes: take.offset_minutes });
-            // At once: the app needs the meeting to give it its lines.
+            let begun = Change::Begin { id, started_at: progress.started_at, offset_minutes: take.offset_minutes };
+            // Told before the meetings list it: an app that keeps the meeting being recorded out of its list never
+            // shows it for a frame. At once, since the app needs it to give it its lines.
             (self.tell)(&self.state);
+            self.library.apply(begun);
         }
         while let Some(moment) = self.take.as_mut().and_then(Take::moment) {
             if self.write(&moment).is_err() {
@@ -566,7 +568,7 @@ mod tests {
         fn hear(&self, ms: u64) {
             let heard = sound(ms, SPOKEN, 440.0);
             for (read, pcm) in heard.chunks(BYTES_PER_SECOND / 10).enumerate() {
-                self.recorder.hear(0, pcm);
+                self.recorder.hear(0, pcm.to_vec());
                 if read % 10 == 9 {
                     self.settled();
                 }
@@ -645,7 +647,7 @@ mod tests {
         let desk = desk();
         desk.order(start());
         let level_of = |loudness: f64| {
-            desk.recorder.hear(0, &sound(100, loudness, 440.0));
+            desk.recorder.hear(0, sound(100, loudness, 440.0));
             let State::Recording { level, .. } = desk.settled() else { panic!("not recording") };
             level
         };
@@ -753,11 +755,11 @@ mod tests {
         let meeting = desk.meeting();
         let closed = gate.closed.lock().unwrap();
         while gate.entered.try_recv() != Err(TryRecvError::Empty) {}
-        desk.recorder.hear(0, &sound(500, SPOKEN, 440.0));
+        desk.recorder.hear(0, sound(500, SPOKEN, 440.0));
         gate.entered.recv().unwrap();
         // A second waits, which is the bound: the next read is thrown away, and those after it.
         for _ in 0..14 {
-            desk.recorder.hear(0, &sound(100, SPOKEN, 440.0));
+            desk.recorder.hear(0, sound(100, SPOKEN, 440.0));
         }
         drop(closed);
         assert_eq!(desk.settled(), State::Interrupted(progress(Some(&meeting), 1_600)));
@@ -773,12 +775,12 @@ mod tests {
         let desk = desk();
         desk.order(start());
         // Half a frame: the meeting is made, its audio not opened yet.
-        desk.recorder.hear(0, &sound(10, SPOKEN, 440.0));
+        desk.recorder.hear(0, sound(10, SPOKEN, 440.0));
         let meeting = desk.meeting();
         // A folder where the audio goes: the disk refuses it, whoever runs the tests.
         let taken = desk.folder.path().join(format!("{}.audio", meeting.as_str()));
         fs::create_dir(&taken).unwrap();
-        desk.recorder.hear(0, &sound(10, SPOKEN, 440.0));
+        desk.recorder.hear(0, sound(10, SPOKEN, 440.0));
         assert_eq!(desk.settled(), State::Interrupted(progress(Some(&meeting), 0)));
         fs::remove_dir(&taken).unwrap();
         desk.order(Command::Resume);
@@ -794,15 +796,15 @@ mod tests {
         desk.order(Command::Start { tracks: 2, offset_minutes: 60 });
         // The microphone alone, as when the computer plays nothing.
         for _ in 0..11 {
-            desk.recorder.hear(0, &sound(1_000, SPOKEN, 440.0));
+            desk.recorder.hear(0, sound(1_000, SPOKEN, 440.0));
             desk.settled();
         }
         let meeting = desk.meeting();
         assert_eq!(desk.settled(), State::Interrupted(progress(Some(&meeting), 0)));
         // In step again once resumed: nothing of the ten seconds before is paired with the new sound.
         desk.order(Command::Resume);
-        desk.recorder.hear(0, &sound(1_000, SPOKEN, 440.0));
-        desk.recorder.hear(1, &sound(1_000, SPOKEN, 880.0));
+        desk.recorder.hear(0, sound(1_000, SPOKEN, 440.0));
+        desk.recorder.hear(1, sound(1_000, SPOKEN, 880.0));
         desk.order(Command::Stop);
         desk.settled();
         assert_eq!(desk.lasted(&meeting), (1_000, 1_000));
@@ -817,7 +819,7 @@ mod tests {
                 let desk = &desk;
                 scope.spawn(move || {
                     for turn in 0..25 {
-                        desk.recorder.hear(0, &sound(100, SPOKEN, 440.0));
+                        desk.recorder.hear(0, sound(100, SPOKEN, 440.0));
                         if worker == 0 {
                             desk.order(if turn % 2 == 0 { Command::Pause } else { Command::Resume });
                         }
@@ -841,11 +843,11 @@ mod tests {
     fn two_tracks_are_kept_together() {
         let desk = desk();
         desk.order(Command::Start { tracks: 2, offset_minutes: 60 });
-        desk.recorder.hear(0, &sound(1_000, SPOKEN, 440.0));
+        desk.recorder.hear(0, sound(1_000, SPOKEN, 440.0));
         // A track the recording does not have.
-        desk.recorder.hear(2, &sound(1_000, SPOKEN, 440.0));
+        desk.recorder.hear(2, sound(1_000, SPOKEN, 440.0));
         assert_eq!(desk.progress().recorded_ms, 0);
-        desk.recorder.hear(1, &sound(1_000, SPOKEN, 880.0));
+        desk.recorder.hear(1, sound(1_000, SPOKEN, 880.0));
         let meeting = desk.meeting();
         desk.order(Command::Stop);
         desk.settled();
@@ -860,7 +862,7 @@ mod tests {
         let desk = desk();
         desk.order(start());
         let heard = sound(1_000, SPOKEN, 440.0);
-        heard.chunks(333).for_each(|pcm| desk.recorder.hear(0, pcm));
+        heard.chunks(333).for_each(|pcm| desk.recorder.hear(0, pcm.to_vec()));
         let meeting = desk.meeting();
         desk.order(Command::Stop);
         desk.settled();

@@ -31,7 +31,7 @@ class CoreMeetingsTest {
         val core = FakeCore(meeting("recorded-1"))
         val kept = meetings(core, samples = listOf(later("sample-1")))
         assertEquals(listOf("sample-1", "recorded-1"), kept.ids())
-        assertEquals(listOf<Change>(Change.Lend(listOf(later("sample-1")))), core.applied)
+        assertEquals(listOf<CoreRequest>(Change.Lend(listOf(later("sample-1")))), core.applied)
     }
 
     @Test
@@ -60,7 +60,7 @@ class CoreMeetingsTest {
         kept.delete(setOf("recorded-1", "recorded-9"))
         fun edit(edit: MeetingEdit) = Change.Edit("recorded-1", edit)
         assertEquals(
-            listOf(
+            listOf<CoreRequest>(
                 edit(MeetingEdit.Rename("Point produit")),
                 edit(MeetingEdit.SetDone("0", true)),
                 edit(MeetingEdit.SetOwner("0", "Nathan")),

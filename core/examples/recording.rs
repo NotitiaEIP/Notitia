@@ -128,7 +128,8 @@ fn through_the_recorder(spoken: &[Frame]) -> Result<(), Box<dyn Error>> {
     let started = Instant::now();
     for (read, pcm) in heard.chunks(READ * FRAME_SAMPLES * 2).enumerate() {
         let handing = Instant::now();
-        session.hear(0, pcm);
+        // A copy, as the bridge makes one of what the microphone read.
+        session.hear(0, pcm.to_vec());
         let took = handing.elapsed();
         (held, longest) = (held + took, longest.max(took));
         // A microphone is never more than the queue ahead of the recorder: here, every five seconds, none.

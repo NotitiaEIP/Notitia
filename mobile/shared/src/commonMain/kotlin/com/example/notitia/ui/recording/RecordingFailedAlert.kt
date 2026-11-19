@@ -16,6 +16,8 @@ import notitia.shared.generated.resources.recording_busy_title
 import notitia.shared.generated.resources.recording_denied_message
 import notitia.shared.generated.resources.recording_denied_title
 import notitia.shared.generated.resources.recording_open_settings
+import notitia.shared.generated.resources.recording_storage_message
+import notitia.shared.generated.resources.recording_storage_title
 import notitia.shared.generated.resources.recording_unavailable_message
 import notitia.shared.generated.resources.recording_unavailable_title
 import org.jetbrains.compose.resources.StringResource
@@ -62,10 +64,18 @@ private fun RecordingProblem.texts(): Pair<StringResource, StringResource> = whe
     RecordingProblem.Denied -> Res.string.recording_denied_title to Res.string.recording_denied_message
     RecordingProblem.Busy -> Res.string.recording_busy_title to Res.string.recording_busy_message
     RecordingProblem.Unavailable -> Res.string.recording_unavailable_title to Res.string.recording_unavailable_message
+    RecordingProblem.Storage -> Res.string.recording_storage_title to Res.string.recording_storage_message
 }
 
 @NotitiaPreviews
 @Composable
 private fun RecordingFailedAlertPreview() = NotitiaTheme {
     RecordingFailedAlert(RecordingProblem.Denied, onOpenSettings = {}, onDismiss = {})
+}
+
+// The longest message, and the only one a phone that keeps its key never shows.
+@NotitiaPreviews
+@Composable
+private fun StorageFailedAlertPreview() = NotitiaTheme {
+    RecordingFailedAlert(RecordingProblem.Storage, onOpenSettings = {}, onDismiss = {})
 }
