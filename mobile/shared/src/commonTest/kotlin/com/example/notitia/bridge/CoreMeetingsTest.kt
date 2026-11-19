@@ -20,7 +20,7 @@ class CoreMeetingsTest {
 
     // Unconfined makes each call to the core at once, so the list can be checked right after a change.
     private fun meetings(core: NotitiaCore, samples: List<Meeting> = emptyList()) =
-        CoreMeetings(core, directory = "meetings", samples, Dispatchers.Unconfined)
+        CoreMeetings(CoreSession(core, directory = "meetings", samples = samples, calls = Dispatchers.Unconfined))
 
     private fun CoreMeetings.ids() = meetings.value?.map { it.id }
 

@@ -3,6 +3,7 @@ package com.example.notitia
 import com.example.notitia.ai.MinutesWriter
 import com.example.notitia.ai.SpeechEngine
 import com.example.notitia.bridge.CoreMeetings
+import com.example.notitia.bridge.CoreSession
 import com.example.notitia.bridge.NotitiaCore
 import com.example.notitia.meeting.MeetingKeeper
 import com.example.notitia.meeting.Meetings
@@ -49,7 +50,8 @@ class Notitia(
 
     // Made-up meetings beside the user's, so the app has something to show before a first recording.
     private val samples = sampleMeetings(clock.now())
-    private val kept = core?.let { CoreMeetings(it, meetingsDirectory, samples) }
+    private val session = core?.let { CoreSession(it, meetingsDirectory, samples) }
+    private val kept = session?.let(::CoreMeetings)
 
     // All the screens know of the meetings and of a recording: what holds them can change without touching a screen.
     val meetings: Meetings = kept ?: PreviewMeetings(samples)
