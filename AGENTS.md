@@ -40,17 +40,16 @@ Le code propre à une plateforme se cache derrière une interface déclarée dan
 
 ```kotlin
 // commonMain
-interface AudioRecorder {
-    suspend fun start()
-    suspend fun stop(): RecordingFile
+interface Microphone {
+    suspend fun listen(isPaused: () -> Boolean, onAudio: (ByteArray) -> Unit)
 }
-// androidMain : AndroidAudioRecorder (service de premier plan de type micro)
-// iosMain : IosAudioRecorder (AVAudioSession, mode audio en arrière-plan)
+// androidMain : AndroidMicrophone (AudioRecord, coupé par un appel)
+// iosMain : IosMicrophone, à venir avec US-12 (AVAudioSession, mode audio en arrière-plan)
 ```
 
 Préférer une interface injectée à `expect`/`actual` dès que l'implémentation garde un état.
 
-Le cœur se branche de la même façon : `NotitiaCore`, dans `commonMain` (`bridge/`), est tenue par `RustCore.kt` sur Android et par `RustCore.swift` sur l'iPhone. Swift ne sait ni suspendre ni lever nos exceptions : une interface tenue par le cœur n'a que des fonctions bloquantes et des valeurs simples (texte, nombres, pas d'`Instant`), et rend un échec comme une valeur, `CoreFailure`. Kotlin l'enveloppe ensuite dans ses coroutines. Une réunion, une modification et un événement traversent en texte JSON (`docs/adr/0004-pont-json.md`) : en ajouter un ne touche ni `RustCore.kt` ni `RustCore.swift`, mais demande un exemple dans `core/tests/fixtures/bridge/`, que les tests Rust et Kotlin relisent. Le cœur rend des données, jamais une phrase d'interface.
+Le cœur se branche de la même façon : `NotitiaCore`, dans `commonMain` (`bridge/`), est tenue par `RustCore.kt` sur Android et par `RustCore.swift` sur l'iPhone. Swift ne sait ni suspendre ni lever nos exceptions : une interface tenue par le cœur n'a que des fonctions bloquantes et des valeurs simples (texte, nombres, octets du son et de la clé, pas d'`Instant`), et rend un échec comme une valeur, `CoreFailure`. Kotlin l'enveloppe ensuite dans ses coroutines (`CoreSession`). Une réunion, une demande et un événement traversent en texte JSON (`docs/adr/0004-pont-json.md`) : en ajouter un ne touche ni `RustCore.kt` ni `RustCore.swift`, mais demande un exemple dans `core/tests/fixtures/bridge/`, que les tests Rust et Kotlin relisent. Le cœur rend des données, jamais une phrase d'interface.
 
 ## Commandes
 
