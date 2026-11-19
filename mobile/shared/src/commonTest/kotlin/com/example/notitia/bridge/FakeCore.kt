@@ -64,18 +64,6 @@ internal open class FakeCore(vararg stored: Meeting, private val opens: Boolean 
                 }
                 tell(CoreEvent.Removed(asked.meetings))
             }
-            is Change.Record -> keep(
-                Meeting(
-                    id = asked.id,
-                    startedAt = asked.startedAt,
-                    duration = asked.duration,
-                    modifiedAt = asked.startedAt,
-                    device = "fake",
-                    title = kept[asked.id]?.title,
-                    minutes = asked.minutes.settled(),
-                    transcript = asked.transcript,
-                ),
-            )
             // Minutes already written stay, as the core keeps those the user corrected.
             is Change.Transcribed -> kept[asked.meeting]?.let {
                 val minutes = it.minutes as? MinutesState.Written ?: asked.minutes.settled()

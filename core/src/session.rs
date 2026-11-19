@@ -122,17 +122,16 @@ mod tests {
 
     use serde_json::Value;
     use tempfile::TempDir;
-    use time::macros::{date, utc_datetime};
+    use time::macros::utc_datetime;
 
     use super::*;
     use crate::audio::{FRAME_SAMPLES, FRAMES_PER_SECOND};
-    use crate::meeting::testing::{id, line};
-    use crate::meeting::{ActionDraft, ActionSource, Extra, MinutesDraft, TranscriptLine};
+    use crate::meeting::testing::id;
     use crate::recorder::testing::sound;
     use crate::recorder::{Problem, Progress};
     use crate::secret::testing::key;
 
-    // What the apps will write and read once they go through the recorder (T-58).
+    // What the apps write and read of the recorder.
     const RECORDER: &str = include_str!("../tests/fixtures/bridge/recorder.json");
     const CHANGES: &str = include_str!("../tests/fixtures/bridge/changes.json");
 
@@ -266,7 +265,7 @@ mod tests {
     }
 
     #[test]
-    fn the_requests_and_the_events_of_the_recorder_cross_as_the_apps_will_write_and_read_them() {
+    fn the_requests_and_the_events_of_the_recorder_cross_as_the_apps_write_and_read_them() {
         let fixture: Value = serde_json::from_str(RECORDER).unwrap();
         let requests: Vec<Request> = fixture["requests"]
             .as_array()
@@ -274,15 +273,6 @@ mod tests {
             .iter()
             .map(|text| Request::read(&text.to_string()).unwrap())
             .collect();
-        let source =
-            ActionSource { quote: "Je prépare la démo.".into(), speaker: None, at_ms: 724_000, extra: Extra::new() };
-        let action = ActionDraft {
-            text: "Préparer la démo".into(),
-            owner: Some("Lucas".into()),
-            due: Some(date!(2026 - 11 - 14)),
-            source: Some(source),
-        };
-        let silence = TranscriptLine { at_ms: 30_000, text: None, speaker: None, extra: Extra::new() };
         let expected = vec![
             Request::Recorder(Command::Start { tracks: 1, offset_minutes: 60 }),
             Request::Recorder(Command::Start { tracks: 2, offset_minutes: -210 }),
@@ -293,20 +283,6 @@ mod tests {
             Request::Recorder(Command::Cut { problem: Problem::Busy }),
             Request::Recorder(Command::Cut { problem: Problem::Unavailable }),
             Request::Recorder(Command::Dismiss),
-            Request::Meetings(Change::Transcribed {
-                meeting: id("6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f"),
-                transcript: vec![line(0, "Bonjour à tous."), silence.clone()],
-                minutes: MinutesDraft::Writing,
-            }),
-            Request::Meetings(Change::Transcribed {
-                meeting: id("6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f"),
-                transcript: vec![line(0, "Bonjour à tous."), silence.clone(), line(724_000, "Je prépare la démo.")],
-                minutes: MinutesDraft::Written {
-                    summary: "Point sur la démo.".into(),
-                    decisions: vec!["La démo a lieu le 15 novembre.".into()],
-                    actions: vec![action],
-                },
-            }),
         ];
         assert_eq!(requests, expected);
 

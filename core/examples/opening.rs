@@ -9,7 +9,7 @@ use std::{fs, thread};
 
 use notitia_core::library::{Event, Library, Listener};
 use notitia_core::meeting::{
-    ActionDraft, ActionSource, Change, Edit, Extra, InvalidId, MeetingId, MinutesDraft, Snapshot, TranscriptLine,
+    ActionDraft, ActionSource, Change, Edit, Extra, InvalidId, MeetingId, MinutesDraft, TranscriptLine,
 };
 use time::macros::utc_datetime;
 
@@ -46,7 +46,8 @@ fn id(meeting: u32) -> Result<MeetingId, InvalidId> {
     MeetingId::new(format!("recorded-{meeting}"))
 }
 
-fn hour(meeting: u32) -> Result<Snapshot, InvalidId> {
+// As a recording leaves it: begun by the recorder, an hour long, then transcribed and summed up by the app.
+fn hour(meeting: u32) -> Result<[Change; 3], InvalidId> {
     let said = || SENTENCES.iter().cycle().zip((0..).step_by(6_000));
     let line = |(text, at_ms): (&&str, u64)| TranscriptLine {
         at_ms,
@@ -60,17 +61,20 @@ fn hour(meeting: u32) -> Result<Snapshot, InvalidId> {
         due: None,
         source: Some(ActionSource { quote: (*text).into(), speaker: None, at_ms, extra: Extra::new() }),
     };
-    Ok(Snapshot {
-        id: id(meeting)?,
-        started_at: utc_datetime!(2026-01-05 9:00) + Duration::from_secs(3_600) * meeting,
-        duration_ms: 3_600_000,
-        transcript: said().take(LINES).map(line).collect(),
-        minutes: MinutesDraft::Written {
-            summary: SENTENCES.concat(),
-            decisions: SENTENCES.map(String::from).into(),
-            actions: said().take(ACTIONS).map(action).collect(),
+    let started_at = utc_datetime!(2026-01-05 9:00) + Duration::from_secs(3_600) * meeting;
+    Ok([
+        Change::Begin { id: id(meeting)?, started_at, offset_minutes: 60 },
+        Change::Lasted { meeting: id(meeting)?, duration_ms: 3_600_000 },
+        Change::Transcribed {
+            meeting: id(meeting)?,
+            transcript: said().take(LINES).map(line).collect(),
+            minutes: MinutesDraft::Written {
+                summary: SENTENCES.concat(),
+                decisions: SENTENCES.map(String::from).into(),
+                actions: said().take(ACTIONS).map(action).collect(),
+            },
         },
-    })
+    ])
 }
 
 // The list is what the first screen waits for; the index is written after it.
@@ -94,7 +98,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let folder = kept.as_deref().unwrap_or(temporary.path());
     let library = Library::open(folder, None, Arc::new(Screen::default()))?;
     for meeting in 0..MEETINGS {
-        library.apply(Change::Record(hour(meeting)?));
+        hour(meeting)?.into_iter().for_each(|change| library.apply(change));
     }
     drop(library);
     let mut size = 0;

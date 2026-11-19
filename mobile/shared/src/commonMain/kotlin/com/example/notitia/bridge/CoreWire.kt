@@ -44,17 +44,6 @@ internal sealed interface Change : CoreRequest {
     @SerialName("delete")
     data class Delete(val meetings: Set<String>) : Change
 
-    // Where the recorder stands: the core dates it, signs it, and keeps what the user gave meanwhile.
-    @Serializable
-    @SerialName("record")
-    data class Record(
-        val id: String,
-        val startedAt: Instant,
-        @SerialName("durationMs") @Serializable(Milliseconds::class) val duration: Duration,
-        val transcript: List<TranscriptLine> = emptyList(),
-        val minutes: MinutesDraft,
-    ) : Change
-
     // What the app transcribed of a meeting the recorder made, the whole of it each time, and its minutes once
     // written. Changes nothing of a meeting the core does not know.
     @Serializable

@@ -3,7 +3,6 @@ use time::{Date, UtcDateTime};
 
 use super::{
     Action, ActionId, ActionSource, Extra, Meeting, MeetingId, Minutes, MinutesState, TranscriptLine, civil_date,
-    instant,
 };
 
 // What an app or the recorder asks of the meetings. A value, never a function: it crosses the bridge as text, and
@@ -21,9 +20,8 @@ pub enum Change {
     Delete {
         meetings: Vec<MeetingId>,
     },
-    Record(Snapshot),
-    // What the app has transcribed of a meeting the recorder began, the whole of it each time as a snapshot was,
-    // and its minutes once written. Makes no meeting.
+    // What the app has transcribed of a meeting the recorder began, the whole of it each time, and its minutes once
+    // written. Makes no meeting.
     Transcribed {
         meeting: MeetingId,
         #[serde(default)]
@@ -73,20 +71,6 @@ pub enum Edit {
         action: ActionId,
         on: bool,
     },
-}
-
-// Where the recorder stands: sent at each new line, every few seconds of audio, and once the minutes are settled.
-#[derive(Deserialize)]
-#[cfg_attr(test, derive(Debug, PartialEq))]
-#[serde(rename_all = "camelCase")]
-pub struct Snapshot {
-    pub id: MeetingId,
-    #[serde(with = "instant")]
-    pub started_at: UtcDateTime,
-    pub duration_ms: u64,
-    #[serde(default)]
-    pub transcript: Vec<TranscriptLine>,
-    pub minutes: MinutesDraft,
 }
 
 // The minutes as their writer hands them over: an action as heard, before it has an identifier or a state.
@@ -165,17 +149,6 @@ fn correct(meeting: &mut Meeting, id: &ActionId, correction: impl FnOnce(&mut Ac
     let before = action.clone();
     correction(action);
     *action != before
-}
-
-impl Snapshot {
-    // The meeting to keep and, apart, its lines. `known` is the meeting as kept so far, None the first time.
-    pub(crate) fn merge(self, known: Option<Meeting>, stamp: Stamp) -> (Meeting, Vec<TranscriptLine>) {
-        let mut meeting = known.unwrap_or_else(|| Meeting::begun(self.id, self.started_at, None, stamp));
-        meeting.duration_ms = self.duration_ms;
-        self.minutes.settle(&mut meeting);
-        stamp.mark(&mut meeting);
-        (meeting, self.transcript)
-    }
 }
 
 impl MinutesDraft {
@@ -268,16 +241,6 @@ mod tests {
     fn actions(meeting: &Meeting) -> &[Action] {
         let MinutesState::Written { minutes } = &meeting.minutes else { panic!("not written") };
         &minutes.actions
-    }
-
-    fn snapshot(minutes: MinutesDraft) -> Snapshot {
-        Snapshot {
-            id: id("recorded-1"),
-            started_at: utc_datetime!(2026-11-10 9:30),
-            duration_ms: 90_000,
-            transcript: vec![line(0, "Bonjour à tous.")],
-            minutes,
-        }
     }
 
     fn draft(texts: &[&str]) -> MinutesDraft {
@@ -387,45 +350,33 @@ mod tests {
     }
 
     #[test]
-    fn a_first_snapshot_makes_the_meeting() {
-        let (recorded, lines) = snapshot(MinutesDraft::Writing).merge(None, HERE);
-        let expected = Meeting {
-            duration_ms: 90_000,
-            modified_at: HERE.at,
-            device: "phone-2".into(),
-            minutes: MinutesState::Writing,
-            ..meeting("recorded-1")
-        };
-        assert_eq!(recorded, expected);
-        assert_eq!(lines, [line(0, "Bonjour à tous.")]);
+    fn minutes_not_written_yet_are_settled_by_the_writer() {
+        let mut writing = Meeting { minutes: MinutesState::Writing, ..meeting("recorded-1") };
+        draft(&["Préparer la démo"]).settle(&mut writing);
+        assert_eq!(actions(&writing)[0].text, "Préparer la démo");
     }
 
     #[test]
-    fn a_snapshot_leaves_the_title_given_while_the_meeting_was_transcribed() {
-        let (mut recorded, _) = snapshot(MinutesDraft::Writing).merge(None, HERE);
-        Edit::Rename { title: "Point produit".into() }.apply(&mut recorded, HERE);
-        let (settled, _) = snapshot(draft(&["Préparer la démo"])).merge(Some(recorded), HERE);
-        assert_eq!(settled.title.as_deref(), Some("Point produit"));
-        assert_eq!(actions(&settled)[0].text, "Préparer la démo");
+    fn minutes_already_written_are_not_taken_back() {
+        let mut corrected = meeting("recorded-1");
+        Edit::SetDone { action: first(), done: true }.apply(&mut corrected, HERE);
+        for late in [draft(&["Préparer la démo"]), MinutesDraft::Failed, MinutesDraft::Writing] {
+            let mut kept = corrected.clone();
+            late.settle(&mut kept);
+            assert_eq!(kept.minutes, corrected.minutes);
+        }
     }
 
     #[test]
     fn each_action_of_new_minutes_gets_its_own_identifier() {
-        let (settled, _) = snapshot(draft(&["Préparer la démo", "Envoyer le compte rendu"])).merge(None, HERE);
-        let [first, second] = actions(&settled) else { panic!("not two actions") };
+        let MinutesState::Written { minutes } =
+            MinutesState::from(draft(&["Préparer la démo", "Envoyer le compte rendu"]))
+        else {
+            panic!("not written")
+        };
+        let [first, second] = minutes.actions.as_slice() else { panic!("not two actions") };
         assert_ne!(first.id, second.id);
         assert!(!first.done && !first.reminder);
-    }
-
-    #[test]
-    fn a_snapshot_does_not_take_back_minutes_already_written() {
-        let (mut settled, _) = snapshot(draft(&["Préparer la démo"])).merge(None, HERE);
-        let action = actions(&settled)[0].id.clone();
-        Edit::SetDone { action, done: true }.apply(&mut settled, HERE);
-        for late in [draft(&["Préparer la démo"]), MinutesDraft::Failed] {
-            let (kept, _) = snapshot(late).merge(Some(settled.clone()), HERE);
-            assert_eq!(kept.minutes, settled.minutes);
-        }
     }
 
     #[test]
@@ -439,32 +390,26 @@ mod tests {
     #[test]
     fn the_changes_the_apps_write_are_read() {
         let edit = |edit| Change::Edit { meeting: id("recorded-1"), edit };
-        let recorded = |duration_ms, transcript, minutes| {
-            Change::Record(Snapshot {
-                id: id("recorded-9"),
-                started_at: utc_datetime!(2026-11-11 7:00),
-                duration_ms,
-                transcript,
-                minutes,
-            })
-        };
-        let heard_and_written = MinutesDraft::Written {
+        let written = |actions| MinutesDraft::Written {
             summary: "Point sur la démo.".into(),
             decisions: vec!["La démo a lieu le 15 novembre.".into()],
-            actions: vec![
-                ActionDraft {
-                    text: "Préparer la démo".into(),
-                    owner: Some("Lucas".into()),
-                    due: Some(date!(2026 - 11 - 14)),
-                    source: Some(ActionSource {
-                        quote: "Je prépare la démo.".into(),
-                        speaker: None,
-                        at_ms: 724_000,
-                        extra: Extra::new(),
-                    }),
-                },
-                ActionDraft { text: "Rédiger le registre RGPD".into(), owner: None, due: None, source: None },
-            ],
+            actions,
+        };
+        let demo = || ActionDraft {
+            text: "Préparer la démo".into(),
+            owner: Some("Lucas".into()),
+            due: Some(date!(2026 - 11 - 14)),
+            source: Some(ActionSource {
+                quote: "Je prépare la démo.".into(),
+                speaker: None,
+                at_ms: 724_000,
+                extra: Extra::new(),
+            }),
+        };
+        let transcribed = |transcript, minutes| Change::Transcribed {
+            meeting: id("6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f"),
+            transcript,
+            minutes,
         };
         let silence = TranscriptLine { at_ms: 30_000, text: None, speaker: None, extra: Extra::new() };
         let expected = vec![
@@ -476,8 +421,11 @@ mod tests {
             edit(Edit::SetDue { action: first(), due: None }),
             edit(Edit::SetReminder { action: first(), on: true }),
             Change::Delete { meetings: vec![id("recorded-1"), id("recorded-3")] },
-            recorded(60_000, Vec::new(), MinutesDraft::Writing),
-            recorded(90_000, vec![line(0, "Bonjour à tous."), silence], heard_and_written),
+            transcribed(vec![line(0, "Bonjour à tous."), silence.clone()], MinutesDraft::Writing),
+            transcribed(
+                vec![line(0, "Bonjour à tous."), silence, line(724_000, "Je prépare la démo.")],
+                written(vec![demo()]),
+            ),
             Change::Lend { meetings: vec![heard("sample-1")] },
         ];
         assert_eq!(serde_json::from_str::<Vec<Change>>(BY_THE_APPS).unwrap(), expected);
@@ -492,6 +440,9 @@ mod tests {
             "{}".into(),
             "{\"type\":\"forget\"}".into(),
             "{\"type\":\"delete\"}".into(),
+            // The Kotlin recorder's, gone with it.
+            "{\"type\":\"record\",\"id\":\"recorded-9\",\"startedAt\":\"2026-11-11T07:00:00Z\",\"durationMs\":60000,\"minutes\":{\"type\":\"writing\"}}"
+                .into(),
             // The recorder's own: an app that sends them is refused.
             "{\"type\":\"begin\",\"id\":\"recorded-1\",\"startedAt\":\"2026-11-11T07:00:00Z\",\"offsetMinutes\":60}"
                 .into(),

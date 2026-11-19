@@ -75,8 +75,8 @@ struct Entry {
 struct Meetings {
     // The latest first.
     entries: Vec<Entry>,
-    // For as long as the app runs: a meeting deleted while it is transcribed must not come back with its next
-    // snapshot.
+    // For as long as the app runs: a meeting deleted comes back neither with the samples lent again nor from the
+    // recorder.
     deleted: HashSet<MeetingId>,
 }
 
@@ -265,17 +265,6 @@ impl Meetings {
                 let meetings: Vec<MeetingId> = gone.into_iter().map(|entry| entry.meeting.id).collect();
                 (!meetings.is_empty()).then_some((Event::Removed { meetings }, files))
             }
-            Change::Record(snapshot) => {
-                if self.deleted.contains(&snapshot.id) {
-                    return None;
-                }
-                let at = self.entries.iter().position(|entry| entry.meeting.id == snapshot.id);
-                let known = at.map(|at| self.entries.remove(at));
-                let lent = matches!(known, Some(Entry { transcript: Transcript::Lent(_), .. }));
-                let (meeting, lines) = snapshot.merge(known.map(|entry| entry.meeting), stamp);
-                let transcript = if lent { Transcript::Lent(lines) } else { Transcript::Unwritten(lines) };
-                Some(self.insert(Entry { meeting, transcript }))
-            }
             Change::Transcribed { meeting, transcript, minutes } => {
                 let (at, entry) = self.find(&meeting)?;
                 minutes.settle(&mut entry.meeting);
@@ -389,7 +378,7 @@ mod tests {
     use crate::audio::testing::chord;
     use crate::meeting::testing::{heard, id, line, meeting};
     use crate::meeting::{
-        Action, ActionDraft, ActionId, ActionSource, Edit, Extra, Minutes, MinutesDraft, MinutesState, Snapshot,
+        Action, ActionDraft, ActionId, ActionSource, Edit, Extra, Minutes, MinutesDraft, MinutesState,
     };
     use crate::secret::testing::key;
 
@@ -505,17 +494,6 @@ mod tests {
 
         fn delete(&self, meetings: &[&str]) {
             self.library.apply(Change::Delete { meetings: meetings.iter().map(|meeting| id(meeting)).collect() });
-        }
-
-        // The recorder of a meeting begun after the stored ones.
-        fn record(&self, lines: &[&str], minutes: MinutesDraft) {
-            self.library.apply(Change::Record(Snapshot {
-                id: id("recorded-9"),
-                started_at: utc_datetime!(2026-11-11 7:00),
-                duration_ms: 60_000,
-                transcript: lines.iter().map(|text| line(0, text)).collect(),
-                minutes,
-            }));
         }
 
         // As the recorder begins a meeting at its first sound, after the stored ones.
@@ -655,11 +633,12 @@ mod tests {
     #[test]
     fn a_meeting_is_kept_as_it_is_recorded_and_its_title_is_not_taken_back() {
         let phone = phone(&[meeting("recorded-1")]);
-        phone.record(&["Bonjour à tous."], MinutesDraft::Writing);
+        phone.begin("recorded-9");
+        phone.transcribed("recorded-9", &["Bonjour à tous."], MinutesDraft::Writing);
         assert_eq!(phone.ids(), ["recorded-9", "recorded-1"]);
         assert_eq!(phone.file("recorded-9").unwrap().transcript.len(), 1);
         phone.rename("recorded-9", "Point produit");
-        phone.record(&["Bonjour à tous.", "Je prépare la démo."], one_action());
+        phone.transcribed("recorded-9", &["Bonjour à tous.", "Je prépare la démo."], one_action());
         let recorded = phone.file("recorded-9").unwrap();
         assert_eq!((recorded.title.as_deref(), recorded.transcript.len()), (Some("Point produit"), 2));
         assert_eq!((recorded.device.clone(), done(&recorded)), (phone.device(), vec![false]));
@@ -672,13 +651,8 @@ mod tests {
         let earlier = Meeting { started_at: utc_datetime!(2026-11-09 9:30), ..meeting("recorded-1") };
         let phone = phone(&[earlier, meeting("recorded-3")]);
         // Begun when recorded-3 was: the identifier then decides.
-        phone.library.apply(Change::Record(Snapshot {
-            id: id("recorded-5"),
-            started_at: meeting("recorded-3").started_at,
-            duration_ms: 60_000,
-            transcript: Vec::new(),
-            minutes: MinutesDraft::Writing,
-        }));
+        let started_at = meeting("recorded-3").started_at;
+        phone.library.apply(Change::Begin { id: id("recorded-5"), started_at, offset_minutes: 60 });
         phone.rename("recorded-1", "Point produit");
         let place = |event: &Event| if let Event::Changed { at, .. } = event { Some(*at) } else { None };
         assert_eq!(phone.app.events.lock().unwrap().iter().filter_map(place).collect::<Vec<_>>(), [1, 2]);
@@ -688,9 +662,10 @@ mod tests {
     #[test]
     fn a_meeting_deleted_while_it_is_transcribed_does_not_come_back() {
         let phone = phone(&[]);
-        phone.record(&["Bonjour à tous."], MinutesDraft::Writing);
+        phone.begin("recorded-9");
+        phone.transcribed("recorded-9", &["Bonjour à tous."], MinutesDraft::Writing);
         phone.delete(&["recorded-9"]);
-        phone.record(&["Bonjour à tous.", "Je prépare la démo."], one_action());
+        phone.transcribed("recorded-9", &["Bonjour à tous.", "Je prépare la démo."], one_action());
         assert_eq!(phone.list(), []);
         assert_eq!(phone.relaunched().list(), []);
     }
@@ -845,7 +820,8 @@ mod tests {
     fn a_recording_that_cannot_be_written_keeps_its_lines_until_it_is() {
         let phone = phone(&[]);
         fs::create_dir(phone.path("recorded-9.notitia.tmp")).unwrap();
-        phone.record(&["Bonjour à tous."], MinutesDraft::Writing);
+        phone.begin("recorded-9");
+        phone.transcribed("recorded-9", &["Bonjour à tous."], MinutesDraft::Writing);
         assert_eq!(phone.unsaved(), [id("recorded-9")]);
         assert_eq!(phone.library.meeting(&id("recorded-9")).unwrap().transcript, [line(0, "Bonjour à tous.")]);
         fs::remove_dir(phone.path("recorded-9.notitia.tmp")).unwrap();
