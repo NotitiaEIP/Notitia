@@ -39,6 +39,7 @@ Une fiche se lit en deux minutes et ne change plus : pour revenir sur un choix, 
 | [0004](adr/0004-pont-json.md) | Le pont entre le cœur et les apps : trois fonctions, un écouteur, du JSON | Proposée le 17 novembre 2026 |
 | [0005](adr/0005-audio.md) | L'audio d'une réunion : Opus à débit constant, dans un fichier scellé seconde par seconde | Proposée le 17 novembre 2026 |
 | [0006](adr/0006-enregistreur.md) | L'enregistrement tenu par le cœur, sur un fil à lui : une file bornée, la réunion au premier son | Proposée le 18 novembre 2026 |
+| [0007](adr/0007-cle-de-l-app.md) | La clé de l'app, gardée par le Keystore, jamais écrasée, durable avant d'être utilisée | Proposée le 19 novembre 2026 |
 
 ## Ailleurs dans le repo
 

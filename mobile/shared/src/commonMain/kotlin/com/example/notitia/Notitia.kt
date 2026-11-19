@@ -38,6 +38,8 @@ class Notitia(
     core: NotitiaCore? = null,
     // Chosen by the platform, which keeps it out of every backup (product rule 3).
     meetingsDirectory: String = "",
+    // Kept by the platform, which alone can (Keystore, Keychain): null records nothing.
+    meetingsKey: () -> ByteArray? = { null },
     microphone: Microphone? = null,
     speechEngine: SpeechEngine? = null,
     minutesWriter: MinutesWriter? = null,
@@ -50,7 +52,7 @@ class Notitia(
 
     // Made-up meetings beside the user's, so the app has something to show before a first recording.
     private val samples = sampleMeetings(clock.now())
-    private val session = core?.let { CoreSession(it, meetingsDirectory, samples) }
+    private val session = core?.let { CoreSession(it, meetingsDirectory, meetingsKey, samples) }
     private val kept = session?.let(::CoreMeetings)
 
     // All the screens know of the meetings and of a recording: what holds them can change without touching a screen.

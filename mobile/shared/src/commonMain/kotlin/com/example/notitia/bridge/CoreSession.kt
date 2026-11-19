@@ -21,6 +21,9 @@ import kotlinx.coroutines.withContext
 internal class CoreSession(
     private val core: NotitiaCore,
     directory: String,
+    // The key of the app, which only the platform can keep. Read once, off the main thread, and wiped once the core
+    // holds it. null: the meetings open, but nothing is recorded.
+    key: () -> ByteArray? = { null },
     // Shown and changed like the others, never written: they are not the user's meetings.
     samples: List<Meeting> = emptyList(),
     // One call at a time and in order, off the main thread: the core writes the file before it returns. Not tied to
@@ -49,7 +52,15 @@ internal class CoreSession(
 
     init {
         scope.launch {
-            opened = core.open(directory, null) { follow(it) } == null
+            // A key that cannot be read, or that is no key, must not hold the app on its splash screen either: the
+            // meetings open, and nothing is recorded.
+            val given = try {
+                key()
+            } catch (_: Exception) {
+                null
+            }
+            opened = core.open(directory, given?.takeIf { it.size == KEY_BYTES }) { follow(it) } == null
+            given?.fill(0)
             if (opened && samples.isNotEmpty()) apply(Change.Lend(samples))
             // Shown once, the samples in: the list does not grow under the eye at launch. A folder that cannot be
             // read must not hold the app on its splash screen: it then starts with no meeting.
