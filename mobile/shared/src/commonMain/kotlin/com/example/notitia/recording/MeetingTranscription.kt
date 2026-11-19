@@ -12,7 +12,6 @@ import com.example.notitia.ai.pcmToWav
 import com.example.notitia.meeting.MeetingStatus
 import com.example.notitia.meeting.MinutesDraft
 import com.example.notitia.meeting.TranscriptLine
-import com.example.notitia.meeting.recordedMeetingId
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
 import kotlin.time.Instant
@@ -38,8 +37,8 @@ internal fun cleanTranscript(text: String): String {
     return if (madeUpSentences.any { it.containsMatchIn(cleaned) }) "" else cleaned
 }
 
-// Lives while the meeting is heard and transcribed: MeetingRecorder hands it over at each change. Without speech, this
-// build cannot transcribe: the meeting keeps its duration and no text.
+// Lives while the meeting is heard and transcribed, until the core transcribes (T-59): CoreRecording hands its lines
+// and its minutes to the core. Without speech, this build cannot transcribe: the meeting keeps its audio and no text.
 @Stable
 class MeetingTranscription(
     val startedAt: Instant,
@@ -47,9 +46,6 @@ class MeetingTranscription(
     private val writer: MinutesWriter? = null,
     private val timeZone: TimeZone = TimeZone.currentSystemDefault(),
 ) {
-    val id = recordedMeetingId(startedAt)
-
-    var duration by mutableStateOf(Duration.ZERO)
     var lines by mutableStateOf(emptyList<TranscriptLine>())
         private set
     var minutes by mutableStateOf<MinutesDraft>(MinutesDraft.Writing)

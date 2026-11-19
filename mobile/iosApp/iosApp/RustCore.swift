@@ -3,14 +3,28 @@ import Shared
 
 // The core as the iPhone reaches it: Swift calls the Rust library through the code UniFFI generates, and the
 // shared Kotlin code receives this object. Bridge, BridgeListener and BridgeError are UniFFI's; what Kotlin
-// declares is written Shared.
+// declares is written Shared. Bytes cross as Data, copied whole by CoreBytesKt.
 final class RustCore: NSObject, Shared.NotitiaCore {
-    // Set once, by open, before any other call: Kotlin makes one call at a time.
-    private var bridge: Bridge?
+    // Set once, by open, then read by every call: the microphone's comes from its own thread.
+    private let lock = NSLock()
+    private var opened: Bridge?
 
-    func open(directory: String, listener: Shared.CoreListener) -> Shared.CoreFailure? {
+    private var bridge: Bridge? {
+        lock.lock()
+        defer { lock.unlock() }
+        return opened
+    }
+
+    func open(directory: String, key: KotlinByteArray?, listener: Shared.CoreListener) -> Shared.CoreFailure? {
         do {
-            bridge = try Bridge.open(directory: directory, listener: ListenerAdapter(listener))
+            let bridge = try Bridge.open(
+                directory: directory,
+                key: key.map { CoreBytesKt.data(bytes: $0) },
+                listener: ListenerAdapter(listener)
+            )
+            lock.lock()
+            opened = bridge
+            lock.unlock()
             return nil
         } catch {
             return failure(of: error)
@@ -28,15 +42,32 @@ final class RustCore: NSObject, Shared.NotitiaCore {
         }
     }
 
-    func apply(change: String) -> Shared.CoreFailure? {
+    func apply(request: String) -> Shared.CoreFailure? {
         guard let bridge = bridge else {
             return .broken
         }
         do {
-            try bridge.apply(change: change)
+            try bridge.apply(request: request)
             return nil
         } catch {
             return failure(of: error)
+        }
+    }
+
+    // Returns at once and never throws: the microphone's thread is never late.
+    func hear(track: Int32, pcm: KotlinByteArray) {
+        bridge?.hear(track: UInt8(clamping: track), pcm: CoreBytesKt.data(bytes: pcm))
+    }
+
+    func sound(id: String, fromMs: Int64, lengthMs: Int64) -> Shared.CoreSound {
+        guard let bridge = bridge else {
+            return Shared.CoreSound(pcm: nil, failure: .broken)
+        }
+        do {
+            let pcm = try bridge.sound(id: id, fromMs: UInt64(clamping: fromMs), lengthMs: UInt64(clamping: lengthMs))
+            return Shared.CoreSound(pcm: CoreBytesKt.bytes(data: pcm), failure: nil)
+        } catch {
+            return Shared.CoreSound(pcm: nil, failure: failure(of: error))
         }
     }
 
@@ -53,8 +84,8 @@ final class RustCore: NSObject, Shared.NotitiaCore {
     }
 }
 
-// Rust calls it on the thread Kotlin asked from. Unchecked: the Kotlin object behind it may be called from any
-// thread.
+// Rust calls it on the thread Kotlin asked from, or on the recorder's. Unchecked: the Kotlin object behind it may be
+// called from any thread.
 private final class ListenerAdapter: BridgeListener, @unchecked Sendable {
     private let listener: Shared.CoreListener
 

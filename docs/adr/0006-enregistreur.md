@@ -3,6 +3,7 @@
 | | |
 | --- | --- |
 | Statut | Proposée le 18 novembre 2026, acceptée à la fusion de sa PR |
+| Modifiée | Le 20 novembre 2026 par T-58 (#189) : les apps passent par l'enregistreur, mesuré sur un téléphone |
 | Proposée par | Clément |
 | Relue par | Alexandre pour le cœur |
 | Tâche d'origine | T-81 (#241), troisième étape de T-58 (#189) |
@@ -22,7 +23,7 @@ Le micro ne doit jamais attendre : un téléphone qui rate des lectures perd du 
 5. **La durée d'une réunion est celle de son audio**, jamais un compteur à côté. Le minuteur suit les trames que tient l'écrivain de l'audio. La durée de la réunion est écrite toutes les 10 secondes, puis relue dans l'audio à l'arrêt, où la dernière trame est complétée de silence : une seconde refusée par le disque n'est ni dans l'un ni dans l'autre. Après un arrêt brutal, le lancement suivant relit la durée de l'audio, seulement pour les réunions encore « en cours d'écriture ».
 6. **Sans clé, rien n'est enregistré** : `start` rend `failed(storage)`.
 7. **Le fuseau vient de l'app.** `start` porte `offsetMinutes`, que la réunion garde : son jour sur le calendrier est le même sur tous les appareils. Le cœur ne demande jamais le fuseau au système. C'est un champ facultatif du format version 2, qui ne monte pas la version (ADR 0003, règle 3).
-8. **`Session`** (`core/src/session.rs`) compose le cœur : la bibliothèque et l'enregistreur. Le pont des téléphones et l'app de l'ordinateur appelleront les mêmes fonctions : `open`, `apply`, `hear`, `meeting` et `sound`, qui rend le son prêt à jouer, les pistes additionnées.
+8. **`Session`** (`core/src/session.rs`) compose le cœur : la bibliothèque et l'enregistreur. Le pont des téléphones et l'app de l'ordinateur appellent les mêmes fonctions : `open`, `apply`, `hear`, `meeting` et `sound`, qui rend le son prêt à jouer, les pistes additionnées, une minute au plus par appel.
 9. **Supprimer une réunion qui s'enregistre** : l'enregistreur la lâche d'abord, puis le fichier part. Windows refuse de supprimer un fichier ouvert.
 10. **Une panne du cœur ne tue pas l'enregistreur.** Chaque message est traité sous `catch_unwind`. Une panique donne `failed(unavailable)`, l'audio reste tel qu'un plantage le laisse, et la commande suivante est prise.
 
@@ -35,7 +36,7 @@ Le micro ne doit jamais attendre : un téléphone qui rate des lectures perd du 
 | `cut` (`problem`) | un état actif | `interrupted` si du son a été entendu, sinon `failed(problem)` |
 | `dismiss` | `failed` | `idle` |
 
-L'événement `recorder` porte l'état entier : `state`, puis `meeting`, `startedAt` et `recordedMs` pour un état actif, et `level` (de 0 à 1) en `recording`. Il part à chaque changement, au premier son et toutes les 100 ms de son. `problem` vaut `denied`, `busy`, `unavailable` ou `storage`.
+L'événement `recorder` porte l'état entier : `state`, puis `meeting`, `startedAt` et `recordedMs` pour un état actif, et `level` (de 0 à 1) en `recording`. Il part à chaque changement, au premier son et toutes les 100 ms de son. Au premier son, il nomme la réunion avant que `changed` ne la montre : une app qui laisse la réunion en cours hors de sa liste ne la montre jamais, même une image. `problem` vaut `denied`, `busy`, `unavailable` ou `storage`.
 
 La transcription reste en Kotlin jusqu'à T-59. L'app la confie par la modification `transcribed` (`meeting`, `transcript`, `minutes`). Elle ne crée pas de réunion, ne change pas sa durée, et garde le titre donné et un compte rendu déjà corrigé.
 
@@ -47,6 +48,18 @@ Mesuré le 18 novembre 2026 sur le portable de l'ADR 0005 (Intel i5-12450H), ave
 
 - **Le micro** rend la main en 0,6 µs en moyenne, en moins de 0,1 ms au pire.
 - **L'enregistreur** encode, scelle et écrit dix minutes en 7,5 s, 80 fois plus vite qu'elles ne s'entendent.
+
+Mesuré le 20 novembre 2026 sur un Pixel 10 (Android 16), avec le même exemple compilé par `cargo ndk` :
+
+- **Le micro** rend la main en 5,8 µs en moyenne, en 0,3 ms au pire.
+- **L'enregistreur** passe dix minutes en 6,1 s, 99 fois plus vite qu'elles ne s'entendent.
+- **Une heure de son** s'encode en 43 s et pèse 10,9 Mo sur le disque. Trente secondes de la 59ᵉ minute se relisent en 22 ms.
+
+Puis dans l'app, en build de debug, trente minutes enregistrées écran allumé : 5,5 Mo sur le disque, soit 182 Ko par minute. La mémoire de l'app (PSS) reste entre 166 et 180 Mo du début à la fin. Le tas Java monte et descend avec le ramasse-miettes, entre 15 et 30 Mo. Le tas natif prend ses blocs dans les dix premières minutes, puis se stabilise :
+
+| Minute | 0 | 5 | 10 | 15 | 20 | 25 | 30 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Tas natif (Mo) | 11,1 | 15,3 | 16,9 | 17,4 | 17,7 | 17,8 | 18,0 |
 
 ## Options écartées
 
@@ -69,6 +82,4 @@ Mesuré le 18 novembre 2026 sur le portable de l'ADR 0005 (Intel i5-12450H), ave
 **Ce qui reste ouvert.**
 
 - **Une piste en retard.** Une trame part quand chaque piste en a une. Sur l'ordinateur, le son de l'ordinateur ne donne rien quand rien ne joue : l'enregistrement n'avance plus, puis s'interrompt au bout de 10 secondes. US-72 dira qui comble ce silence, l'app ou le cœur.
-- **Un fil temps réel.** `hear` copie chaque lecture dans un tampon neuf. Sur l'ordinateur, si le son arrive sur le fil temps réel du système (CoreAudio, WASAPI), un anneau réservé d'avance remplacera cette copie, si une mesure le demande.
-- **Les apps passent par l'enregistreur** avec T-58. L'ADR 0004 dira alors que les événements arrivent aussi du fil de l'enregistreur.
-- **Le temps sur un téléphone**, mesuré dans T-58.
+- **Un fil temps réel.** Chaque lecture traverse le pont dans un tampon neuf, que `hear` garde. Sur l'ordinateur, si le son arrive sur le fil temps réel du système (CoreAudio, WASAPI), un anneau réservé d'avance remplacera cette copie, si une mesure le demande.

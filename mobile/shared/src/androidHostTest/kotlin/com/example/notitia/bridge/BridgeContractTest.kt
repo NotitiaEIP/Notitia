@@ -1,11 +1,13 @@
 package com.example.notitia.bridge
 
+import com.example.notitia.bridge.CoreEvent.Recorder.Phase
 import com.example.notitia.meeting.ActionDraft
 import com.example.notitia.meeting.ActionSource
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MinutesAction
 import com.example.notitia.meeting.MinutesDraft
 import com.example.notitia.meeting.MinutesState
+import com.example.notitia.meeting.RecordingProblem
 import com.example.notitia.meeting.TranscriptLine
 import com.example.notitia.meeting.WrittenMinutes
 import com.example.notitia.meeting.meeting
@@ -30,20 +32,16 @@ class BridgeContractTest {
     @Test
     fun theChangesThisAppWritesAreTheOnesTheCoreReads() {
         fun edit(edit: MeetingEdit) = Change.Edit("recorded-1", edit)
-        fun recorded(duration: Duration, transcript: List<TranscriptLine>, minutes: MinutesDraft) =
-            Change.Record("recorded-9", Instant.parse("2026-11-11T07:00:00Z"), duration, transcript, minutes)
+        fun transcribed(transcript: List<TranscriptLine>, minutes: MinutesDraft) =
+            Change.Transcribed("6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", transcript, minutes)
         val hello = TranscriptLine(Duration.ZERO, "Bonjour à tous.")
-        val heardAndWritten = MinutesDraft.Written(
-            summary = "Point sur la démo.",
-            decisions = listOf("La démo a lieu le 15 novembre."),
-            actions = listOf(
-                ActionDraft(
-                    "Préparer la démo", "Lucas", LocalDate(2026, 11, 14),
-                    ActionSource("Je prépare la démo.", speaker = null, at = 12.minutes + 4.seconds),
-                ),
-                ActionDraft("Rédiger le registre RGPD", owner = null, due = null),
-            ),
+        val silence = TranscriptLine(30.seconds, text = null)
+        val demo = ActionDraft(
+            "Préparer la démo", "Lucas", LocalDate(2026, 11, 14),
+            ActionSource("Je prépare la démo.", speaker = null, at = 12.minutes + 4.seconds),
         )
+        fun written(actions: List<ActionDraft>) =
+            MinutesDraft.Written(summary = "Point sur la démo.", decisions = listOf("La démo a lieu le 15 novembre."), actions)
         val changes = listOf(
             edit(MeetingEdit.Rename("Point produit")),
             edit(MeetingEdit.SetDone("0", done = true)),
@@ -53,8 +51,8 @@ class BridgeContractTest {
             edit(MeetingEdit.SetDue("0", due = null)),
             edit(MeetingEdit.SetReminder("0", on = true)),
             Change.Delete(setOf("recorded-1", "recorded-3")),
-            recorded(1.minutes, emptyList(), MinutesDraft.Writing),
-            recorded(90.seconds, listOf(hello, TranscriptLine(30.seconds, text = null)), heardAndWritten),
+            transcribed(listOf(hello, silence), MinutesDraft.Writing),
+            transcribed(listOf(hello, silence, TranscriptLine(12.minutes + 4.seconds, "Je prépare la démo.")), written(listOf(demo))),
             Change.Lend(listOf(meeting("sample-1").copy(transcript = listOf(hello)))),
         )
         assertEquals(
@@ -102,6 +100,35 @@ class BridgeContractTest {
         )
         val read = CoreJson.decodeFromString(ListSerializer(CoreEvent.serializer()), examples.resolve("events.json").readText())
         assertEquals(events, read)
+    }
+
+    @Test
+    fun theRecorderIsCommandedAndFollowedAsTheCoreReadsAndWritesIt() {
+        val fixture = CoreJson.parseToJsonElement(examples.resolve("recorder.json").readText()).jsonObject
+        val commands = listOf(
+            Command.Start(tracks = 1, offsetMinutes = 60),
+            Command.Start(tracks = 2, offsetMinutes = -210),
+            Command.Pause,
+            Command.Resume,
+            Command.Stop,
+            Command.Cut(RecordingProblem.Denied),
+            Command.Cut(RecordingProblem.Busy),
+            Command.Cut(RecordingProblem.Unavailable),
+            Command.Dismiss,
+        )
+        assertEquals(fixture.getValue("requests"), CoreJson.encodeToJsonElement(ListSerializer(Command.serializer()), commands))
+        val started = Instant.parse("2026-11-18T09:00:00Z")
+        val heard = CoreEvent.Recorder(Phase.Recording, meeting = "6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", startedAt = started, recorded = 61.seconds, level = 0.42f)
+        val events = listOf(
+            CoreEvent.Recorder(Phase.Idle),
+            CoreEvent.Recorder(Phase.Failed, problem = RecordingProblem.Storage),
+            CoreEvent.Recorder(Phase.Recording, startedAt = started),
+            heard,
+            heard.copy(state = Phase.Paused, level = 0f),
+            heard.copy(state = Phase.Interrupted, level = 0f),
+            CoreEvent.Removed(setOf("recorded-1")),
+        )
+        assertEquals(events, CoreJson.decodeFromJsonElement(ListSerializer(CoreEvent.serializer()), fixture.getValue("events")))
     }
 
     // The reference of the format (ADR 0003), which the core writes to the byte: a whole meeting crosses in that shape.

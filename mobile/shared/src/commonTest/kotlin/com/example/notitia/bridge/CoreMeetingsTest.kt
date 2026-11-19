@@ -2,7 +2,6 @@ package com.example.notitia.bridge
 
 import com.example.notitia.meeting.ActionId
 import com.example.notitia.meeting.Meeting
-import com.example.notitia.meeting.MinutesDraft
 import com.example.notitia.meeting.TranscriptLine
 import com.example.notitia.meeting.meeting
 import com.example.notitia.ui.search.runNow
@@ -12,7 +11,6 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
-import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.datetime.LocalDate
 
@@ -20,7 +18,7 @@ class CoreMeetingsTest {
 
     // Unconfined makes each call to the core at once, so the list can be checked right after a change.
     private fun meetings(core: NotitiaCore, samples: List<Meeting> = emptyList()) =
-        CoreMeetings(core, directory = "meetings", samples, Dispatchers.Unconfined)
+        CoreMeetings(CoreSession(core, directory = "meetings", samples = samples, calls = Dispatchers.Unconfined))
 
     private fun CoreMeetings.ids() = meetings.value?.map { it.id }
 
@@ -31,7 +29,7 @@ class CoreMeetingsTest {
         val core = FakeCore(meeting("recorded-1"))
         val kept = meetings(core, samples = listOf(later("sample-1")))
         assertEquals(listOf("sample-1", "recorded-1"), kept.ids())
-        assertEquals(listOf<Change>(Change.Lend(listOf(later("sample-1")))), core.applied)
+        assertEquals(listOf<CoreRequest>(Change.Lend(listOf(later("sample-1")))), core.applied)
     }
 
     @Test
@@ -49,25 +47,21 @@ class CoreMeetingsTest {
         val kept = meetings(core)
         val action = ActionId("recorded-1", "0")
         val day = LocalDate(2026, 11, 20)
-        val started = meeting("recorded-9").startedAt
-        val lines = listOf(TranscriptLine(Duration.ZERO, "Bonjour à tous."))
         kept.rename("recorded-1", "Point produit")
         kept.setDone(action, true)
         kept.setOwner(action, "Nathan")
         kept.setDue(action, day)
         kept.setReminder(action, true)
-        kept.keep("recorded-9", started, 1.minutes, lines, MinutesDraft.Writing)
-        kept.delete(setOf("recorded-1", "recorded-9"))
+        kept.delete(setOf("recorded-1"))
         fun edit(edit: MeetingEdit) = Change.Edit("recorded-1", edit)
         assertEquals(
-            listOf(
+            listOf<CoreRequest>(
                 edit(MeetingEdit.Rename("Point produit")),
                 edit(MeetingEdit.SetDone("0", true)),
                 edit(MeetingEdit.SetOwner("0", "Nathan")),
                 edit(MeetingEdit.SetDue("0", day)),
                 edit(MeetingEdit.SetReminder("0", true)),
-                Change.Record("recorded-9", started, 1.minutes, lines, MinutesDraft.Writing),
-                Change.Delete(setOf("recorded-1", "recorded-9")),
+                Change.Delete(setOf("recorded-1")),
             ),
             core.applied,
         )

@@ -1,6 +1,7 @@
 package com.example.notitia
 
 import android.app.Application
+import com.example.notitia.bridge.MeetingsKey
 import com.example.notitia.bridge.RustCore
 import com.example.notitia.bridge.meetingsDirectory
 import com.example.notitia.recording.AndroidMicrophone
@@ -12,6 +13,7 @@ class NotitiaApplication : Application() {
         Notitia(
             core = RustCore(),
             meetingsDirectory = meetingsDirectory(this),
+            meetingsKey = MeetingsKey(this)::read,
             microphone = AndroidMicrophone(this),
             speechEngine = speechEngineForBuild(),
             minutesWriter = minutesWriterForBuild(),
