@@ -22,7 +22,7 @@ En cas de doute sur une de ces règles, arrête-toi et demande plutôt que devin
 
 - Rust pour le cœur, appelé depuis Kotlin et Swift par les ponts d'UniFFI (`docs/adr/0002-coeur-rust.md`). La version de Rust et ses cibles sont fixées dans `core/rust-toolchain.toml`, les dépendances Rust dans `core/Cargo.toml`.
 - Kotlin Multiplatform et Compose Multiplatform : l'interface est partagée entre Android et iOS.
-- Gradle via le wrapper (`mobile/gradlew`), dont la version est fixée dans `mobile/gradle/wrapper/gradle-wrapper.properties`. Les versions des dépendances vivent uniquement dans `mobile/gradle/libs.versions.toml`, celles du NDK et de `cargo-ndk` comprises.
+- Gradle via le wrapper (`mobile/gradlew`), dont la version est fixée dans `mobile/gradle/wrapper/gradle-wrapper.properties`. Les versions des dépendances vivent uniquement dans `mobile/gradle/libs.versions.toml`, celles du NDK, de `cargo-ndk` et de `cargo-deny` comprises.
 - Android Studio avec le plugin Kotlin Multiplatform, ouvert sur le dossier `mobile/`. Xcode sur Mac pour iOS.
 
 ## Organisation du code
@@ -55,9 +55,10 @@ Le cœur se branche de la même façon : `NotitiaCore`, dans `commonMain` (`brid
 ## Commandes
 
 - Lancer l'app : `./notitia`, depuis la racine ou depuis `mobile/`, ouvre un menu. Sans menu : `./notitia phone` (téléphone branché), `./notitia emulator`, `./notitia apk`.
-- Compiler et tester avant une PR : `./notitia check`, que la CI lance aussi. Dans `core/` : `cargo fmt --check`, `cargo clippy` et `cargo test`. Puis `./gradlew build` dans `mobile/`, et l'alignement des bibliothèques de l'APK sur des pages de 16 Ko.
+- Compiler et tester avant une PR : `./notitia check`, que la CI lance aussi. Dans `core/` : `cargo fmt --check`, `cargo deny --workspace check bans licenses sources`, `cargo clippy` et `cargo test`. Puis `./gradlew build` dans `mobile/`, et l'alignement des bibliothèques de l'APK sur des pages de 16 Ko.
+- Les avis de sécurité des crates du cœur : `cd core && cargo deny --workspace check advisories`. La CI les vérifie quand `core/Cargo.lock` change, et chaque lundi.
 - Tests du cœur seuls : `cd core && cargo test`. Formater le Rust avant de le proposer : `cargo fmt`.
-- Savoir ce qu'il manque à une machine (Java, SDK Android, rustup, `cargo-ndk`, NDK) : `./notitia doctor`.
+- Savoir ce qu'il manque à une machine (Java, SDK Android, rustup, `cargo-ndk`, `cargo-deny`, NDK) : `./notitia doctor`.
 - Tests du code partagé seuls : `cd mobile && ./gradlew :shared:testAndroidHostTest`.
 - iOS : `./notitia ios` ouvre `mobile/iosApp/iosApp.xcodeproj` dans Xcode, sur un Mac. Sous Linux et Windows, le Kotlin d'iOS se compile (`cd mobile && ./gradlew :shared:compileKotlinIosSimulatorArm64`) mais l'app ne se construit pas : la CI la construit pour le simulateur sur un Mac de GitHub (job `ios`) dès qu'une PR touche `mobile/`.
 - Mac : ouvrir `macos/apple/Notitia.xcodeproj` dans Xcode, et tester `NotitiaKit` avec `cd macos/apple/NotitiaKit && swift test`, sur un Mac seulement. Le build Gradle ignore `macos/`, et la CI lance ces tests sur un Mac de GitHub (job `macos`) dès qu'une PR touche `macos/`.
@@ -76,7 +77,8 @@ Le cœur se branche de la même façon : `NotitiaCore`, dans `commonMain` (`brid
 - Commits au format Conventional Commits (voir « Le message de commit et la description de PR »). Une PR traite un seul sujet et se fusionne en squash.
 - La logique métier nouvelle s'écrit dans `core/` et se teste en Rust. Celle qui reste en Kotlin dans `commonMain` y part tâche par tâche (T-58 à T-61) et se teste d'ici là dans `commonTest`.
 - Le Rust est formaté par `cargo fmt` et passe `cargo clippy` sans avertissement.
-- Une nouvelle dépendance passe par `mobile/gradle/libs.versions.toml`, ou par `core/Cargo.toml` pour le cœur, avec une licence vérifiée (Apache 2.0, MIT ou BSD de préférence).
+- Une nouvelle dépendance passe par `mobile/gradle/libs.versions.toml`, ou par `core/Cargo.toml` pour le cœur, avec une licence vérifiée (Apache 2.0, MIT ou BSD de préférence). Pour le cœur, `core/deny.toml` dit les licences permises et les crates interdites, et `./notitia check` le vérifie (`docs/adr/0009-garde-fous.md`).
+- Un fichier témoin d'un format, à la racine de `core/tests/fixtures/`, ne change jamais : une nouvelle version a son propre témoin, épinglé par son empreinte dans `core/src/testing.rs`.
 - Jamais de fichier de modèle IA dans le repo (`.gguf`, `.onnx`, `.tflite`, `.bin`...). Les modèles sont livrés par les stores (Play for On-device AI sur Android, Background Assets sur iOS).
 - Monter Gradle, AGP, Kotlin, Compose, Rust ou UniFFI se fait dans une PR à part.
 

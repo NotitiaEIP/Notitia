@@ -75,23 +75,34 @@ jobs:
         if: needs.changes.outputs.app != 'false'
         with:
           path: |
-            ~/.cargo/bin/cargo-ndk*
             ~/.cargo/registry
             core/target
           key: cargo-${{ runner.os }}-${{ hashFiles('core/Cargo.lock', 'core/rust-toolchain.toml') }}
 
-      # Gradle builds the core for Android with these, at the versions that libs.versions.toml fixes. Rust needs no
-      # step: at the first cargo call, rustup installs what core/rust-toolchain.toml fixes.
-      - name: Install the NDK and cargo-ndk
+      # The cargo tools, built once for the versions of the catalog rather than again at each change of Cargo.lock.
+      - uses: actions/cache@v4
+        if: needs.changes.outputs.app != 'false'
+        with:
+          path: |
+            ~/.cargo/bin/cargo-deny*
+            ~/.cargo/bin/cargo-ndk*
+          key: cargo-tools-${{ runner.os }}-${{ hashFiles('mobile/gradle/libs.versions.toml') }}
+
+      # Gradle builds the core for Android with the NDK and cargo-ndk, and ./notitia check runs cargo-deny, at the
+      # versions that libs.versions.toml fixes. Rust needs no step: at the first cargo call, rustup installs what
+      # core/rust-toolchain.toml fixes.
+      - name: Install the NDK, cargo-ndk and cargo-deny
         if: needs.changes.outputs.app != 'false'
         run: |
           version() { sed -n "s/^$1 = \"\(.*\)\"/\1/p" mobile/gradle/libs.versions.toml; }
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$(version android-ndk)" > /dev/null
-          # The cache brings the binary back without the record cargo install keeps of it, and cargo install then
-          # refuses to overwrite it: the version decides instead.
-          if ! cargo ndk --version 2>/dev/null | grep -qF "$(version cargo-ndk)"; then
-            cargo install cargo-ndk --locked --force --version "$(version cargo-ndk)"
-          fi
+          # The cache brings a binary back without the record cargo install keeps of it, and cargo install then
+          # refuses to overwrite it: the exact version decides instead.
+          for tool in cargo-deny cargo-ndk; do
+            if [ "$(cargo "${tool#cargo-}" --version 2>/dev/null | awk '{print $2}')" != "$(version "$tool")" ]; then
+              cargo install "$tool" --locked --force --version "$(version "$tool")"
+            fi
+          done
 
       # The command every developer runs before a pull request: the Rust core, then Android and the shared tests.
       # Linux compiles the iOS Kotlin code but cannot link it: the ios job does.

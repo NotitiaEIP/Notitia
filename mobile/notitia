@@ -161,25 +161,36 @@ find_rust() {
   command -v rustup >/dev/null 2>&1 && command -v cargo >/dev/null 2>&1
 }
 
+# What to run when a cargo tool is absent or not at the version libs.versions.toml fixes, and nothing when it is
+# right. Call find_rust first.
+cargo_tool_problem() {
+  local tool="$1" version found
+  version="$(catalog_version "$tool")"
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    printf '%s absent : lance cargo install %s --locked --version %s\n' "$tool" "$tool" "$version"
+    return
+  fi
+  # From core/, where rust-toolchain.toml picks the Rust version: a machine may have no default one.
+  found="$(cd "$CORE_DIR" && cargo "${tool#cargo-}" --version | awk '{print $2}')"
+  if [ -n "$found" ] && [ "$found" != "$version" ]; then
+    printf '%s %s trouvé, il faut la version %s : lance cargo install %s --locked --force --version %s\n' \
+      "$tool" "$found" "$version" "$tool" "$version"
+  fi
+}
+
 # Fills CORE_MISSING with what this machine lacks to build the Rust core, one line per tool with the way to
 # install it. Call find_sdk first: the NDK lives in the SDK.
 check_core() {
-  local ndk cargo_ndk found
+  local ndk problem
   ndk="$(catalog_version android-ndk)"
-  cargo_ndk="$(catalog_version cargo-ndk)"
   CORE_MISSING=()
 
   if ! find_rust; then
     CORE_MISSING+=("Rust introuvable : installe rustup depuis https://rustup.rs, puis rouvre ce terminal.")
-    CORE_MISSING+=("cargo-ndk absent : une fois Rust installé, lance cargo install cargo-ndk --locked --version $cargo_ndk")
-  elif ! command -v cargo-ndk >/dev/null 2>&1; then
-    CORE_MISSING+=("cargo-ndk absent : lance cargo install cargo-ndk --locked --version $cargo_ndk")
+    CORE_MISSING+=("cargo-ndk absent : une fois Rust installé, lance cargo install cargo-ndk --locked --version $(catalog_version cargo-ndk)")
   else
-    # From core/, where rust-toolchain.toml picks the Rust version: a machine may have no default one.
-    found="$(cd "$CORE_DIR" && cargo ndk --version | awk '{print $2}')"
-    if [ -n "$found" ] && [ "$found" != "$cargo_ndk" ]; then
-      CORE_MISSING+=("cargo-ndk $found trouvé, il faut la version $cargo_ndk : lance cargo install cargo-ndk --locked --force --version $cargo_ndk")
-    fi
+    problem="$(cargo_tool_problem cargo-ndk)"
+    if [ -n "$problem" ]; then CORE_MISSING+=("$problem"); fi
   fi
 
   if [ -n "$SDK" ] && [ ! -d "$SDK/ndk/$ndk" ]; then
@@ -399,11 +410,18 @@ cmd_ios() {
 }
 
 cmd_check() {
+  local problem
   need_android
   need_core
+  problem="$(cargo_tool_problem cargo-deny)"
+  [ -z "$problem" ] || die "$problem"
   # The quickest to fail first. --locked: a Cargo.lock that no longer matches Cargo.toml fails here, not in the CI.
   cargo_core fmt --check \
     || die "Le cœur Rust n'est pas formaté : lance cargo fmt dans core/, puis relance."
+  # The crates the core may take. The advisories change every day: the CI checks them when Cargo.lock changes, and
+  # every Monday, so that one published overnight holds no pull request that leaves the crates alone.
+  cargo_core deny --workspace --locked check bans licenses sources \
+    || die "Une crate du cœur n'est pas permise (message au-dessus) : vois core/deny.toml et docs/adr/0009-garde-fous.md."
   cargo_core clippy --locked --workspace --all-targets -- -D warnings \
     || die "clippy relève un problème dans le cœur Rust : corrige-le (message au-dessus)."
   cargo_core test --locked --workspace \
@@ -415,7 +433,7 @@ cmd_check() {
 }
 
 cmd_doctor() {
-  local fail=0 major serial state phone_count=0 unauthorized=0 avds line
+  local fail=0 major serial state phone_count=0 unauthorized=0 avds line problem
   printf '%sDiagnostic%s\n\n' "$BOLD" "$RESET"
 
   if find_java; then
@@ -467,6 +485,13 @@ EOF
     for line in "${CORE_MISSING[@]}"; do bad "$line"; done
     fail=1
   fi
+  # Not needed to build the app: it checks the crates of the core before a pull request.
+  problem="$(cargo_tool_problem cargo-deny)"
+  if [ -z "$problem" ]; then
+    ok "cargo-deny $(catalog_version cargo-deny)"
+  else
+    warn "$problem (utile seulement pour « Vérifier avant une PR »)"
+  fi
 
   if is_mac; then
     if command -v xcodebuild >/dev/null 2>&1; then ok "Xcode"; else warn "Xcode absent (utile seulement pour iOS)."; fi
@@ -511,7 +536,7 @@ Sans commande, un menu s'ouvre : flèches ↑ ↓ pour choisir, Entrée pour val
   emulator   Lancer sur un émulateur Android
   apk        Construire l'APK (fichier à installer ou partager)
   ios        Ouvrir le projet iOS dans Xcode (Mac)
-  check      Vérifier avant une PR (cœur Rust, build et tests)
+  check      Vérifier avant une PR (cœur Rust, ses crates, build et tests)
   doctor     Diagnostiquer mon installation
 EOF
 }
