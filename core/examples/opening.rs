@@ -1,6 +1,8 @@
 // How long the meetings of a folder take to open, without and with their index (T-75). Through the same calls as an
 // app, and optimised as an app is: cargo run --release --example opening
 // A folder given after `--` keeps the meetings, to push them to a phone and time its launch there.
+#![expect(clippy::print_stdout, clippy::disallowed_methods, reason = "a measure reads the clock and prints")]
+
 use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};

@@ -2,6 +2,8 @@
 // recorder costs the microphone (T-81). Optimised as an app is: cargo run --release --example recording
 // A file given after `--` receives a minute of that sound as Ogg Opus, for ffmpeg or any player: the proof that what
 // the core keeps is standard Opus.
+#![expect(clippy::print_stdout, clippy::disallowed_methods, reason = "a measure reads the clock and prints")]
+
 use std::error::Error;
 use std::f64::consts::TAU;
 use std::sync::{Arc, Mutex, mpsc};

@@ -99,6 +99,7 @@ pub struct Library {
 }
 
 impl Library {
+    #[expect(clippy::disallowed_methods, reason = "the one clock of the core: every rule is handed it")]
     pub fn open(
         directory: impl Into<PathBuf>,
         key: Option<Key>,

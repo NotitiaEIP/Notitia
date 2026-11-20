@@ -44,8 +44,19 @@ pub(crate) fn random<const N: usize>() -> Result<[u8; N], SecretError> {
     Ok(bytes)
 }
 
-// The key of the app, which its system keeps (Keystore, Keychain). No Debug, so no log can print one, and wiped
-// from memory when it is dropped.
+/// The key of the app, which its system keeps (Keystore, Keychain), wiped from memory when it is dropped.
+///
+/// No `Debug`, so no log can print one, held by the compiler:
+///
+/// ```
+/// fn exists<T>() {}
+/// exists::<notitia::Key>();
+/// ```
+///
+/// ```compile_fail
+/// fn printable<T: std::fmt::Debug>() {}
+/// printable::<notitia::Key>();
+/// ```
 pub struct Key(Zeroizing<[u8; KEY_BYTES]>);
 
 impl Key {
