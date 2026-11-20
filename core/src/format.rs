@@ -296,6 +296,20 @@ mod tests {
     }
 
     #[test]
+    fn an_instant_that_leaves_the_years_0_to_9999_in_utc_is_refused() {
+        // The first made the core panic as it opened the folder; the second was read, then could be neither
+        // written back nor told to the app.
+        for instant in ["9999-12-31T23:59:59-01:00", "0000-01-01T00:00:00+01:00"] {
+            let file = VERSION_2.replace("2026-11-10T09:30:00Z", instant);
+            assert_eq!(decode(file.as_bytes()), Err(DecodeError::NotAMeeting), "{instant}");
+        }
+        for instant in ["9999-12-31T23:59:59+01:00", "0000-01-01T00:00:00-01:00", "0000-01-01T00:00:00Z"] {
+            let meeting = read(&VERSION_2.replace("2026-11-10T09:30:00Z", instant));
+            assert_eq!(read(&written(&meeting)), meeting, "{instant}");
+        }
+    }
+
+    #[test]
     fn a_date_the_format_cannot_hold_is_not_written() {
         let meeting = Meeting { started_at: utc_datetime!(-0001-01-01 0:00), ..sprint_review() };
         assert_eq!(encode(&meeting), Err(EncodeError));
