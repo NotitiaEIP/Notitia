@@ -44,8 +44,19 @@ pub(crate) fn random<const N: usize>() -> Result<[u8; N], SecretError> {
     Ok(bytes)
 }
 
-// The key of the app, which its system keeps (Keystore, Keychain). No Debug, so no log can print one, and wiped
-// from memory when it is dropped.
+/// The key of the app, which its system keeps (Keystore, Keychain), wiped from memory when it is dropped.
+///
+/// No `Debug`, so no log can print one, held by the compiler:
+///
+/// ```
+/// fn exists<T>() {}
+/// exists::<notitia::Key>();
+/// ```
+///
+/// ```compile_fail
+/// fn printable<T: std::fmt::Debug>() {}
+/// printable::<notitia::Key>();
+/// ```
 pub struct Key(Zeroizing<[u8; KEY_BYTES]>);
 
 impl Key {
@@ -101,17 +112,28 @@ impl Seal {
 
 #[cfg(test)]
 pub(crate) mod testing {
+    use sha2::Digest;
+
     use super::*;
 
     // Made up, like every key of the tests.
     pub fn key(byte: u8) -> Key {
         Key::new(&[byte; KEY_BYTES]).unwrap()
     }
+
+    pub fn hex(bytes: &[u8]) -> String {
+        bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    }
+
+    // SHA-256, as sha256sum writes it: a file is checked without the core.
+    pub fn fingerprint(bytes: &[u8]) -> String {
+        hex(&Sha256::digest(bytes))
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::testing::key;
+    use super::testing::{hex, key};
     use super::*;
 
     const SALT: [u8; SALT_BYTES] = [7; SALT_BYTES];
@@ -135,7 +157,7 @@ mod tests {
         let by_libsodium = "090909090909090909090909090909090909090909090909f6065ff63c38b47b54bd0fbb3d11adf39de889886b\
                             b7d66559d690f89eb035c53c1afa91d4";
         let sealed = seal().seal_with([9; NONCE_BYTES], b"second 4", CLEAR).unwrap();
-        assert_eq!(sealed.iter().map(|byte| format!("{byte:02x}")).collect::<String>(), by_libsodium);
+        assert_eq!(hex(&sealed), by_libsodium);
     }
 
     #[test]

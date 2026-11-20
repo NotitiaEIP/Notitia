@@ -183,6 +183,10 @@ pub(crate) mod testing {
 
     use super::*;
 
+    // The witness of version 1 of the format: 2.5 seconds heard on two tracks, `chord` on the first and an 880 Hz note
+    // on the second, sealed by key(1). The core of any later app reads it as it was heard.
+    pub const WITNESS: &[u8] = include_bytes!("../tests/fixtures/audio-v1.audio");
+
     // Made up, like every sound of the tests: notes that swell and fade four times a second.
     pub fn notes(notes: &[f64], frames: usize) -> Vec<Frame> {
         let sample = |at: usize| {
@@ -206,11 +210,11 @@ pub(crate) mod testing {
 
 #[cfg(test)]
 mod tests {
-    use std::fs::OpenOptions;
+    use std::fs::{self, OpenOptions};
 
     use tempfile::TempDir;
 
-    use super::testing::{chord, likeness, notes};
+    use super::testing::{WITNESS, chord, likeness, notes};
     use super::*;
     use crate::secret::testing::key;
 
@@ -293,6 +297,17 @@ mod tests {
         let mut reader = Reader::open(file(&folder), &key(1)).unwrap();
         assert_eq!(reader.duration_ms(), 3_000);
         assert!(alike(&heard, &reader.read(0, 3_000).unwrap()[0]) > 0.9);
+    }
+
+    #[test]
+    fn the_witness_of_version_1_is_heard_as_it_was_recorded() {
+        let folder = tempfile::tempdir().unwrap();
+        // A copy: no test can change the witness.
+        fs::write(folder.path().join("recorded-1.audio"), WITNESS).unwrap();
+        let mut reader = Reader::open(file(&folder), &key(1)).unwrap();
+        assert_eq!((reader.tracks(), reader.duration_ms()), (2, 2_500));
+        let read = reader.read(0, 2_500).unwrap();
+        assert!(alike(&chord(125), &read[0]) > 0.95 && alike(&notes(&[880.0], 125), &read[1]) > 0.95);
     }
 
     #[test]

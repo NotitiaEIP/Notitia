@@ -41,6 +41,7 @@ Une fiche se lit en deux minutes et ne change plus, sauf pour recevoir ce que la
 | [0006](adr/0006-enregistreur.md) | L'enregistrement tenu par le cœur, sur un fil à lui : une file bornée, la réunion au premier son | Proposée le 18 novembre 2026, modifiée le 20 novembre |
 | [0007](adr/0007-cle-de-l-app.md) | La clé de l'app, gardée par le Keystore, jamais écrasée, durable avant d'être utilisée | Proposée le 19 novembre 2026 |
 | [0008](adr/0008-identifiants.md) | Un identifiant désigne le même fichier sur tous les systèmes : des minuscules, jamais un nom de périphérique de Windows | Proposée le 20 novembre 2026 |
+| [0009](adr/0009-garde-fous.md) | Les règles du cœur tenues par des outils : crates permises, aucun réseau, formats figés, fichiers abîmés lus sans panique | Proposée le 20 novembre 2026 |
 
 ## Ailleurs dans le repo
 

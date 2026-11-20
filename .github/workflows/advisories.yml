@@ -1,0 +1,67 @@
+name: Advisories
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # Every Monday morning, for an advisory published since Cargo.lock last changed. A run that fails writes to whoever
+  # last changed this schedule.
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: advisories-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The known flaws of the crates of the core (RustSec). The database changes every day: a pull request is held only
+  # when it changes the crates, and every other passes at once, so this check can be required without holding them.
+  advisories:
+    name: advisories
+    # The Epitech copy carries this file too: there, the job is skipped.
+    if: github.repository_owner == 'NotitiaEIP'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - id: diff
+        name: Does this change touch the crates of the core?
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # Without a usable base (the weekly run, a first push), check anyway.
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "crates=true" >> "$GITHUB_OUTPUT"
+          elif grep -qE '^(core/Cargo\.lock|core/deny\.toml|\.github/workflows/advisories\.yml)$' <<< "$(git diff --name-only "$BASE" HEAD)"; then
+            echo "crates=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "crates=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/cache@v4
+        if: steps.diff.outputs.crates == 'true'
+        with:
+          path: ~/.cargo/bin/cargo-deny*
+          key: cargo-deny-${{ runner.os }}-${{ hashFiles('mobile/gradle/libs.versions.toml') }}
+
+      # At the version that libs.versions.toml fixes, as ./notitia check runs it.
+      - name: Install cargo-deny
+        if: steps.diff.outputs.crates == 'true'
+        run: |
+          version=$(sed -n 's/^cargo-deny = "\(.*\)"/\1/p' mobile/gradle/libs.versions.toml)
+          if [ "$(cargo deny --version 2>/dev/null | awk '{print $2}')" != "$version" ]; then
+            cargo install cargo-deny --locked --force --version "$version"
+          fi
+
+      # Rust needs no step: at the first cargo call, rustup installs what core/rust-toolchain.toml fixes.
+      - name: Check the advisories
+        if: steps.diff.outputs.crates == 'true'
+        working-directory: core
+        run: cargo deny --workspace --locked check advisories

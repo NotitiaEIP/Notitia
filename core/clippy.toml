@@ -1,3 +1,23 @@
 allow-unwrap-in-tests = true
 allow-expect-in-tests = true
 allow-panic-in-tests = true
+
+# The rules of the core that the compiler holds in place of a reviewer (docs/adr/0009-garde-fous.md). Nothing leaves
+# the device (product rule 1): no socket and no name looked up, as deny.toml refuses the crates that would.
+disallowed-types = [
+    { path = "std::net::TcpListener", reason = "the core never talks to the network (product rule 1)" },
+    { path = "std::net::TcpStream", reason = "the core never talks to the network (product rule 1)" },
+    { path = "std::net::UdpSocket", reason = "the core never talks to the network (product rule 1)" },
+    { path = "std::process::Command", reason = "the core starts no program: one could talk to the network for it" },
+]
+disallowed-methods = [
+    { path = "std::net::ToSocketAddrs::to_socket_addrs", reason = "a name looked up leaves the device" },
+    # A panic is caught at the edge of the core, an exit is not: the app would close with the meeting it records.
+    { path = "std::process::abort", reason = "the core never ends the app" },
+    { path = "std::process::exit", reason = "the core never ends the app" },
+    # The time is handed to the rules, never read by them: a test sets it, and the time zone is the app's to give.
+    { path = "std::time::Instant::now", reason = "the clock of the core is handed to it" },
+    { path = "std::time::SystemTime::now", reason = "the clock of the core is handed to it" },
+    { path = "time::OffsetDateTime::now_utc", reason = "the clock of the core is handed to it" },
+    { path = "time::UtcDateTime::now", reason = "the clock of the core is handed to it" },
+]

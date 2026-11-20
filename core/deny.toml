@@ -1,0 +1,80 @@
+# What a crate must be to enter the core (docs/adr/0009-garde-fous.md). ./notitia check runs bans, licenses and
+# sources, which depend on this file and Cargo.lock alone; the advisories, which change every day, run in the CI
+# when Cargo.lock changes, and every Monday. Always with --workspace: otherwise the core alone is checked, not the
+# bridge.
+
+[graph]
+# The features of an engine (T-83) are checked before anyone turns them on.
+all-features = true
+# The tool that writes the Kotlin and the Swift of the bridge runs on the machine that builds, and ships in no app.
+exclude = ["uniffi-bindgen"]
+
+[licenses]
+# A policy rather than a list of what is used today: a crate under any of these may enter without a pull request here.
+allow = ["Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "MIT", "Unicode-3.0", "Zlib"]
+unused-allowed-license = "allow"
+# UniFFI, the bridge of the phones (ADR 0002), and its crates alone. MPL-2.0 asks that a file of it we changed be
+# published: we change none.
+exceptions = [
+    { crate = "uniffi", allow = ["MPL-2.0"] },
+    { crate = "uniffi_core", allow = ["MPL-2.0"] },
+    { crate = "uniffi_internal_macros", allow = ["MPL-2.0"] },
+    { crate = "uniffi_macros", allow = ["MPL-2.0"] },
+    { crate = "uniffi_meta", allow = ["MPL-2.0"] },
+    { crate = "uniffi_pipeline", allow = ["MPL-2.0"] },
+]
+# Ours, never published.
+private = { ignore = true }
+
+[bans]
+# Twice the same crate is twice its code in the app.
+multiple-versions = "deny"
+wildcards = "deny"
+allow-wildcard-paths = true
+highlight = "all"
+skip = [{ crate = "syn:2", reason = "the macros of UniFFI: they run when the bridge is built, and ship in no app" }]
+deny = [
+    # Nothing leaves the device (product rule 1), and the core has no async runtime: no socket, no event loop, no
+    # HTTP, no TLS. The link between devices (E10) will bring its exception in a pull request of its own.
+    "async-std",
+    "attohttpc",
+    "curl",
+    "hyper",
+    "isahc",
+    "minreq",
+    "mio",
+    "native-tls",
+    "openssl",
+    "quinn",
+    "reqwest",
+    "rustls",
+    "smol",
+    "socket2",
+    "surf",
+    "tokio",
+    "tungstenite",
+    "ureq",
+    # No analytics nor crash report sees a meeting (product rule 1): a dump holds what the memory held.
+    "minidump-writer",
+    "opentelemetry",
+    "sentry",
+    { crate = "uniffi", wrappers = ["notitia-ffi"], reason = "the bridge of the phones alone speaks UniFFI" },
+]
+
+# The core never asks the system its time zone: the app gives its offset with each recording.
+[[bans.features]]
+crate = "time"
+deny = ["local-offset"]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+
+[advisories]
+# A version its author took back is replaced, as a flaw would be.
+yanked = "deny"
+# The crates we chose ourselves: a crate deeper down is its parent's to replace.
+unmaintained = "workspace"
+unsound = "all"
+# An advisory left aside names its id and why: { id = "RUSTSEC-…", reason = "…" }.
+ignore = []

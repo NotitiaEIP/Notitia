@@ -82,6 +82,7 @@ mod tests {
 
     use super::*;
     use crate::meeting::{Action, ActionId, ActionSource, Extra, MeetingId, Minutes, MinutesState, TranscriptLine};
+    use crate::testing::each_damaged;
 
     // Written by the Kotlin MeetingCodec of the app, version 1: the files a phone holds before the core.
     const BY_KOTLIN: &str = include_str!("../tests/fixtures/meeting-v1.notitia");
@@ -279,6 +280,19 @@ mod tests {
         assert_eq!(decode(without_version.as_bytes()), Err(DecodeError::NotAMeeting));
     }
 
+    // What is read is written back: a meeting the core read but could not write would be hidden from the app, and no
+    // change to it would last.
+    #[test]
+    fn a_damaged_file_is_refused_or_read_then_written_back_alike() {
+        let good = [BY_KOTLIN, BY_KOTLIN_RECORDING, BY_KOTLIN_REMINDER, VERSION_2].map(str::as_bytes);
+        each_damaged(&good, 3_000, |file| {
+            if let Ok(meeting) = decode(file) {
+                let written = encode(&meeting).expect("a meeting read is written back");
+                assert_eq!(decode(&written).as_ref(), Ok(&meeting));
+            }
+        });
+    }
+
     #[test]
     fn an_identifier_that_would_leave_the_folder_is_refused() {
         for file in [BY_KOTLIN, VERSION_2] {
@@ -293,6 +307,20 @@ mod tests {
     fn an_instant_read_with_an_offset_is_written_in_utc() {
         let in_paris = VERSION_2.replace("2026-11-10T09:30:00Z", "2026-11-10T10:30:00+01:00");
         assert_eq!(written(&read(&in_paris)), VERSION_2);
+    }
+
+    #[test]
+    fn an_instant_that_leaves_the_years_0_to_9999_in_utc_is_refused() {
+        // The first made the core panic as it opened the folder; the second was read, then could be neither
+        // written back nor told to the app.
+        for instant in ["9999-12-31T23:59:59-01:00", "0000-01-01T00:00:00+01:00"] {
+            let file = VERSION_2.replace("2026-11-10T09:30:00Z", instant);
+            assert_eq!(decode(file.as_bytes()), Err(DecodeError::NotAMeeting), "{instant}");
+        }
+        for instant in ["9999-12-31T23:59:59+01:00", "0000-01-01T00:00:00-01:00", "0000-01-01T00:00:00Z"] {
+            let meeting = read(&VERSION_2.replace("2026-11-10T09:30:00Z", instant));
+            assert_eq!(read(&written(&meeting)), meeting, "{instant}");
+        }
     }
 
     #[test]

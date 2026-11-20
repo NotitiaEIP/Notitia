@@ -36,7 +36,7 @@ Sous Windows, lance-la dans **Git Bash** (installé avec Git), pas dans PowerShe
    ```
 
 3. Installe Rust avec [rustup](https://rustup.rs) : le cœur de l'app est écrit en Rust, et Gradle le compile avec l'app.
-4. Lance `./notitia` et choisis « Diagnostiquer mon installation ». Pour chaque outil qui manque encore (`cargo-ndk`, le NDK), il donne la commande ou le menu qui l'installe.
+4. Lance `./notitia` et choisis « Diagnostiquer mon installation ». Pour chaque outil qui manque encore (`cargo-ndk`, `cargo-deny`, le NDK), il donne la commande ou le menu qui l'installe.
 
 ### Activer le débogage USB (une fois par téléphone)
 

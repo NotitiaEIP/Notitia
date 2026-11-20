@@ -1,3 +1,7 @@
+// Memory is safe because the compiler checks it, with no exception: the core holds no unsafe code. The bridge of the
+// phones, which UniFFI writes, is a crate of its own.
+#![forbid(unsafe_code)]
+
 pub mod audio;
 pub mod format;
 pub mod library;
@@ -5,6 +9,8 @@ pub mod meeting;
 pub mod recorder;
 pub mod secret;
 pub mod session;
+#[cfg(test)]
+mod testing;
 
 // What an app calls: the phones through the bridge of ffi/, the computer directly. The modules stay open for the
 // measures of examples/, never for an app.

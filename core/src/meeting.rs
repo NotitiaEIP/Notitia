@@ -41,15 +41,19 @@ pub(crate) mod instant {
     use serde::de::Error as _;
     use serde::ser::Error as _;
     use serde::{Deserialize, Deserializer, Serializer};
-    use time::UtcDateTime;
     use time::format_description::well_known::Rfc3339;
+    use time::{OffsetDateTime, UtcDateTime};
 
     pub fn serialize<S: Serializer>(instant: &UtcDateTime, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(&instant.format(&Rfc3339).map_err(S::Error::custom)?)
     }
 
+    // Brought to UTC here: UtcDateTime::parse panics on an instant that leaves the years of time once in UTC. Only
+    // the years RFC 3339 writes, 0 to 9999, are kept, so what is read can always be written back.
     pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<UtcDateTime, D::Error> {
-        UtcDateTime::parse(&String::deserialize(deserializer)?, &Rfc3339).map_err(D::Error::custom)
+        let read = OffsetDateTime::parse(&String::deserialize(deserializer)?, &Rfc3339).map_err(D::Error::custom)?;
+        let utc = read.checked_to_utc().filter(|utc| (0..=9999).contains(&utc.year()));
+        utc.ok_or_else(|| D::Error::custom("the instant cannot be written in RFC 3339"))
     }
 }
 
