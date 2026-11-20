@@ -52,3 +52,15 @@ uniffi = "=0.32.2"
 unwrap_used = "deny"
 expect_used = "deny"
 panic = "deny"
+
+# Opus and the cipher of the audio are optimised even in debug: the tests of the core, and those of Kotlin through
+# the bridge built for the host, encode, seal and decode real sound, several times slower without it. The code of the
+# core itself stays in debug.
+[profile.dev.package.opus-rs]
+opt-level = 3
+
+[profile.dev.package.chacha20]
+opt-level = 3
+
+[profile.dev.package.poly1305]
+opt-level = 3

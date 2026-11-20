@@ -87,6 +87,7 @@ impl Decoder {
 mod tests {
     use super::*;
     use crate::audio::testing::{chord, likeness};
+    use crate::testing::each_damaged;
 
     // Made up, like every sound of these tests.
     fn noise(frames: usize) -> Vec<Frame> {
@@ -129,6 +130,23 @@ mod tests {
         // Its first byte announces two frames of one size, which the 59 bytes left cannot be.
         assert_eq!(decoder.decode(&[0b0100_1001; PACKET_BYTES]), Err(CodecError));
         assert!(decoder.decode(&encoder.encode(&chord(1)[0]).unwrap()).is_ok());
+    }
+
+    // The library is young: each version it moves to reads these again, and must neither hang nor fall.
+    #[test]
+    fn a_damaged_or_drawn_packet_is_refused_or_decoded() {
+        let mut encoder = Encoder::new().unwrap();
+        let packets: Vec<Packet> = chord(50).iter().map(|frame| encoder.encode(frame).unwrap()).collect();
+        let good: Vec<&[u8]> = packets.iter().map(|packet| packet.as_slice()).collect();
+        // One decoder for all of them, as a meeting is read: what it refused never stops the next packet.
+        let mut decoder = Decoder::new().unwrap();
+        each_damaged(&good, 3_000, |bytes| {
+            let mut packet = [0; PACKET_BYTES];
+            let length = bytes.len().min(PACKET_BYTES);
+            packet[..length].copy_from_slice(&bytes[..length]);
+            let _ = decoder.decode(&packet);
+        });
+        assert!(decoder.decode(&packets[0]).is_ok());
     }
 
     #[test]

@@ -138,6 +138,7 @@ mod tests {
     use crate::recorder::testing::sound;
     use crate::recorder::{Problem, Progress};
     use crate::secret::testing::key;
+    use crate::testing::each_damaged;
 
     // What the apps write and read of the recorder.
     const RECORDER: &str = include_str!("../tests/fixtures/bridge/recorder.json");
@@ -321,6 +322,18 @@ mod tests {
             let read = serde_json::from_value(change.clone()).unwrap();
             assert_eq!(Request::read(&change.to_string()), Some(Request::Meetings(read)));
         }
+    }
+
+    #[test]
+    fn a_damaged_request_is_refused_or_read() {
+        let recorder: Value = serde_json::from_str(RECORDER).unwrap();
+        let changes: Vec<Value> = serde_json::from_str(CHANGES).unwrap();
+        let requests = recorder["requests"].as_array().unwrap().iter().chain(&changes);
+        let texts: Vec<String> = requests.map(Value::to_string).collect();
+        let good: Vec<&[u8]> = texts.iter().map(String::as_bytes).collect();
+        each_damaged(&good, 2_000, |text| {
+            let _ = Request::read(&String::from_utf8_lossy(text));
+        });
     }
 
     #[test]

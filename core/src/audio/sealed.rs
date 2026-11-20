@@ -229,7 +229,9 @@ mod tests {
     use tempfile::TempDir;
 
     use super::*;
+    use crate::audio::testing::WITNESS;
     use crate::secret::testing::key;
+    use crate::testing::each_damaged;
 
     const ONE_TRACK: u64 = 3_041;
     const TWO_TRACKS: u64 = 6_041;
@@ -421,6 +423,54 @@ mod tests {
             assert_eq!(Reader::open(open(&path), &key(1)).err(), Some(AudioError::Unsupported));
             assert_eq!(Writer::open(open(&path), &key(1), 1).err(), Some(AudioError::Unsupported));
             assert_eq!(fs::read(&path).unwrap(), bytes);
+        }
+    }
+
+    #[test]
+    fn a_damaged_audio_is_refused_or_read() {
+        let (_folder, path) = folder();
+        each_damaged(&[WITNESS], 300, |file| {
+            fs::write(&path, file).unwrap();
+            if let Ok(mut reader) = Reader::open(open(&path), &key(1)) {
+                for second in 0..=reader.seconds {
+                    let _ = reader.second(second);
+                }
+            }
+            if let Ok(mut audio) = crate::audio::Reader::open(open(&path), &key(1)) {
+                let _ = audio.read(0, 3_000);
+            }
+            let _ = Writer::open(open(&path), &key(1), 2);
+        });
+    }
+
+    // What only the key could write, as a newer app might: a second sealed as it should be, holding anything. Bytes
+    // drawn at random never open, so only this reaches what reads a second once opened.
+    #[test]
+    fn a_damaged_second_sealed_by_the_key_is_refused_or_read() {
+        let (_folder, path) = folder();
+        fs::write(&path, WITNESS).unwrap();
+        let shape = Shape::of(&mut open(&path), &key(1)).unwrap();
+        let record = shape.record_bytes() as usize;
+        let opened: Vec<Vec<u8>> = (0..3)
+            .map(|second| {
+                let at = shape.place(second) as usize;
+                shape.seal.open(&shape.about(second), &WITNESS[at..at + record]).unwrap()
+            })
+            .collect();
+        let good: Vec<&[u8]> = opened.iter().map(Vec::as_slice).collect();
+        // In the middle, and last, where the frames it holds say how long the audio is.
+        for second in [1, 2] {
+            each_damaged(&good, 150, |clear| {
+                let mut clear = clear.to_vec();
+                clear.resize(record - SEAL_BYTES, 0);
+                let mut file = WITNESS.to_vec();
+                let at = shape.place(second) as usize;
+                file.splice(at..at + record, shape.seal.seal(&shape.about(second), &clear).unwrap());
+                fs::write(&path, &file).unwrap();
+                if let Ok(mut audio) = crate::audio::Reader::open(open(&path), &key(1)) {
+                    let _ = audio.read(second * 1_000, 1_000);
+                }
+            });
         }
     }
 

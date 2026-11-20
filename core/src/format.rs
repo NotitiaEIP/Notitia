@@ -82,6 +82,7 @@ mod tests {
 
     use super::*;
     use crate::meeting::{Action, ActionId, ActionSource, Extra, MeetingId, Minutes, MinutesState, TranscriptLine};
+    use crate::testing::each_damaged;
 
     // Written by the Kotlin MeetingCodec of the app, version 1: the files a phone holds before the core.
     const BY_KOTLIN: &str = include_str!("../tests/fixtures/meeting-v1.notitia");
@@ -277,6 +278,19 @@ mod tests {
         }
         let without_version = VERSION_2.replace("\"version\":2,", "");
         assert_eq!(decode(without_version.as_bytes()), Err(DecodeError::NotAMeeting));
+    }
+
+    // What is read is written back: a meeting the core read but could not write would be hidden from the app, and no
+    // change to it would last.
+    #[test]
+    fn a_damaged_file_is_refused_or_read_then_written_back_alike() {
+        let good = [BY_KOTLIN, BY_KOTLIN_RECORDING, BY_KOTLIN_REMINDER, VERSION_2].map(str::as_bytes);
+        each_damaged(&good, 3_000, |file| {
+            if let Ok(meeting) = decode(file) {
+                let written = encode(&meeting).expect("a meeting read is written back");
+                assert_eq!(decode(&written).as_ref(), Ok(&meeting));
+            }
+        });
     }
 
     #[test]

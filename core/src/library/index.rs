@@ -92,3 +92,28 @@ impl Index {
         self.meetings.len()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use time::macros::utc_datetime;
+
+    use super::*;
+    use crate::meeting::testing::meeting;
+    use crate::testing::each_damaged;
+
+    #[test]
+    fn a_damaged_index_is_thrown_away_or_written_back() {
+        let mut index = Index::read_at(utc_datetime!(2026-11-11 8:00));
+        for (named, size) in [("recorded-1", 1_200), ("sample-1", 900)] {
+            index.keep(Stat { size, modified: 1_794_300_000_000_000_000 }, meeting(named));
+        }
+        let good = index.encode().unwrap();
+        each_damaged(&[&good], 1_000, |file| {
+            if let Some(index) = Index::decode(file) {
+                let kept = index.len();
+                let written = index.encode().expect("an index read is written back");
+                assert_eq!(Index::decode(&written).map(|index| index.len()), Some(kept));
+            }
+        });
+    }
+}
