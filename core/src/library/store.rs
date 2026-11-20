@@ -185,8 +185,10 @@ fn audio_of(id: &MeetingId) -> String {
     format!("{}{AUDIO}", id.as_str())
 }
 
-// A new file is for its owner alone, as the folder is.
+// A new file is for its owner alone, as the folder is. Windows has no such mode: there the folder of the app sits in
+// its user's profile, closed to the other users.
 fn owned() -> OpenOptions {
+    #[cfg_attr(not(unix), expect(unused_mut))]
     let mut file = OpenOptions::new();
     #[cfg(unix)]
     std::os::unix::fs::OpenOptionsExt::mode(&mut file, 0o600);

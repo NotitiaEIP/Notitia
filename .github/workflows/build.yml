@@ -99,6 +99,32 @@ jobs:
         if: needs.changes.outputs.app != 'false'
         run: ./notitia check
 
+  # The core alone, as the computer app builds it, where files behave otherwise than on Linux: a disk blind to case,
+  # a file held open that cannot be replaced. Skipped like ios when mobile/ and core/ are untouched. No cache: the
+  # core builds in a minute, and the cache of the repo is kept for Gradle and Android.
+  core:
+    name: core (${{ matrix.os }})
+    needs: changes
+    if: ${{ github.repository_owner == 'NotitiaEIP' && !cancelled() && needs.changes.outputs.app != 'false' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - uses: actions/checkout@v5
+
+      # Rust needs no step: at the first cargo call, rustup installs what core/rust-toolchain.toml fixes.
+      - name: Lint the core
+        run: cargo clippy --locked -p notitia --all-targets -- -D warnings
+
+      - name: Test the core
+        run: cargo test --locked -p notitia
+
   # Skipped when mobile/ and core/ are untouched: a skipped job counts as passed for a required check.
   ios:
     name: ios

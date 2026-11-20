@@ -2,3 +2,5 @@
 notitia text eol=lf
 gradlew text eol=lf
 *.sh text eol=lf
+# The witnesses of a format are what an app wrote, byte for byte: never converted, on any system.
+core/tests/fixtures/** -text
