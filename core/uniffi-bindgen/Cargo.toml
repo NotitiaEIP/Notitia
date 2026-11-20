@@ -1,9 +1,12 @@
 [package]
 name = "uniffi-bindgen"
-version = "0.1.0"
-edition = "2024"
-publish = false
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
 
 # Apart from the core, so the command-line tools of UniFFI never ship in an app.
 [dependencies]
-uniffi = { version = "=0.32.2", features = ["cli"] }
+uniffi = { workspace = true, features = ["cli"] }
+
+[lints]
+workspace = true
