@@ -17,10 +17,19 @@ impl fmt::Display for InvalidId {
 
 impl std::error::Error for InvalidId {}
 
-// An identifier names a file, and a file may come from another device: nothing in it can lead out of the folder.
+// An identifier names a file, and a file may come from another device: nothing in it can lead out of the folder,
+// and it names the same file on every system. Windows and macOS read `A` as `a`, so two identifiers that differ by
+// case alone would share one file there.
 fn checked(text: String) -> Result<String, InvalidId> {
-    let allowed = |c: char| c.is_ascii_alphanumeric() || c == '-' || c == '_';
-    if text.is_empty() || text.len() > LONGEST || !text.chars().all(allowed) { Err(InvalidId) } else { Ok(text) }
+    let allowed = |c: char| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_';
+    let named = !text.is_empty() && text.len() <= LONGEST && text.chars().all(allowed);
+    if named && !device(&text) { Ok(text) } else { Err(InvalidId) }
+}
+
+// Kept by Windows for its devices whatever follows them: `con.notitia` is the console there, not a file.
+fn device(text: &str) -> bool {
+    matches!(text, "con" | "prn" | "aux" | "nul")
+        || matches!(text.as_bytes(), [b'c', b'o', b'm', digit] | [b'l', b'p', b't', digit] if digit.is_ascii_digit())
 }
 
 // Two types rather than one: the compiler then refuses an action's identifier where a meeting's is expected.
@@ -95,6 +104,18 @@ mod tests {
         }
         assert!(MeetingId::new("a".repeat(LONGEST)).is_ok());
         assert_eq!(MeetingId::new("a".repeat(LONGEST + 1)), Err(InvalidId));
+    }
+
+    #[test]
+    fn an_identifier_names_the_same_file_on_every_system() {
+        let uppercase = ["Recorded-1", "ABC", "6F1C2D3E-4A5B-4C6D-8E7F-0A1B2C3D4E5F"];
+        let devices = ["con", "prn", "aux", "nul", "com0", "com9", "lpt1", "lpt9"];
+        for id in uppercase.into_iter().chain(devices) {
+            assert_eq!(MeetingId::new(id), Err(InvalidId), "{id}");
+        }
+        for id in ["con-1", "com10", "comx", "lpt", "nul_", "console"] {
+            assert!(MeetingId::new(id).is_ok(), "{id}");
+        }
     }
 
     #[test]
