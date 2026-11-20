@@ -404,9 +404,9 @@ cmd_check() {
   # The quickest to fail first. --locked: a Cargo.lock that no longer matches Cargo.toml fails here, not in the CI.
   cargo_core fmt --check \
     || die "Le cœur Rust n'est pas formaté : lance cargo fmt dans core/, puis relance."
-  cargo_core clippy --locked --all-targets -- -D warnings \
+  cargo_core clippy --locked --workspace --all-targets -- -D warnings \
     || die "clippy relève un problème dans le cœur Rust : corrige-le (message au-dessus)."
-  cargo_core test --locked \
+  cargo_core test --locked --workspace \
     || die "Un test du cœur Rust échoue : corrige avant d'ouvrir la PR."
   gradle build \
     || die "Le build ou un test échoue : corrige avant d'ouvrir la PR."

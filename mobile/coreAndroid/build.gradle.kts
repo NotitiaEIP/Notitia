@@ -50,7 +50,8 @@ abstract class BuildCoreLibraries : CargoTask() {
     @TaskAction
     fun build() = cargo(
         mapOf("ANDROID_NDK_HOME" to ndk.get()),
-        "ndk", "-t", "arm64-v8a", "-t", "x86_64", "-o", libraries.get().asFile.path, "build", "--release",
+        "ndk", "-t", "arm64-v8a", "-t", "x86_64", "-o", libraries.get().asFile.path,
+        "build", "--release", "-p", "notitia-ffi",
     )
 }
 
@@ -68,7 +69,7 @@ abstract class BuildCoreForHost : CargoTask() {
     // Built where `cargo test` builds, so nothing compiles twice, then copied to a folder that is Gradle's own.
     @TaskAction
     fun build() {
-        cargo(emptyMap(), "build")
+        cargo(emptyMap(), "build", "-p", "notitia-ffi")
         files.sync {
             from(coreDirectory.dir("target/debug")) {
                 include("libnotitia_core.so", "libnotitia_core.dylib", "notitia_core.dll")
@@ -107,7 +108,11 @@ val cargoPath = providers.environmentVariable("CARGO_HOME")
     .orElse(providers.systemProperty("user.home").map { "$it/.cargo" })
     .map { home -> listOf("cargo", "cargo.exe").map { File(home, "bin/$it") }.firstOrNull { it.exists() }?.path ?: "cargo" }
 
-val coreSources = core.asFileTree.matching { include("src/**", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml") }
+// Every crate of the core, so one added later is never missed: a missed source would ship a stale library.
+val coreSources = core.asFileTree.matching {
+    include("**/src/**", "**/build.rs", "**/Cargo.toml", "Cargo.lock", "rust-toolchain.toml")
+    exclude("target/**", "uniffi-bindgen/**")
+}
 
 val buildCoreLibraries = tasks.register<BuildCoreLibraries>("buildCoreLibraries") {
     coreDirectory = core
@@ -135,7 +140,7 @@ val generateCoreBindings = tasks.register<GenerateCoreBindings>("generateCoreBin
     coreDirectory = core
     cargo = cargoPath
     libraries = buildCoreLibraries.flatMap { it.libraries }
-    generator.from(core.asFileTree.matching { include("uniffi.toml", "uniffi-bindgen/**") })
+    generator.from(core.asFileTree.matching { include("ffi/uniffi.toml", "uniffi-bindgen/**") })
 }
 
 androidComponents.onVariants { variant ->

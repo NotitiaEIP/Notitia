@@ -476,8 +476,8 @@ fn loudness(rms: f64) -> f32 {
     ((db - FLOOR_DB) / (LOUD_DB - FLOOR_DB)).clamp(0.0, 1.0) as f32
 }
 
-#[cfg(test)]
-pub(crate) mod testing {
+#[cfg(any(test, feature = "testing"))]
+pub mod testing {
     use std::f64::consts::TAU;
 
     use super::*;

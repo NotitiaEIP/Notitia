@@ -299,5 +299,8 @@ mod tests {
     fn a_date_the_format_cannot_hold_is_not_written() {
         let meeting = Meeting { started_at: utc_datetime!(-0001-01-01 0:00), ..sprint_review() };
         assert_eq!(encode(&meeting), Err(EncodeError));
+        // Nor handed to an app.
+        assert_eq!(meeting.json(), None);
+        assert!(sprint_review().json().is_some());
     }
 }

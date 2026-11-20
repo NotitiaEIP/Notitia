@@ -1,0 +1,23 @@
+[package]
+name = "notitia-ffi"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+# Named notitia_core: the apps load and link this name, and UniFFI draws the Swift module and the Kotlin file from it.
+# The iPhone asks for a static library instead, on the command line of mobile/iosApp/build-core.sh.
+[lib]
+name = "notitia_core"
+crate-type = ["cdylib"]
+
+[dependencies]
+notitia = { path = ".." }
+uniffi.workspace = true
+
+[dev-dependencies]
+notitia = { path = "..", features = ["testing"] }
+serde_json.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

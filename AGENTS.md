@@ -28,6 +28,7 @@ En cas de doute sur une de ces règles, arrête-toi et demande plutôt que devin
 ## Organisation du code
 
 - `core/` : le cœur Rust, sans écran. La logique y vit ou y part : format `.notitia`, stockage, enregistrement, transcription, compte rendu, recherche.
+- `core/ffi/` : le pont des téléphones, seule crate qui connaît UniFFI. L'app ordinateur appelle le cœur sans lui.
 - `mobile/coreAndroid/` : le cœur pour Android. Gradle y compile `core/` et y génère le Kotlin du pont : rien n'y est écrit à la main, et rien de généré n'est commité.
 - `mobile/shared/` : le code partagé entre Android et iOS. Dans `mobile/shared/src/` :
   - `commonMain` : les écrans, leur état, la mise en forme, et la logique qui n'est pas encore dans le cœur ;
