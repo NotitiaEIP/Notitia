@@ -5,6 +5,8 @@ pub mod meeting;
 pub mod recorder;
 pub mod secret;
 pub mod session;
+#[cfg(test)]
+mod testing;
 
 // What an app calls: the phones through the bridge of ffi/, the computer directly. The modules stay open for the
 // measures of examples/, never for an app.
