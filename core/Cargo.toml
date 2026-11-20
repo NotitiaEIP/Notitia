@@ -1,12 +1,8 @@
 [package]
-name = "notitia-core"
-version = "0.1.0"
-edition = "2024"
-publish = false
-
-[lib]
-# cdylib for Android, staticlib for the iPhone, lib for the tests.
-crate-type = ["lib", "cdylib", "staticlib"]
+name = "notitia"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
 
 [dependencies]
 # The cipher of what the core keeps, with getrandom, hkdf, sha2 and zeroize: only src/secret.rs knows the five.
@@ -17,23 +13,42 @@ hkdf = "0.13.0"
 opus-rs = "=0.1.42"
 serde = { version = "1.0.229", features = ["derive"] }
 # raw_value: the version of a file is read before the meeting it wraps is.
-serde_json = { version = "1.0.154", features = ["raw_value"] }
+serde_json = { workspace = true, features = ["raw_value"] }
 sha2 = { version = "0.11.1", default-features = false }
 time = { version = "0.3.55", features = ["formatting", "macros", "parsing"] }
-# Exact: UniFFI is not 1.0 yet, and its generated code must match the library it talks to.
-uniffi = "=0.32.2"
 uuid = { version = "1.29.2", features = ["v4"] }
 zeroize = "1.9.1"
 
 [dev-dependencies]
+tempfile.workspace = true
+
+# The helpers of the tests, opened to the tests of the bridge alone: no app ever builds with it.
+[features]
+testing = []
+
+[lints]
+workspace = true
+
+# What the crates of the core share, written once.
+[workspace]
+members = ["ffi", "uniffi-bindgen"]
+# So that cargo test and cargo clippy, run here, cover the bridge as well.
+default-members = [".", "ffi"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace.dependencies]
+serde_json = "1.0.154"
 tempfile = "3.27.0"
+# Exact: UniFFI is not 1.0 yet, and the code it generates must match the library it talks to: one line for both.
+uniffi = "=0.32.2"
 
 # A panic in the core takes the whole app down, through the bridge: a failure is a value instead. The tests keep
 # all three, see clippy.toml.
-[lints.clippy]
+[workspace.lints.clippy]
 unwrap_used = "deny"
 expect_used = "deny"
 panic = "deny"
-
-[workspace]
-members = ["uniffi-bindgen"]

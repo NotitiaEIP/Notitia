@@ -36,7 +36,7 @@ Une précision pour ne pas se tromper d'argument : Rust ne rend pas l'IA plus ra
 
 ## Le pont : comment une app appelle le cœur
 
-Kotlin et Swift ne savent pas appeler du Rust directement. [UniFFI](https://github.com/mozilla/uniffi-rs), l'outil de Mozilla qu'utilise Bitwarden, écrit le code de liaison à notre place.
+Kotlin et Swift ne savent pas appeler du Rust directement. [UniFFI](https://github.com/mozilla/uniffi-rs), l'outil de Mozilla qu'utilise Bitwarden, écrit le code de liaison à notre place. Ce pont vit dans sa propre crate, `core/ffi/` : le cœur ne connaît pas UniFFI, et l'app Windows et Linux l'appelle directement, en Rust.
 
 ![Le pont : comment chaque app appelle le cœur](../schemas/06-pont.svg)
 

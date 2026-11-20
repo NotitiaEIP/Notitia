@@ -41,6 +41,14 @@ pub enum Event<'a> {
     Library(&'a library::Event),
 }
 
+impl Event<'_> {
+    // The text an app receives, written here so that no app writes it on its own. None as for Meeting::json: an
+    // event may carry a meeting.
+    pub fn json(&self) -> Option<String> {
+        serde_json::to_string(self).ok()
+    }
+}
+
 // Called on the thread that asked for a change, or on the recorder's. It may read a meeting back, it must not ask
 // for anything, which would wait for itself.
 pub trait Listener: Send + Sync {
@@ -109,8 +117,8 @@ impl Session {
     }
 
     // Once the recorder has done all it was asked: its events are told by then.
-    #[cfg(test)]
-    pub(crate) fn settled(&self) {
+    #[cfg(any(test, feature = "testing"))]
+    pub fn settled(&self) {
         self.recorder.forget(&[]);
     }
 }
@@ -161,9 +169,9 @@ mod tests {
         }
     }
 
-    // As the bridge sends it: a level is written as the float it is, not widened.
+    // As every app receives it: a level is written as the float it is, not widened.
     fn as_text(event: &Event) -> Value {
-        serde_json::from_str(&serde_json::to_string(event).unwrap()).unwrap()
+        serde_json::from_str(&event.json().unwrap()).unwrap()
     }
 
     fn opened(folder: &TempDir) -> (Arc<App>, Session) {

@@ -484,7 +484,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "notitia-core"
+name = "notitia"
 version = "0.1.0"
 dependencies = [
  "chacha20poly1305",
@@ -496,9 +496,18 @@ dependencies = [
  "sha2",
  "tempfile",
  "time",
- "uniffi",
  "uuid",
  "zeroize",
+]
+
+[[package]]
+name = "notitia-ffi"
+version = "0.1.0"
+dependencies = [
+ "notitia",
+ "serde_json",
+ "tempfile",
+ "uniffi",
 ]
 
 [[package]]

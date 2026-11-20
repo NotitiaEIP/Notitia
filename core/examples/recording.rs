@@ -8,11 +8,11 @@ use std::sync::{Arc, Mutex, mpsc};
 use std::time::{Duration, Instant};
 use std::{env, fs};
 
-use notitia_core::audio::opus::{CodecError, Decoder, Encoder, PACKET_BYTES, Packet};
-use notitia_core::audio::{FRAME_SAMPLES, FRAMES_PER_SECOND, Frame, Reader, SAMPLE_RATE, sealed};
-use notitia_core::recorder::{Command, State};
-use notitia_core::secret::Key;
-use notitia_core::session::{Event, Listener, Request, Session};
+use notitia::audio::opus::{CodecError, Decoder, Encoder, PACKET_BYTES, Packet};
+use notitia::audio::{FRAME_SAMPLES, FRAMES_PER_SECOND, Frame, Reader, SAMPLE_RATE, sealed};
+use notitia::recorder::{Command, State};
+use notitia::secret::Key;
+use notitia::session::{Event, Listener, Request, Session};
 
 const HOUR: usize = 3_600 * FRAMES_PER_SECOND;
 const WITNESS: usize = 60 * FRAMES_PER_SECOND;

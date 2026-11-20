@@ -26,7 +26,7 @@ esac
 cd "$IOS_APP/../../core"
 
 # The static library alone: next to a dynamic one, the linker would pick the dynamic one, which the app does not embed.
-cargo rustc --release --target "$TARGET" --crate-type staticlib
+cargo rustc -p notitia-ffi --release --target "$TARGET" --crate-type staticlib
 
 mkdir -p "$OUT" "$GENERATED"
 cp "target/$TARGET/release/libnotitia_core.a" "$OUT/libnotitia_core.a"

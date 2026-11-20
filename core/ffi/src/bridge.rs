@@ -1,16 +1,12 @@
 use std::fmt;
 use std::sync::Arc;
 
-use crate::audio::AudioError;
-use crate::library::LibraryError;
-use crate::meeting::MeetingId;
-use crate::secret::Key;
-use crate::session::{self, Request, Session};
+use notitia::{AudioError, Event, Key, LibraryError, Listener, MeetingId, Request, Session};
 
-// The core as an app reaches it, and the only place that speaks to UniFFI. Text goes in and text comes out, the
-// JSON of requests, events and meetings; only the sound and the key of the app cross as bytes. A new request or a
-// new event touches neither RustCore.kt nor RustCore.swift, which are written by hand and, for Swift, compiled by
-// the CI alone.
+// The core as the phones reach it, and the only crate that speaks to UniFFI: the computer calls the core without it.
+// Text goes in and text comes out, the JSON of requests, events and meetings; only the sound and the key of the app
+// cross as bytes. A new request or a new event touches neither RustCore.kt nor RustCore.swift, which are written by
+// hand and, for Swift, compiled by the CI alone.
 #[derive(uniffi::Object)]
 pub struct Bridge {
     session: Session,
@@ -71,10 +67,9 @@ impl From<AudioError> for BridgeError {
 
 struct Told(Arc<dyn BridgeListener>);
 
-impl session::Listener for Told {
-    fn on_event(&self, event: &session::Event) {
-        // Fails only on a date outside the years 0 to 9999, which neither a file nor a change can bring in.
-        if let Ok(event) = serde_json::to_string(event) {
+impl Listener for Told {
+    fn on_event(&self, event: &Event) {
+        if let Some(event) = event.json() {
             self.0.on_event(event);
         }
     }
@@ -95,7 +90,7 @@ impl Bridge {
 
     // The whole meeting, lines included, as its file holds it.
     pub fn meeting(&self, id: String) -> Result<String, BridgeError> {
-        serde_json::to_string(&self.session.meeting(&named(id)?)?).map_err(|_| BridgeError::Unreadable)
+        self.session.meeting(&named(id)?)?.json().ok_or(BridgeError::Unreadable)
     }
 
     // Says nothing back but a text it cannot read: what changed, and a file that could not be written, come as
@@ -129,11 +124,11 @@ mod tests {
     use std::fs;
     use std::sync::Mutex;
 
+    use notitia::recorder::testing::sound;
     use serde_json::{Value, json};
     use tempfile::TempDir;
 
     use super::*;
-    use crate::recorder::testing::sound;
 
     // The side of an app: each event as it crossed.
     #[derive(Default)]

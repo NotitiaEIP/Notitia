@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Statut | Proposée le 16 novembre 2026, acceptée à la fusion de sa PR |
+| Statut | Proposée le 16 novembre 2026, acceptée à la fusion de sa PR. Règle 6 remplacée par l'[ADR 0008](0008-identifiants.md) le 20 novembre 2026 |
 | Proposée par | Clément |
 | Relue par | Alexandre |
 | Tâche d'origine | T-73 (#225), première étape de T-57 (#188) |

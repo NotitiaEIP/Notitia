@@ -7,8 +7,8 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 use std::{fs, thread};
 
-use notitia_core::library::{Event, Library, Listener};
-use notitia_core::meeting::{
+use notitia::library::{Event, Library, Listener};
+use notitia::meeting::{
     ActionDraft, ActionSource, Change, Edit, Extra, InvalidId, MeetingId, MinutesDraft, TranscriptLine,
 };
 use time::macros::utc_datetime;

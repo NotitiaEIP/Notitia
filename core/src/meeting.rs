@@ -60,12 +60,12 @@ pub(crate) mod instant {
 ///
 /// ```
 /// fn exists<T>() {}
-/// exists::<notitia_core::meeting::Meeting>();
+/// exists::<notitia::meeting::Meeting>();
 /// ```
 ///
 /// ```compile_fail
 /// fn printable<T: std::fmt::Debug>() {}
-/// printable::<notitia_core::meeting::Meeting>();
+/// printable::<notitia::meeting::Meeting>();
 /// ```
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(test, derive(Debug))]
@@ -96,6 +96,14 @@ pub struct Meeting {
     pub transcript: Vec<TranscriptLine>,
     #[serde(flatten)]
     pub extra: Extra,
+}
+
+impl Meeting {
+    // The text an app receives, written here so that no app writes it on its own. None only for a date outside the
+    // years 0 to 9999, which neither a file nor a change can bring in.
+    pub fn json(&self) -> Option<String> {
+        serde_json::to_string(self).ok()
+    }
 }
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
