@@ -245,7 +245,7 @@ fn latest_first(a: &Meeting, b: &Meeting) -> Ordering {
 }
 
 // A listener of the app that panics must not lock the meetings away: nothing is left half changed under a lock.
-fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+pub(crate) fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 

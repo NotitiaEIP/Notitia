@@ -1,0 +1,24 @@
+{
+  "offer": [
+    {"kind":"speech","name":"gateway-transcribe","remote":true,"longestMs":30000},
+    {"kind":"speech","name":"speech-analyzer","remote":false,"longestMs":600000},
+    {"kind":"text","name":"gemini-nano","remote":false,"contextTokens":4096,"replyTokens":1024},
+    {"kind":"embedding","name":"gateway-embed","remote":true}
+  ],
+  "requests": [
+    {"type":"transcribe","language":"fr","previous":"Bonjour à tous."},
+    {"type":"complete","system":"Tu écris des comptes rendus.","prompt":"Bonjour à tous.","replyTokens":1024},
+    {"type":"embed","texts":["la démo","le budget"]}
+  ],
+  "replies": [
+    {"type":"heard","segments":[{"fromMs":0,"toMs":1200,"text":"On commence."},{"fromMs":1200,"toMs":1900,"text":"La démo d'abord."}]},
+    {"type":"written","text":"SUMMARY: Point sur la démo."},
+    {"type":"embedded","vectors":[[0.6,0.8],[1.0,0.0]]},
+    {"type":"unavailable"},
+    {"type":"failed"}
+  ],
+  "events": [
+    {"type":"engines","speech":[],"text":[],"embedding":[]},
+    {"type":"engines","speech":[{"name":"speech-analyzer","remote":false},{"name":"gateway-transcribe","remote":true}],"text":[{"name":"gemini-nano","remote":false}],"embedding":[{"name":"gateway-embed","remote":true}]}
+  ]
+}

@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 pub mod audio;
+pub mod engine;
 pub mod format;
 pub mod library;
 pub mod meeting;
@@ -15,6 +16,7 @@ mod testing;
 // What an app calls: the phones through the bridge of ffi/, the computer directly. The modules stay open for the
 // measures of examples/, never for an app.
 pub use audio::AudioError;
+pub use engine::lent::{Lender, Offer};
 pub use library::LibraryError;
 pub use meeting::MeetingId;
 pub use secret::Key;

@@ -1,10 +1,12 @@
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 
 use crate::audio::AudioError;
-use crate::library::{self, Library, LibraryError};
+use crate::engine::Catalogue;
+use crate::engine::lent::{Lender, Offer};
+use crate::library::{self, Library, LibraryError, lock};
 use crate::meeting::{Change, Meeting, MeetingId};
 use crate::recorder::{Command, Recorder, State};
 use crate::secret::Key;
@@ -36,6 +38,8 @@ impl Request {
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Event<'a> {
     Recorder(&'a State),
+    // Each kind, the chosen engine first: once the meetings are listed, and again at each offer.
+    Engines(&'a Catalogue),
     // Already tagged with its own kind.
     #[serde(untagged)]
     Library(&'a library::Event),
@@ -66,6 +70,12 @@ impl library::Listener for Relay {
 pub struct Session {
     recorder: Recorder,
     library: Arc<Library>,
+    // Replaced whole, never changed: a call already under way keeps the engines it started with. Never held while the
+    // app is told, so anyone may read the engines from any thread.
+    engines: Mutex<Arc<Catalogue>>,
+    // Held while an offer takes effect and is told: two offers from two threads are told in the order they hold.
+    offering: Mutex<()>,
+    listener: Arc<dyn Listener>,
 }
 
 impl Session {
@@ -76,10 +86,26 @@ impl Session {
         listener: Arc<dyn Listener>,
     ) -> Result<Self, LibraryError> {
         let library = Arc::new(Library::open(directory, key, Arc::new(Relay(listener.clone())))?);
-        let tell = move |state: &State| listener.on_event(&Event::Recorder(state));
+        let told = listener.clone();
+        let tell = move |state: &State| told.on_event(&Event::Recorder(state));
         // A system that cannot give a thread cannot keep a meeting either.
         let recorder = Recorder::spawn(library.clone(), tell).map_err(|_| LibraryError::Unreadable)?;
-        Ok(Self { recorder, library })
+        let engines = Arc::<Catalogue>::default();
+        listener.on_event(&Event::Engines(&engines));
+        Ok(Self { recorder, library, engines: Mutex::new(engines), offering: Mutex::default(), listener })
+    }
+
+    // The engines of the app, in place of those it offered before.
+    pub fn offer(&self, offer: Offer, lender: Arc<dyn Lender>) {
+        let catalogue = Arc::new(offer.lend(&lender));
+        let _told = lock(&self.offering);
+        *lock(&self.engines) = catalogue.clone();
+        self.listener.on_event(&Event::Engines(&catalogue));
+    }
+
+    // The engines as they are now: they stay as they are for whoever holds them.
+    pub fn engines(&self) -> Arc<Catalogue> {
+        lock(&self.engines).clone()
     }
 
     // Says nothing back: what changed comes as events.
@@ -134,6 +160,7 @@ mod tests {
 
     use super::*;
     use crate::audio::{FRAME_SAMPLES, FRAMES_PER_SECOND};
+    use crate::engine::lent::testing::App as Engines;
     use crate::meeting::testing::id;
     use crate::recorder::testing::sound;
     use crate::recorder::{Problem, Progress};
@@ -143,6 +170,7 @@ mod tests {
     // What the apps write and read of the recorder.
     const RECORDER: &str = include_str!("../tests/fixtures/bridge/recorder.json");
     const CHANGES: &str = include_str!("../tests/fixtures/bridge/changes.json");
+    const ENGINES: &str = include_str!("../tests/fixtures/bridge/engines.json");
 
     // The side of an app: each event as it crossed.
     #[derive(Default)]
@@ -197,6 +225,123 @@ mod tests {
     fn a_session_is_shared_by_the_threads_of_an_app() {
         fn shared<T: Send + Sync>() {}
         shared::<Session>();
+    }
+
+    fn offered(names: &[&str]) -> Offer {
+        let engines: Vec<Value> = names
+            .iter()
+            .map(|name| serde_json::json!({"kind": "speech", "name": name, "remote": false, "longestMs": 30_000}))
+            .collect();
+        Offer::read(&Value::Array(engines).to_string()).unwrap()
+    }
+
+    fn chosen(session: &Session) -> Option<String> {
+        session.engines().speech().map(|engine| engine.about().name.clone())
+    }
+
+    #[test]
+    fn the_engines_are_told_once_the_meetings_are_listed_then_at_each_offer() {
+        let fixture: Value = serde_json::from_str(ENGINES).unwrap();
+        let folder = tempfile::tempdir().unwrap();
+        let (app, session) = opened(&folder);
+        let kinds: Vec<Value> = app.told().iter().map(|event| event["type"].clone()).collect();
+        assert_eq!(kinds, ["listed", "engines"]);
+        assert_eq!(app.told()[1], fixture["events"][0]);
+        assert!(session.engines().speech().is_none());
+
+        let offer = Offer::read(&fixture["offer"].to_string()).unwrap();
+        session.offer(offer, Engines::answering(&[]));
+        assert_eq!(app.told().last(), Some(&fixture["events"][1]));
+        assert_eq!(chosen(&session).as_deref(), Some("speech-analyzer"));
+        session.offer(Offer::read("[]").unwrap(), Engines::answering(&[]));
+        assert_eq!(app.told().last(), Some(&fixture["events"][0]));
+        assert!(session.engines().speech().is_none());
+    }
+
+    #[test]
+    fn an_offer_replaces_the_engines_whole_and_a_call_keeps_those_it_started_with() {
+        let folder = tempfile::tempdir().unwrap();
+        let (_, session) = opened(&folder);
+        session.offer(offered(&["a", "b"]), Engines::answering(&[]));
+        let held = session.engines();
+        session.offer(offered(&["c"]), Engines::answering(&[]));
+        assert_eq!(chosen(&session).as_deref(), Some("c"));
+        let told = serde_json::to_value(&*session.engines()).unwrap();
+        assert_eq!(told["speech"], serde_json::json!([{"name": "c", "remote": false}]));
+        assert_eq!(held.speech().map(|engine| engine.about().name.as_str()), Some("a"));
+    }
+
+    #[test]
+    fn the_last_engines_told_are_those_that_hold_whatever_the_threads() {
+        let folder = tempfile::tempdir().unwrap();
+        let (app, session) = opened(&folder);
+        let session = Arc::new(session);
+        let threads: Vec<_> = ["a", "b", "c", "d"]
+            .into_iter()
+            .map(|name| {
+                let session = session.clone();
+                std::thread::spawn(move || {
+                    for _ in 0..200 {
+                        session.offer(offered(&[name]), Engines::answering(&[]));
+                    }
+                })
+            })
+            .collect();
+        threads.into_iter().for_each(|thread| thread.join().unwrap());
+        let last = app.told().into_iter().rev().find(|event| event["type"] == "engines").unwrap();
+        assert_eq!(last["speech"][0]["name"].as_str().map(str::to_owned), chosen(&session));
+    }
+
+    // Hands each engines event to another thread, which reads the engines back, and waits for it: as an app that
+    // posts to its main thread and waits would.
+    #[derive(Default)]
+    struct Handing {
+        session: std::sync::OnceLock<Arc<Session>>,
+        read: Mutex<Vec<Option<String>>>,
+    }
+
+    impl Listener for Handing {
+        fn on_event(&self, event: &Event) {
+            let (Event::Engines(_), Some(session)) = (event, self.session.get().cloned()) else {
+                return;
+            };
+            let (sent, read) = std::sync::mpsc::channel();
+            std::thread::spawn(move || sent.send(chosen(&session)));
+            let read = read.recv_timeout(std::time::Duration::from_secs(5)).expect("the engines are held while told");
+            self.read.lock().unwrap().push(read);
+        }
+    }
+
+    #[test]
+    fn the_engines_told_can_be_read_back_from_any_thread() {
+        let folder = tempfile::tempdir().unwrap();
+        let app = Arc::new(Handing::default());
+        let session = Arc::new(Session::open(folder.path(), Some(key(1)), app.clone()).unwrap());
+        app.session.set(session.clone()).ok().unwrap();
+        session.offer(offered(&["a"]), Engines::answering(&[]));
+        assert_eq!(*app.read.lock().unwrap(), [Some("a".to_owned())]);
+    }
+
+    // Panics on the engines, as a faulty app would: the engines it was told stay those of the core.
+    struct Faulty;
+
+    impl Listener for Faulty {
+        fn on_event(&self, event: &Event) {
+            if matches!(event, Event::Engines(catalogue) if catalogue.speech().is_some()) {
+                panic!("a faulty listener");
+            }
+        }
+    }
+
+    #[test]
+    fn a_listener_that_panics_leaves_the_engines_it_was_told() {
+        let folder = tempfile::tempdir().unwrap();
+        let session = Session::open(folder.path(), Some(key(1)), Arc::new(Faulty)).unwrap();
+        let offer = || session.offer(offered(&["a"]), Engines::answering(&[]));
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(offer)).is_err());
+        assert_eq!(chosen(&session).as_deref(), Some("a"));
+        session.offer(Offer::read("[]").unwrap(), Engines::answering(&[]));
+        assert_eq!(chosen(&session), None);
     }
 
     #[test]

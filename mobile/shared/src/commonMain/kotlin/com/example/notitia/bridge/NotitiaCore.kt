@@ -22,6 +22,30 @@ interface NotitiaCore {
 
     // The sound of a meeting in the same shape, ready to play: a minute at most per call.
     fun sound(id: String, fromMs: Long, lengthMs: Long): CoreSound
+
+    // Every engine this app can run now, in JSON, in place of those offered before (core/src/engine/lent.rs): the
+    // core tells which it chose as an event. Invalid for an offer it would have to correct. Both holders hand the core
+    // the engines through neverThrowing.
+    fun offer(offered: String, engines: CoreEngines): CoreFailure?
+}
+
+// Runs an engine of this app for the core, on a thread of the core: it blocks until the engine is done. The request
+// and the reply are JSON, the sound 16-bit little-endian at 16 kHz. A failure is a reply.
+fun interface CoreEngines {
+    fun run(engine: String, request: String, sound: ByteArray): String
+}
+
+internal const val ENGINE_FAILED = """{"type":"failed"}"""
+
+// An engine that throws, a gateway out of reach say, answers that it failed: UniFFI would turn the exception into a
+// panic of the core, and on the iPhone it would end the app on its way through Swift. A function, not an extension,
+// so Swift calls it as plainly as Kotlin.
+fun neverThrowing(engines: CoreEngines): CoreEngines = CoreEngines { engine, request, sound ->
+    try {
+        engines.run(engine, request, sound)
+    } catch (_: Exception) {
+        ENGINE_FAILED
+    }
 }
 
 // The key of the app, as the core takes it (core/src/secret.rs).
