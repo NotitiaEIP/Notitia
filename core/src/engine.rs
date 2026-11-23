@@ -3,6 +3,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::{Serialize, Serializer};
 
+pub mod lent;
+
 // What the core asks of a model, and nothing of how or where it runs: compiled into the core, lent by the app (the
 // gateway, Gemini Nano, Apple's), or trained by the team. The core picks one per kind of work. docs/adr/0010-moteurs.md.
 
