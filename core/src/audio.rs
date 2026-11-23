@@ -13,6 +13,7 @@ pub const SAMPLE_RATE: usize = 16_000;
 pub const FRAMES_PER_SECOND: usize = 50;
 pub const FRAME_SAMPLES: usize = SAMPLE_RATE / FRAMES_PER_SECOND;
 pub const FRAME_MS: u64 = 1_000 / FRAMES_PER_SECOND as u64;
+pub const SAMPLES_PER_MS: usize = SAMPLE_RATE / 1_000;
 
 pub type Frame = [i16; FRAME_SAMPLES];
 
@@ -118,7 +119,6 @@ impl Writer {
 
 // What a decoder must hear before a passage to give it back as it was recorded (RFC 7845): 80 ms.
 const WARM_UP: u64 = 4;
-const SAMPLES_PER_MS: u64 = SAMPLE_RATE as u64 / 1_000;
 
 pub struct Reader {
     sealed: sealed::Reader,
@@ -161,14 +161,25 @@ impl Reader {
             }
         }
         // A passage starts and ends where it was asked, not where a frame does.
-        let skipped = from_ms.saturating_sub(first * FRAME_MS) * SAMPLES_PER_MS;
-        let asked = until_ms.saturating_sub(from_ms) * SAMPLES_PER_MS;
+        let skipped = from_ms.saturating_sub(first * FRAME_MS) * SAMPLES_PER_MS as u64;
+        let asked = until_ms.saturating_sub(from_ms) * SAMPLES_PER_MS as u64;
         for heard in &mut heard {
             heard.drain(..(skipped as usize).min(heard.len()));
             heard.truncate(asked as usize);
         }
         Ok(heard)
     }
+}
+
+// As a player hears them: the tracks added together, held at full scale where they go past it. A track shorter than
+// the first adds nothing past its end.
+pub fn mix(tracks: Vec<Vec<i16>>) -> Vec<i16> {
+    let mut tracks = tracks.into_iter();
+    let first = tracks.next().unwrap_or_default();
+    tracks.fold(first, |mut mixed, track| {
+        mixed.iter_mut().zip(track).for_each(|(sample, added)| *sample = sample.saturating_add(added));
+        mixed
+    })
 }
 
 impl From<opus::CodecError> for AudioError {
@@ -258,7 +269,7 @@ mod tests {
         let whole = reader.read(0, 6_000).unwrap().remove(0);
         // From the middle of a frame, across two seconds, to the middle of another.
         let passage = reader.read(3_730, 1_505).unwrap().remove(0);
-        let (from, length) = (3_730 * SAMPLES_PER_MS as usize, 1_505 * SAMPLES_PER_MS as usize);
+        let (from, length) = (3_730 * SAMPLES_PER_MS, 1_505 * SAMPLES_PER_MS);
         assert_eq!(passage.len(), length);
         assert!(likeness(&whole[from..from + length], &passage) > 0.999);
     }
@@ -276,7 +287,7 @@ mod tests {
     #[test]
     fn nothing_is_read_past_the_end() {
         let (_folder, mut reader) = recorded(&[chord(60)]);
-        assert_eq!(reader.read(1_000, 5_000).unwrap()[0].len(), 200 * SAMPLES_PER_MS as usize);
+        assert_eq!(reader.read(1_000, 5_000).unwrap()[0].len(), 200 * SAMPLES_PER_MS);
         assert!(reader.read(1_200, 100).unwrap()[0].is_empty());
         assert!(reader.read(u64::MAX, u64::MAX).unwrap()[0].is_empty());
     }
@@ -308,6 +319,14 @@ mod tests {
         assert_eq!((reader.tracks(), reader.duration_ms()), (2, 2_500));
         let read = reader.read(0, 2_500).unwrap();
         assert!(alike(&chord(125), &read[0]) > 0.95 && alike(&notes(&[880.0], 125), &read[1]) > 0.95);
+    }
+
+    #[test]
+    fn the_tracks_are_mixed_as_a_player_hears_them() {
+        assert_eq!(mix(vec![]), Vec::<i16>::new());
+        assert_eq!(mix(vec![vec![1, -2, 3]]), vec![1, -2, 3]);
+        let loud = vec![30_000, -30_000, 100];
+        assert_eq!(mix(vec![loud.clone(), loud]), vec![i16::MAX, i16::MIN, 200]);
     }
 
     #[test]

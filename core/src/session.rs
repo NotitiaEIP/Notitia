@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 
-use crate::audio::AudioError;
+use crate::audio::{self, AudioError};
 use crate::engine::Catalogue;
 use crate::engine::lent::{Lender, Offer};
 use crate::library::{self, Library, LibraryError, lock};
@@ -131,15 +131,10 @@ impl Session {
         self.library.meeting(id)
     }
 
-    // Ready to play: one channel, the tracks added together. No app needs a track alone. Shorter than asked past
-    // SOUND_MS, as where the audio ends.
+    // Ready to play: one channel, the tracks mixed. No app needs a track alone. Shorter than asked past SOUND_MS, as
+    // where the audio ends.
     pub fn sound(&self, id: &MeetingId, from_ms: u64, length_ms: u64) -> Result<Vec<i16>, AudioError> {
-        let mut tracks = self.library.audio(id)?.read(from_ms, length_ms.min(SOUND_MS))?.into_iter();
-        let first = tracks.next().unwrap_or_default();
-        Ok(tracks.fold(first, |mut mixed, track| {
-            mixed.iter_mut().zip(track).for_each(|(sample, added)| *sample = sample.saturating_add(added));
-            mixed
-        }))
+        Ok(audio::mix(self.library.audio(id)?.read(from_ms, length_ms.min(SOUND_MS))?))
     }
 
     // Once the recorder has done all it was asked: its events are told by then.
