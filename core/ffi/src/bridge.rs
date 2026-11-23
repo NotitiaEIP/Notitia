@@ -1,7 +1,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use notitia::{AudioError, Event, Key, LibraryError, Listener, MeetingId, Request, Session};
+use notitia::{AudioError, Event, Key, Lender, LibraryError, Listener, MeetingId, Offer, Request, Session};
 
 // The core as the phones reach it, and the only crate that speaks to UniFFI: the computer calls the core without it.
 // Text goes in and text comes out, the JSON of requests, events and meetings; only the sound and the key of the app
@@ -19,6 +19,14 @@ pub trait BridgeListener: Send + Sync {
     fn on_event(&self, event: String);
 }
 
+// Engines held by the app, which the core asks in text (core/src/engine/lent.rs). Blocks until the engine is done,
+// on a thread of the core. It must never throw: UniFFI turns an exception thrown here into a panic of the core, so
+// both apps hand their engines through neverThrowing (NotitiaCore.kt).
+#[uniffi::export(with_foreign)]
+pub trait BridgeEngines: Send + Sync {
+    fn run(&self, engine: String, request: String, sound: Vec<u8>) -> String;
+}
+
 // Carries no text of a meeting: an error may end up in a log (product rule 1).
 #[derive(Debug, PartialEq, uniffi::Error)]
 pub enum BridgeError {
@@ -26,7 +34,7 @@ pub enum BridgeError {
     NotFound,
     // The folder, the file of the meeting or its audio.
     Unreadable,
-    // The text is not a request, or the key not 32 bytes: a fault of the app, never of its user.
+    // The text is not a request nor an offer, or the key not 32 bytes: a fault of the app, never of its user.
     Invalid,
 }
 
@@ -35,7 +43,7 @@ impl fmt::Display for BridgeError {
         f.write_str(match self {
             BridgeError::NotFound => "no meeting, or no audio, has this identifier",
             BridgeError::Unreadable => "the meetings or their audio cannot be read",
-            BridgeError::Invalid => "the text is not a request, or the key is not 32 bytes",
+            BridgeError::Invalid => "the text is not a request nor an offer, or the key is not 32 bytes",
         })
     }
 }
@@ -75,6 +83,14 @@ impl Listener for Told {
     }
 }
 
+struct Ran(Arc<dyn BridgeEngines>);
+
+impl Lender for Ran {
+    fn run(&self, engine: &str, request: &str, sound: Vec<u8>) -> String {
+        self.0.run(engine.to_owned(), request.to_owned(), sound)
+    }
+}
+
 #[uniffi::export]
 impl Bridge {
     // The key of the app is wiped once read. Without one the meetings open, but no audio is written nor read.
@@ -105,6 +121,13 @@ impl Bridge {
         self.session.hear(track, pcm);
     }
 
+    // Every engine the app can run now, in place of those it offered before: an engine more is a line more in the
+    // offer, not a function more here. The core tells which it chose as an event.
+    pub fn offer(&self, offered: String, engines: Arc<dyn BridgeEngines>) -> Result<(), BridgeError> {
+        self.session.offer(Offer::read(&offered).ok_or(BridgeError::Invalid)?, Arc::new(Ran(engines)));
+        Ok(())
+    }
+
     // As the microphone gives it, 16-bit little-endian at 16 kHz, ready to play: a minute at most per call.
     pub fn sound(&self, id: String, from_ms: u64, length_ms: u64) -> Result<Vec<u8>, BridgeError> {
         let samples = self.session.sound(&named(id)?, from_ms, length_ms)?;
@@ -124,6 +147,7 @@ mod tests {
     use std::fs;
     use std::sync::Mutex;
 
+    use notitia::engine::{Hint, Stop};
     use notitia::recorder::testing::sound;
     use serde_json::{Value, json};
     use tempfile::TempDir;
@@ -235,6 +259,42 @@ mod tests {
         bridge.session.settled();
         assert_eq!(app.last("recorder"), json!({"type": "recorder", "state": "failed", "problem": "storage"}));
         assert_eq!(app.told(), ["listed", "engines", "recorder"]);
+    }
+
+    // The side of an app that lends an engine: it hears every window as the same sentence.
+    struct Gateway(Mutex<Vec<(String, Value, usize)>>);
+
+    impl BridgeEngines for Gateway {
+        fn run(&self, engine: String, request: String, sound: Vec<u8>) -> String {
+            self.0.lock().unwrap().push((engine, serde_json::from_str(&request).unwrap(), sound.len()));
+            json!({"type": "heard", "segments": [{"fromMs": 0, "toMs": 900, "text": "Bonjour à tous."}]}).to_string()
+        }
+    }
+
+    #[test]
+    fn an_engine_of_the_app_is_offered_chosen_and_run_in_text() {
+        let (_folder, app, bridge) = opened();
+        let offer = json!([
+            {"kind": "speech", "name": "gateway-transcribe", "remote": true, "longestMs": 30_000},
+            {"kind": "speech", "name": "speech-analyzer", "remote": false, "longestMs": 600_000},
+        ]);
+        let gateway = Arc::new(Gateway(Mutex::new(Vec::new())));
+        bridge.offer(offer.to_string(), gateway.clone()).unwrap();
+        assert_eq!(app.last("engines")["speech"][0]["name"], "speech-analyzer");
+
+        let engines = bridge.session.engines();
+        let speech = engines.speech().unwrap();
+        let hint = Hint { language: "fr", previous: "" };
+        let segments = speech.transcribe(&[0; 16_000], &hint, &Stop::default()).unwrap();
+        assert_eq!((segments.len(), segments[0].to_ms, segments[0].text.as_str()), (1, 900, "Bonjour à tous."));
+        let asked = gateway.0.lock().unwrap().clone();
+        let request = json!({"type": "transcribe", "language": "fr", "previous": ""});
+        assert_eq!(asked, vec![("speech-analyzer".to_owned(), request, 32_000)]);
+
+        for wrong in ["", "{}", "[{\"kind\":\"speech\",\"name\":\"s\",\"remote\":false}]"] {
+            assert_eq!(bridge.offer(wrong.into(), gateway.clone()), Err(BridgeError::Invalid));
+        }
+        assert_eq!(app.last("engines")["speech"][0]["name"], "speech-analyzer");
     }
 
     // What an app might send by mistake, a byte at a time: an error, never a panic through the bridge.

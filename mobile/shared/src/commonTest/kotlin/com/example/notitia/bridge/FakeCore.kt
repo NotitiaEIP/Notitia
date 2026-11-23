@@ -97,6 +97,12 @@ internal open class FakeCore(vararg stored: Meeting, private val opens: Boolean 
         return CoreSound(pcm.copyOfRange(from, until), failure = null)
     }
 
+    // Which engine the core chooses is tested in Rust, where the rule lives.
+    override fun offer(offered: String, engines: CoreEngines): CoreFailure? {
+        outsideTheListener()
+        return null
+    }
+
     fun tell(event: CoreEvent) = tell(CoreJson.encodeToString(CoreEvent.serializer(), event))
 
     fun tell(event: String) {

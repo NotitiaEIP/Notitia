@@ -19,6 +19,7 @@ class RustCoreTest {
         assertEquals(CoreFailure.Broken, closed.meeting("recorded-1").failure)
         assertEquals(CoreFailure.Broken, closed.apply("{}"))
         assertEquals(CoreFailure.Broken, closed.sound("recorded-1", fromMs = 0, lengthMs = 1_000).failure)
+        assertEquals(CoreFailure.Broken, closed.offer("[]") { _, _, _ -> ENGINE_FAILED })
         // The microphone's thread gets nothing back, not even an exception.
         closed.hear(0, ByteArray(3_200))
     }

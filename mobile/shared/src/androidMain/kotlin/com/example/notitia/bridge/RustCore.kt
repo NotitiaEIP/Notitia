@@ -1,6 +1,7 @@
 package com.example.notitia.bridge
 
 import com.example.notitia.core.Bridge
+import com.example.notitia.core.BridgeEngines
 import com.example.notitia.core.BridgeException
 import com.example.notitia.core.BridgeListener
 import com.example.notitia.core.InternalException
@@ -39,6 +40,19 @@ class RustCore : NotitiaCore {
     override fun sound(id: String, fromMs: Long, lengthMs: Long): CoreSound =
         opened { it.sound(id, fromMs.coerceAtLeast(0).toULong(), lengthMs.coerceAtLeast(0).toULong()) }
             .let { CoreSound(it.value, it.failure) }
+
+    override fun offer(offered: String, engines: CoreEngines): CoreFailure? {
+        val guarded = neverThrowing(engines)
+        return opened {
+            it.offer(
+                offered,
+                object : BridgeEngines {
+                    override fun run(engine: String, request: String, sound: ByteArray) =
+                        guarded.run(engine, request, sound)
+                },
+            )
+        }.failure
+    }
 
     private class Answer<T>(val value: T?, val failure: CoreFailure?)
 

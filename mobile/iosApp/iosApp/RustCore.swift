@@ -71,6 +71,18 @@ final class RustCore: NSObject, Shared.NotitiaCore {
         }
     }
 
+    func offer(offered: String, engines: Shared.CoreEngines) -> Shared.CoreFailure? {
+        guard let bridge = bridge else {
+            return .broken
+        }
+        do {
+            try bridge.offer(offered: offered, engines: EnginesAdapter(NotitiaCoreKt.neverThrowing(engines: engines)))
+            return nil
+        } catch {
+            return failure(of: error)
+        }
+    }
+
     // Anything but a BridgeError is a fault of the bridge itself: a panic of the core, say.
     private func failure(of error: Error) -> Shared.CoreFailure {
         guard let error = error as? BridgeError else {
@@ -95,5 +107,19 @@ private final class ListenerAdapter: BridgeListener, @unchecked Sendable {
 
     func onEvent(event: String) {
         listener.onEvent(event: event)
+    }
+}
+
+// Rust calls it on a thread of the core, and waits for the reply. Unchecked: the Kotlin object behind it may be called
+// from any thread, and neverThrowing keeps any exception on the Kotlin side.
+private final class EnginesAdapter: BridgeEngines, @unchecked Sendable {
+    private let engines: Shared.CoreEngines
+
+    init(_ engines: Shared.CoreEngines) {
+        self.engines = engines
+    }
+
+    func run(engine: String, request: String, sound: Data) -> String {
+        engines.run(engine: engine, request: request, sound: CoreBytesKt.bytes(data: sound))
     }
 }
