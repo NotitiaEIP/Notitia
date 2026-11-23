@@ -2,6 +2,9 @@
 // transcript. docs/adr/0011-fenetres.md.
 
 pub mod voice;
+pub mod windows;
+
+pub use windows::{Next, Window, Windows};
 
 // Made up, like every sound of the tests: no meeting was recorded for them.
 #[cfg(test)]
