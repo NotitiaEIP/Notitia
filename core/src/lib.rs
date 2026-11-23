@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 pub mod audio;
+pub mod engine;
 pub mod format;
 pub mod library;
 pub mod meeting;
