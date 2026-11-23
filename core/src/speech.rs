@@ -1,9 +1,11 @@
 // The audio of a meeting cut into windows a speech engine takes, and what the engine heard made into lines of the
 // transcript. docs/adr/0011-fenetres.md.
 
+pub mod text;
 pub mod voice;
 pub mod windows;
 
+pub use text::lines;
 pub use windows::{Next, Window, Windows};
 
 // Made up, like every sound of the tests: no meeting was recorded for them.
