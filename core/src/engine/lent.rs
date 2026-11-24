@@ -4,8 +4,8 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    About, Catalogue, EmbeddingEngine, Engine, EngineError, Hint, LONGEST_MS, SHORTEST_MS, Segment, SpeechEngine, Stop,
-    TextEngine, Window,
+    About, Catalogue, EmbeddingEngine, Engine, EngineError, Hint, LONGEST_MS, SHORTEST_MS, SHORTEST_PROMPT, Segment,
+    SpeechEngine, Stop, TextEngine, Window,
 };
 use crate::audio::SAMPLES_PER_MS;
 
@@ -49,7 +49,10 @@ impl Offered {
         named
             && match self {
                 Offered::Speech { longest_ms, .. } => (SHORTEST_MS..=LONGEST_MS).contains(longest_ms),
-                Offered::Text { context_tokens, reply_tokens, .. } => (1..*context_tokens).contains(reply_tokens),
+                Offered::Text { context_tokens, reply_tokens, .. } => {
+                    *reply_tokens > 0
+                        && context_tokens.checked_sub(*reply_tokens).is_some_and(|room| room >= SHORTEST_PROMPT)
+                }
                 Offered::Embedding { .. } => true,
             }
     }
@@ -507,13 +510,16 @@ mod tests {
             json!([text(4_096, 0)]),
             json!([text(1_024, 1_024)]),
             json!([text(0, 0)]),
+            json!([text(2_047, 1_024)]),
+            json!([text(1_023, 1)]),
         ];
         for offer in refused {
             assert!(Offer::read(&offer.to_string()).is_none(), "{offer}");
         }
         let held = [
             json!([]),
-            json!([speech(&"é".repeat(64), 1_000), speech("s", 600_000), text(2, 1)]),
+            json!([speech(&"é".repeat(64), 1_000), speech("s", 600_000), text(2_048, 1_024)]),
+            json!([text(1_025, 1)]),
             json!([{"kind": "embedding", "name": "e", "remote": true, "dimension": 384}]),
         ];
         for offer in held {

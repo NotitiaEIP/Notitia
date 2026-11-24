@@ -7,36 +7,69 @@ use std::thread::{self, JoinHandle};
 use crate::audio::AudioError;
 use crate::engine::{Catalogue, EngineError, Engines, Hint, SpeechEngine, Stop};
 use crate::library::{Library, lock};
-use crate::meeting::{Change, MeetingId};
+use crate::meeting::{Change, Meeting, MeetingId, MinutesState};
+use crate::minutes::Draft;
 use crate::recorder::State;
 use crate::speech::{self, Next, Windows};
 
-// What the core does with a meeting once it is heard: transcribe it, then (G, I, J) write its minutes, index it and
-// answer about it. One thread, so one model in memory at a time. docs/adr/0012-traitement.md.
+mod write;
+
+// What the core does with a meeting once it is heard: transcribe it, write its minutes, then (I, J) index it and
+// answer about it. One thread, so one model in memory at a time, and one engine call a step: what is more awaited comes
+// in between. docs/adr/0012-traitement.md, docs/adr/0013-compte-rendu.md.
 
 // The meetings are said in French until the app speaks another language: it will then give it with `start`.
 const LANGUAGE: &str = "fr";
 
 // The work left, found from the state of the meetings alone: a launch finds what a killed app left, and no queue is
 // kept on the disk.
+#[derive(Clone)]
 #[cfg_attr(test, derive(Debug, PartialEq))]
 enum Job {
     Transcribe(MeetingId),
+    // Heard whole, its minutes owed.
+    Write(MeetingId),
 }
 
-// The most awaited first. `unheard`: the meetings the core still hears, the latest first. The one being recorded
-// comes before them, its text awaited as it is said (US-26), then the latest, the one just stopped (US-39).
-fn next(
-    unheard: &[MeetingId],
-    held: Option<&MeetingId>,
-    resting: impl Fn(&MeetingId) -> bool,
-    can_hear: bool,
-) -> Option<Job> {
-    if !can_hear {
-        return None;
+impl Job {
+    // What a meeting owes: its transcript first, then its minutes.
+    fn owed(meeting: &Meeting) -> Option<Self> {
+        if meeting.transcribed_ms.is_some() {
+            Some(Job::Transcribe(meeting.id.clone()))
+        } else if meeting.minutes == MinutesState::Writing {
+            Some(Job::Write(meeting.id.clone()))
+        } else {
+            None
+        }
     }
-    let live = held.filter(|meeting| unheard.contains(meeting));
-    live.into_iter().chain(unheard).find(|meeting| !resting(meeting)).cloned().map(Job::Transcribe)
+
+    fn meeting(&self) -> &MeetingId {
+        match self {
+            Job::Transcribe(meeting) | Job::Write(meeting) => meeting,
+        }
+    }
+}
+
+// What the engines in force can do now.
+#[derive(Clone, Copy)]
+struct Able {
+    hear: bool,
+    write: bool,
+}
+
+// The most awaited first. `owed`: what the meetings kept owe, the latest first. The one being recorded comes before
+// them, its text awaited as it is said (US-26). Then each meeting from the latest, the one just stopped (US-39), to its
+// end: transcribed, then its minutes written.
+fn next(owed: &[Job], held: Option<&MeetingId>, resting: impl Fn(&MeetingId) -> bool, able: Able) -> Option<Job> {
+    let doable = |job: &&Job| {
+        let can = match job {
+            Job::Transcribe(_) => able.hear,
+            Job::Write(_) => able.write,
+        };
+        can && !resting(job.meeting())
+    };
+    let live = owed.iter().find(|job| matches!(job, Job::Transcribe(meeting) if Some(meeting) == held));
+    live.into_iter().chain(owed).find(doable).cloned()
 }
 
 // What wakes the thread. Each wake moves the generation on: what rested at one is tried again at the next, so a wake
@@ -112,8 +145,10 @@ impl Pipeline {
             engines,
             shared: shared.clone(),
             windows: None,
+            drafts: HashMap::new(),
             resting: HashMap::new(),
-            engine_resting: None,
+            speech_resting: None,
+            text_resting: None,
             aside: HashSet::new(),
         };
         let thread = thread::Builder::new().name("notitia-pipeline".into()).spawn(move || worker.run())?;
@@ -130,6 +165,11 @@ impl Pipeline {
             signal.offers += 1;
             true
         });
+    }
+
+    // A meeting an app changed may owe what it did not: minutes asked again.
+    pub fn changed(&self) {
+        self.shared.wake(|_| true);
     }
 
     // Returns once no audio of these meetings is open, and stops the engine call under way on one of them: a system
@@ -188,11 +228,15 @@ struct Worker {
     // Taken out for a step, and put back only by a step that leaves them true to the meeting: a window taken from
     // them and not heard is never skipped.
     windows: Option<Held>,
+    // The minutes being written, meeting by meeting: what a call wrote is not asked again while the app runs, whatever
+    // came in between. Only of meetings that still owe them.
+    drafts: HashMap<MeetingId, Draft>,
     // At the end of what is recorded, until the next generation.
     resting: HashMap<MeetingId, u64>,
-    // The offer whose engine said it was not available: asked again once the app offers again, not at each second
-    // recorded, which would be a call a second to a gateway out of reach.
-    engine_resting: Option<u64>,
+    // The offer whose engine of that kind said it was not available: asked again once the app offers again, not at
+    // each second recorded, which would be a call a second to a gateway out of reach.
+    speech_resting: Option<u64>,
+    text_resting: Option<u64>,
     // Its file or its audio cannot be read, or the work on it failed: left until the next launch, nothing marked, as
     // the fault may pass.
     aside: HashSet<MeetingId>,
@@ -203,7 +247,7 @@ impl Worker {
         loop {
             // Listed before the recorder's state is read: the recorder tells which meeting it holds before it begins
             // it, so a meeting listed and still recorded is never taken for one that ended.
-            let unheard = self.library.kept(|meeting| meeting.transcribed_ms.is_some());
+            let owed = self.library.kept(Job::owed);
             let (generation, offers, held) = {
                 let signal = lock(&self.shared.signal);
                 if signal.closing {
@@ -212,10 +256,15 @@ impl Worker {
                 (signal.generation, signal.offers, signal.held.clone())
             };
             self.resting.retain(|_, at| *at == generation);
+            // A meeting written, deleted, or whose minutes failed, lets its draft go.
+            self.drafts.retain(|meeting, _| owed.iter().any(|job| matches!(job, Job::Write(owed) if owed == meeting)));
             let catalogue = lock(&self.engines).clone();
-            let can_hear = catalogue.speech().is_some() && self.engine_resting != Some(offers);
+            let able = Able {
+                hear: catalogue.speech().is_some() && self.speech_resting != Some(offers),
+                write: catalogue.text().is_some() && self.text_resting != Some(offers),
+            };
             let resting = |meeting: &MeetingId| self.aside.contains(meeting) || self.resting.contains_key(meeting);
-            let Some(job) = next(&unheard, held.as_ref(), resting, can_hear) else {
+            let Some(job) = next(&owed, held.as_ref(), resting, able) else {
                 self.rest(generation);
                 continue;
             };
@@ -225,8 +274,8 @@ impl Worker {
                 // and the others go on.
                 *lock(&self.shared.call) = None;
                 self.windows = None;
-                let Job::Transcribe(meeting) = job;
-                self.aside.insert(meeting);
+                self.drafts.remove(job.meeting());
+                self.aside.insert(job.meeting().clone());
             }
         }
     }
@@ -246,6 +295,11 @@ impl Worker {
             Job::Transcribe(meeting) => {
                 if let Some(engine) = catalogue.speech() {
                     self.transcribe(meeting, at, held != Some(meeting), engine);
+                }
+            }
+            Job::Write(meeting) => {
+                if let Some(engine) = catalogue.text() {
+                    self.write(meeting, at.1, engine);
                 }
             }
         }
@@ -290,7 +344,7 @@ impl Worker {
                     // Cut short by a delete or a close: whatever the engine says of it, the window is heard again.
                     Err(_) if stop.stopped() => return,
                     Err(EngineError::Unavailable) => {
-                        self.engine_resting = Some(offers);
+                        self.speech_resting = Some(offers);
                         return;
                     }
                     // Stopped when nobody stopped it: asking again would ask for ever.
@@ -352,16 +406,16 @@ mod tests {
     use super::*;
     use crate::engine::{About, Engine, Segment};
     use crate::library::{Event, LibraryError, Listener};
-    use crate::meeting::testing::id;
-    use crate::meeting::{MinutesDraft, MinutesState, TranscriptLine};
+    use crate::meeting::testing::{id, meeting};
+    use crate::meeting::{MinutesDraft, TranscriptLine};
     use crate::recorder::Progress;
     use crate::secret::testing::key;
     use crate::speech::testing::{frames, quiet, talk};
 
-    const NOW: UtcDateTime = utc_datetime!(2026-11-24 8:00);
+    pub(super) const NOW: UtcDateTime = utc_datetime!(2026-11-24 8:00);
 
     // What one call of the engine does.
-    enum Answer {
+    pub(super) enum Answer {
         Heard,
         Fail,
         Unavailable,
@@ -383,7 +437,7 @@ mod tests {
     }
 
     // Says what it was given: the same sound gives the same text, wherever it is heard from.
-    struct Ear {
+    pub(super) struct Ear {
         about: About,
         longest_ms: u32,
         // One a call, then Heard once they run out.
@@ -392,7 +446,7 @@ mod tests {
     }
 
     impl Ear {
-        fn new(longest_ms: u32, answers: Vec<Answer>) -> Arc<Self> {
+        pub(super) fn new(longest_ms: u32, answers: Vec<Answer>) -> Arc<Self> {
             let about = About { name: format!("ear-{longest_ms}"), remote: false };
             Arc::new(Self { about, longest_ms, answers: Mutex::new(answers.into()), calls: Mutex::default() })
         }
@@ -439,7 +493,7 @@ mod tests {
     }
 
     #[derive(Default)]
-    struct Told(Mutex<Vec<Event>>);
+    pub(super) struct Told(Mutex<Vec<Event>>);
 
     impl Listener for Told {
         fn on_event(&self, event: &Event) {
@@ -458,7 +512,7 @@ mod tests {
         }
     }
 
-    fn open(folder: &TempDir) -> (Arc<Told>, Arc<Library>) {
+    pub(super) fn open(folder: &TempDir) -> (Arc<Told>, Arc<Library>) {
         let told = Arc::new(Told::default());
         let library = Library::open_at(folder.path().into(), Some(key(1)), told.clone(), Box::new(|| NOW)).unwrap();
         (told, Arc::new(library))
@@ -468,7 +522,7 @@ mod tests {
         Arc::new(Mutex::new(Arc::new(Catalogue::new(vec![ear.clone()], vec![], vec![]))))
     }
 
-    fn begin(library: &Library, name: &str, minute: i64) -> MeetingId {
+    pub(super) fn begin(library: &Library, name: &str, minute: i64) -> MeetingId {
         let meeting = id(name);
         let started_at = utc_datetime!(2026-11-24 9:00) + Duration::minutes(minute);
         library.apply(Change::Begin { id: meeting.clone(), started_at, offset_minutes: 60 });
@@ -476,7 +530,7 @@ mod tests {
     }
 
     // Begun `minute` after nine, the later the higher in the list, and recorded whole.
-    fn recorded(library: &Library, name: &str, minute: i64, sound: &[i16]) -> MeetingId {
+    pub(super) fn recorded(library: &Library, name: &str, minute: i64, sound: &[i16]) -> MeetingId {
         let meeting = begin(library, name, minute);
         let mut writer = library.record(&meeting, 1).unwrap();
         frames(sound).iter().for_each(|frame| writer.write(&[*frame]).unwrap());
@@ -484,13 +538,13 @@ mod tests {
         meeting
     }
 
-    fn recording(meeting: &MeetingId, recorded_ms: u64) -> State {
+    pub(super) fn recording(meeting: &MeetingId, recorded_ms: u64) -> State {
         let progress = Progress { meeting: Some(meeting.clone()), started_at: NOW, recorded_ms };
         State::Recording { progress, level: 0.0 }
     }
 
     // Sentences, a pause after each.
-    fn sentences(talks_ms: &[u64]) -> Vec<i16> {
+    pub(super) fn sentences(talks_ms: &[u64]) -> Vec<i16> {
         talks_ms.iter().flat_map(|ms| [talk(*ms), quiet(2_500)].concat()).collect()
     }
 
@@ -505,25 +559,38 @@ mod tests {
         lines
     }
 
-    fn transcript(library: &Library, meeting: &MeetingId) -> Vec<TranscriptLine> {
+    pub(super) fn transcript(library: &Library, meeting: &MeetingId) -> Vec<TranscriptLine> {
         library.meeting(meeting).unwrap().transcript
     }
 
     #[test]
     fn the_work_comes_in_order() {
         let (one, two, three) = (id("recorded-1"), id("recorded-2"), id("recorded-3"));
-        let unheard = [three.clone(), two.clone(), one.clone()];
+        let unheard = [Job::Transcribe(three.clone()), Job::Transcribe(two.clone()), Job::Transcribe(one.clone())];
         let none = |_: &MeetingId| false;
+        let hear = Able { hear: true, write: true };
         let transcribe = |meeting: &MeetingId| Some(Job::Transcribe(meeting.clone()));
-        assert_eq!(next(&unheard, None, none, true), transcribe(&three), "the latest first");
-        assert_eq!(next(&unheard, Some(&one), none, true), transcribe(&one), "the one being recorded first");
-        assert_eq!(next(&unheard, None, |meeting| *meeting == three, true), transcribe(&two), "one at rest is skipped");
+        assert_eq!(next(&unheard, None, none, hear), transcribe(&three), "the latest first");
+        assert_eq!(next(&unheard, Some(&one), none, hear), transcribe(&one), "the one being recorded first");
+        assert_eq!(next(&unheard, None, |meeting| *meeting == three, hear), transcribe(&two), "one at rest is skipped");
         let resting = |meeting: &MeetingId| *meeting == one;
-        assert_eq!(next(&unheard, Some(&one), resting, true), transcribe(&three), "recorded, at rest");
-        assert_eq!(next(&unheard, Some(&id("recorded-9")), none, true), transcribe(&three), "recorded, not heard");
-        assert_eq!(next(&unheard, None, |_| true, true), None);
-        assert_eq!(next(&unheard, Some(&one), none, false), None, "no engine to hear with");
-        assert_eq!(next(&[], None, none, true), None);
+        assert_eq!(next(&unheard, Some(&one), resting, hear), transcribe(&three), "recorded, at rest");
+        assert_eq!(next(&unheard, Some(&id("recorded-9")), none, hear), transcribe(&three), "recorded, not heard");
+        assert_eq!(next(&unheard, None, |_| true, hear), None);
+        let deaf = Able { hear: false, write: true };
+        assert_eq!(next(&unheard, Some(&one), none, deaf), None, "no engine to hear with");
+        assert_eq!(next(&[], None, none, hear), None);
+    }
+
+    #[test]
+    fn a_meeting_owes_its_transcript_then_its_minutes() {
+        let heard_on = Meeting { transcribed_ms: Some(0), minutes: MinutesState::Writing, ..meeting("recorded-1") };
+        let owed = Meeting { transcribed_ms: None, ..heard_on.clone() };
+        assert_eq!(Job::owed(&heard_on), Some(Job::Transcribe(id("recorded-1"))));
+        assert_eq!(Job::owed(&owed), Some(Job::Write(id("recorded-1"))));
+        for minutes in [MinutesState::Failed, MinutesState::Unavailable, meeting("recorded-1").minutes] {
+            assert_eq!(Job::owed(&Meeting { minutes, ..owed.clone() }), None);
+        }
     }
 
     #[test]
@@ -844,7 +911,7 @@ mod tests {
     }
 
     // Fails rather than hangs when the thread never rests.
-    fn settles(pipeline: &Arc<Pipeline>) {
+    pub(super) fn settles(pipeline: &Arc<Pipeline>) {
         let (rested, resting) = mpsc::channel();
         let waiting = pipeline.clone();
         std::thread::spawn(move || {

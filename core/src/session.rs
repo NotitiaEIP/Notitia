@@ -129,7 +129,12 @@ impl Session {
                 self.pipeline.forget(&meetings);
                 self.library.apply(Change::Delete { meetings });
             }
-            Request::Meetings(change) => self.library.apply(change),
+            Request::Meetings(change) => {
+                // Minutes asked again, say: the pipeline looks at once, not at the next offer.
+                if self.library.change(change) {
+                    self.pipeline.changed();
+                }
+            }
         }
     }
 
@@ -353,6 +358,31 @@ mod tests {
         assert_eq!(chosen(&session).as_deref(), Some("a"));
         session.offer(Offer::read("[]").unwrap(), Lending::answering(&[]));
         assert_eq!(chosen(&session), None);
+    }
+
+    #[test]
+    fn minutes_asked_again_are_written_at_once_by_the_engine_the_app_lent() {
+        let folder = tempfile::tempdir().unwrap();
+        let failed = Meeting {
+            minutes: MinutesState::Failed,
+            transcript: vec![crate::meeting::testing::line(0, "Bonjour à tous.")],
+            ..crate::meeting::testing::meeting("recorded-1")
+        };
+        fs::write(folder.path().join("recorded-1.notitia"), crate::format::encode(&failed).unwrap()).unwrap();
+        let (_, session) = opened(&folder);
+        let pen = r#"[{"kind":"text","name":"pen","remote":false,"contextTokens":4096,"replyTokens":1024}]"#;
+        let lender = Lending::answering(&[r#"{"type":"written","text":"SUMMARY: Un point rapide."}"#]);
+        session.offer(Offer::read(pen).unwrap(), lender.clone());
+        session.settled();
+        assert_eq!(lender.asked(), [], "a failure is not written again by itself");
+        ask(&session, "{\"type\":\"rewrite\",\"meeting\":\"recorded-1\"}");
+        session.settled();
+        let MinutesState::Written { minutes } = session.meeting(&id("recorded-1")).unwrap().minutes else {
+            panic!("not written")
+        };
+        assert_eq!(minutes.summary, "Un point rapide.");
+        let asked: Value = serde_json::from_str(&lender.asked()[0].1).unwrap();
+        assert_eq!((&asked["type"], &asked["replyTokens"]), (&Value::from("complete"), &Value::from(1_024)));
     }
 
     // The microphone's bytes of a sound: sentences someone says, each followed by a pause.

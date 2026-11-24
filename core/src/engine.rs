@@ -50,6 +50,10 @@ pub struct Segment {
     pub text: String,
 }
 
+// What a text engine leaves a prompt once its reply is set aside, at least: below that, the instructions of the minutes
+// and a few lines of a transcript do not fit one call.
+pub const SHORTEST_PROMPT: usize = 1_024;
+
 pub trait TextEngine: Engine {
     fn window(&self) -> Window;
 
