@@ -3,6 +3,7 @@
 | | |
 | --- | --- |
 | Statut | Proposée le 23 novembre 2026, acceptée à la fusion de sa PR |
+| Modifiée | Le 24 novembre 2026 par T-94 (#260) : le traitement prend les fenêtres |
 | Proposée par | Clément |
 | Relue par | Alexandre pour le cœur |
 | Tâche d'origine | T-90 (#258) |
@@ -122,4 +123,4 @@ Les tests le prouvent aussi :
 - **Une détection de la voix par un modèle** remplacerait `voice.rs` sans toucher aux coupes.
 - **Les dates par mot.** Si le moteur de T-06 les donne, le retrait des doublons se fera au temps et non plus au texte.
 - **Une longueur préférée par le moteur** (`preferredMs`, facultatif dans l'offre), si le moteur de T-06 est meilleur sur des fenêtres plus longues.
-- **Le branchement dans le traitement (H).** Il garde `Windows` entre deux `Wait` pendant l'enregistrement, et le refait depuis le dernier bord pour un autre moteur.
+- **Le branchement dans le traitement (H).** Fait par T-94 (ADR 0012) : `Windows` est gardé entre deux `Wait` pendant l'enregistrement, et refait depuis le dernier bord pour une autre réunion ou un autre moteur.
