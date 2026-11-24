@@ -120,7 +120,7 @@ fn made_up(sentence: &str) -> bool {
 }
 
 // As words compare: in lower case, one apostrophe, one space between words.
-fn normalized(text: &str) -> String {
+pub(crate) fn normalized(text: &str) -> String {
     let words: Vec<String> = text.split_whitespace().map(|word| word.to_lowercase().replace('’', "'")).collect();
     words.join(" ")
 }

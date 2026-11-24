@@ -129,7 +129,12 @@ impl Session {
                 self.pipeline.forget(&meetings);
                 self.library.apply(Change::Delete { meetings });
             }
-            Request::Meetings(change) => self.library.apply(change),
+            Request::Meetings(change) => {
+                // Minutes asked again, say: the pipeline looks at once, not at the next offer.
+                if self.library.change(change) {
+                    self.pipeline.changed();
+                }
+            }
         }
     }
 
@@ -355,6 +360,31 @@ mod tests {
         assert_eq!(chosen(&session), None);
     }
 
+    #[test]
+    fn minutes_asked_again_are_written_at_once_by_the_engine_the_app_lent() {
+        let folder = tempfile::tempdir().unwrap();
+        let failed = Meeting {
+            minutes: MinutesState::Failed,
+            transcript: vec![crate::meeting::testing::line(0, "Bonjour à tous.")],
+            ..crate::meeting::testing::meeting("recorded-1")
+        };
+        fs::write(folder.path().join("recorded-1.notitia"), crate::format::encode(&failed).unwrap()).unwrap();
+        let (_, session) = opened(&folder);
+        let pen = r#"[{"kind":"text","name":"pen","remote":false,"contextTokens":4096,"replyTokens":1024}]"#;
+        let lender = Lending::answering(&[r#"{"type":"written","text":"SUMMARY: Un point rapide."}"#]);
+        session.offer(Offer::read(pen).unwrap(), lender.clone());
+        session.settled();
+        assert_eq!(lender.asked(), [], "a failure is not written again by itself");
+        ask(&session, "{\"type\":\"rewrite\",\"meeting\":\"recorded-1\"}");
+        session.settled();
+        let MinutesState::Written { minutes } = session.meeting(&id("recorded-1")).unwrap().minutes else {
+            panic!("not written")
+        };
+        assert_eq!(minutes.summary, "Un point rapide.");
+        let asked: Value = serde_json::from_str(&lender.asked()[0].1).unwrap();
+        assert_eq!((&asked["type"], &asked["replyTokens"]), (&Value::from("complete"), &Value::from(1_024)));
+    }
+
     // The microphone's bytes of a sound: sentences someone says, each followed by a pause.
     fn said(talks_ms: &[u64]) -> Vec<u8> {
         let sound = talks_ms.iter().flat_map(|ms| [talk(*ms), quiet(2_500)].concat());
@@ -382,7 +412,8 @@ mod tests {
         let lines: Vec<(bool, Option<&str>)> =
             whole.transcript.iter().map(|line| (line.at_ms > 5_000, line.text.as_deref())).collect();
         assert_eq!(lines, [(false, Some("Bonjour à tous.")), (true, Some("Bonjour à tous."))]);
-        assert_eq!((whole.transcribed_ms, whole.minutes), (None, MinutesState::Unavailable));
+        // Owed: the app lent no engine to write them.
+        assert_eq!((whole.transcribed_ms, whole.minutes), (None, MinutesState::Writing));
         let asked: Vec<Value> =
             lender.asked().iter().map(|(_, request, _)| serde_json::from_str(request).unwrap()).collect();
         let previous = ["", "Bonjour à tous."];

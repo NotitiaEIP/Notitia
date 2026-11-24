@@ -8,6 +8,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -80,6 +81,53 @@ class RustEnginesTest {
         val lines = heard.getValue("transcript").jsonArray.map { it.jsonObject.getValue("text").jsonPrimitive.content }
         assertEquals(listOf("Bonjour à tous."), lines)
         assertEquals("""{"type":"transcribe","language":"fr","previous":""}""", asked.single())
+    }
+
+    // The minutes as well, by a text engine of this app on the same thread of the core: the request this app reads, and
+    // the reply the core reads back into the meeting.
+    @Test
+    fun theMinutesOfAMeetingRecordedAreWrittenOnAThreadOfTheCoreByAnEngineOfThisApp() = runBlocking {
+        val core = RustCore()
+        val told = Collections.synchronizedList(mutableListOf<JsonObject>())
+        assertNull(core.open(folder.path, ByteArray(KEY_BYTES) { 7 }) { told += CoreJson.parseToJsonElement(it).jsonObject })
+        val asked = Collections.synchronizedList(mutableListOf<JsonObject>())
+        val engines = CoreEngines { engine, request, _ ->
+            if (engine == "ear") {
+                """{"type":"heard","segments":[{"fromMs":0,"toMs":900,"text":"Lucas prépare la démo."}]}"""
+            } else {
+                val read = CoreJson.parseToJsonElement(request).jsonObject.also { asked += it }
+                // As a model does: the time copied from the line it read.
+                val time = read.getValue("prompt").jsonPrimitive.content.substringAfter("[").substringBefore("]")
+                """{"type":"written","text":"SUMMARY: Point sur la démo.\nACTION: Préparer la démo | Lucas | - | $time"}"""
+            }
+        }
+        val offer = """[{"kind":"speech","name":"ear","remote":false,"longestMs":30000},""" +
+            """{"kind":"text","name":"pen","remote":false,"contextTokens":4096,"replyTokens":1024}]"""
+        assertNull(core.offer(offer, neverThrowing(engines)))
+        assertNull(core.apply("""{"type":"start","tracks":1,"offsetMinutes":60}"""))
+        core.hear(0, audio(1_000, level = 0) + audio(2_000) + audio(2_500, level = 0))
+        assertNull(core.apply("""{"type":"stop"}"""))
+        val written = withTimeout(20.seconds) {
+            var meeting: String? = null
+            while (meeting == null) {
+                meeting = synchronized(told) { told.firstNotNullOfOrNull { it["meeting"]?.jsonPrimitive?.content } }
+                if (meeting == null) delay(10)
+            }
+            var minutes = CoreJson.parseToJsonElement(checkNotNull(core.meeting(meeting).text)).jsonObject.getValue("minutes")
+            while (minutes.jsonObject.getValue("type").jsonPrimitive.content != "written") {
+                delay(10)
+                minutes = CoreJson.parseToJsonElement(checkNotNull(core.meeting(meeting).text)).jsonObject.getValue("minutes")
+            }
+            minutes.jsonObject.getValue("minutes").jsonObject
+        }
+        assertEquals("Point sur la démo.", written.getValue("summary").jsonPrimitive.content)
+        val action = written.getValue("actions").jsonArray.single().jsonObject
+        assertEquals("Lucas", action.getValue("owner").jsonPrimitive.content)
+        assertEquals("Lucas prépare la démo.", action.getValue("source").jsonObject.getValue("quote").jsonPrimitive.content)
+        val request = asked.single()
+        assertEquals("complete", request.getValue("type").jsonPrimitive.content)
+        assertEquals(1_024, request.getValue("replyTokens").jsonPrimitive.content.toInt())
+        assertTrue("] Lucas prépare la démo." in request.getValue("prompt").jsonPrimitive.content)
     }
 
     @Test

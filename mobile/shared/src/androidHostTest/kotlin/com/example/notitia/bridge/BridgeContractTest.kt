@@ -51,6 +51,7 @@ class BridgeContractTest {
             edit(MeetingEdit.SetDue("0", due = null)),
             edit(MeetingEdit.SetReminder("0", on = true)),
             Change.Delete(setOf("recorded-1", "recorded-3")),
+            Change.Rewrite("recorded-1"),
             transcribed(listOf(hello, silence), MinutesDraft.Writing),
             transcribed(listOf(hello, silence, TranscriptLine(12.minutes + 4.seconds, "Je prépare la démo.")), written(listOf(demo))),
             Change.Lend(listOf(meeting("sample-1").copy(transcript = listOf(hello)))),

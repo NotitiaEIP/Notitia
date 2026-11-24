@@ -21,7 +21,7 @@ pub(crate) mod civil_date {
     use time::format_description::BorrowedFormatItem;
     use time::macros::format_description;
 
-    const FORMAT: &[BorrowedFormatItem<'_>] = format_description!("[year]-[month]-[day]");
+    pub(crate) const FORMAT: &[BorrowedFormatItem<'_>] = format_description!("[year]-[month]-[day]");
 
     pub fn serialize<S: Serializer>(date: &Option<Date>, serializer: S) -> Result<S::Ok, S::Error> {
         match date {
@@ -119,10 +119,11 @@ impl Meeting {
 #[cfg_attr(test, derive(Debug))]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum MinutesState {
+    // Owed: written as soon as a writer is there, now or once a model comes.
     Writing,
     Written { minutes: Minutes },
     Failed,
-    // No writer in this build.
+    // Left by an app older than the core's writer, that had none: never written by the core, asked again by `rewrite`.
     Unavailable,
 }
 
@@ -183,6 +184,13 @@ pub struct TranscriptLine {
     pub speaker: Option<String>,
     #[serde(flatten)]
     pub extra: Extra,
+}
+
+impl TranscriptLine {
+    // What was said, if anything: a passage the engine could not transcribe, or blank, says nothing.
+    pub fn said(&self) -> Option<&str> {
+        self.text.as_deref().map(str::trim).filter(|text| !text.is_empty())
+    }
 }
 
 // The meetings the tests start from, made up.

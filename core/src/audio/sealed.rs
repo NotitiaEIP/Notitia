@@ -42,27 +42,18 @@ impl Shape {
     }
 
     fn read(key: &Key, header: [u8; HEADER_BYTES]) -> Result<Self, AudioError> {
-        let (tracks, packet) = (usize::from(header[9]), u16::from_le_bytes([header[10], header[11]]));
-        // The version settles the rest: Opus, 16 kHz, frames of 20 ms. Another one is a newer app's.
-        let known = &header[..8] == MARK && header[8] == VERSION && tracks > 0 && usize::from(packet) == PACKET_BYTES;
-        let salt = <&[u8; SALT_BYTES]>::try_from(&header[SALT_AT..]).ok().filter(|_| known);
-        let seal = key.derive(PURPOSE, salt.ok_or(AudioError::Unsupported)?)?;
+        let tracks = tracks(&header)?;
+        let salt = <&[u8; SALT_BYTES]>::try_from(&header[SALT_AT..]).map_err(|_| AudioError::Unsupported)?;
+        let seal = key.derive(PURPOSE, salt)?;
         Ok(Self { header, tracks, seal })
     }
 
     fn of(file: &mut File, key: &Key) -> Result<Self, AudioError> {
-        // Shorter than its header, a file was cut while it was made: no sound ever reached it.
-        if file.metadata()?.len() < HEADER_BYTES as u64 {
-            return Err(AudioError::Absent);
-        }
-        let mut header = [0; HEADER_BYTES];
-        file.seek(SeekFrom::Start(0))?;
-        file.read_exact(&mut header)?;
-        Self::read(key, header)
+        Self::read(key, header(file)?)
     }
 
     fn record_bytes(&self) -> u64 {
-        (SEAL_BYTES + 1 + self.tracks * FRAMES_PER_SECOND * PACKET_BYTES) as u64
+        record_bytes(self.tracks)
     }
 
     fn place(&self, second: u64) -> u64 {
@@ -117,6 +108,35 @@ impl Shape {
         }
         if written == 0 { Ok((0, FRAMES_PER_SECOND)) } else { Err(AudioError::Locked) }
     }
+}
+
+fn header(file: &mut File) -> Result<[u8; HEADER_BYTES], AudioError> {
+    // Shorter than its header, a file was cut while it was made: no sound ever reached it.
+    if file.metadata()?.len() < HEADER_BYTES as u64 {
+        return Err(AudioError::Absent);
+    }
+    let mut header = [0; HEADER_BYTES];
+    file.seek(SeekFrom::Start(0))?;
+    file.read_exact(&mut header)?;
+    Ok(header)
+}
+
+// The version settles the rest: Opus, 16 kHz, frames of 20 ms. Another one is a newer app's.
+fn tracks(header: &[u8; HEADER_BYTES]) -> Result<usize, AudioError> {
+    let (tracks, packet) = (usize::from(header[9]), u16::from_le_bytes([header[10], header[11]]));
+    let known = &header[..8] == MARK && header[8] == VERSION && tracks > 0 && usize::from(packet) == PACKET_BYTES;
+    if known { Ok(tracks) } else { Err(AudioError::Unsupported) }
+}
+
+fn record_bytes(tracks: usize) -> u64 {
+    (SEAL_BYTES + 1 + tracks * FRAMES_PER_SECOND * PACKET_BYTES) as u64
+}
+
+// The seconds a file holds by its size, its last one perhaps short: from its header in clear, with no key and nothing
+// opened. A second cut by a crash, or that does not open, is counted all the same: only a reader tells.
+pub fn seconds(file: &mut File) -> Result<u64, AudioError> {
+    let tracks = tracks(&header(file)?)?;
+    Ok(file.metadata()?.len().saturating_sub(HEADER_BYTES as u64) / record_bytes(tracks))
 }
 
 // Every second is whole but the last.

@@ -124,6 +124,12 @@ pub struct Reader {
     sealed: sealed::Reader,
 }
 
+// The seconds an audio holds, the last perhaps short, told by its size: no key, nothing deciphered. A stopped recording
+// holds as many as its length begins.
+pub fn seconds(mut file: File) -> Result<u64, AudioError> {
+    sealed::seconds(&mut file)
+}
+
 impl Reader {
     pub fn open(file: File, key: &Key) -> Result<Self, AudioError> {
         sealed::Reader::open(file, key).map(|sealed| Self { sealed })

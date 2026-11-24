@@ -1,5 +1,6 @@
-// How long the meetings of a folder take to open, without and with their index (T-75). Through the same calls as an
-// app, and optimised as an app is: cargo run --release --example opening
+// How long the meetings of a folder take to open, without and with their index (T-75), then with their audio and their
+// minutes owed, as on a phone with no model yet (T-95). Through the same calls as an app, and optimised as an app is:
+// cargo run --release --example opening
 // A folder given after `--` keeps the meetings, to push them to a phone and time its launch there.
 #![expect(clippy::print_stdout, clippy::disallowed_methods, reason = "a measure reads the clock and prints")]
 
@@ -9,10 +10,12 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 use std::{fs, thread};
 
+use notitia::audio::{FRAME_MS, FRAME_SAMPLES};
 use notitia::library::{Event, Library, Listener};
 use notitia::meeting::{
     ActionDraft, ActionSource, Change, Edit, Extra, InvalidId, MeetingId, MinutesDraft, TranscriptLine,
 };
+use notitia::secret::Key;
 use time::macros::utc_datetime;
 
 const MEETINGS: u32 = 300;
@@ -20,6 +23,8 @@ const MEETINGS: u32 = 300;
 const LINES: usize = 600;
 const ACTIONS: usize = 8;
 const CHANGED: u32 = 3;
+// Recorded, their minutes waiting for a model: each with as much audio as it says it lasted.
+const RECORDED_MS: u64 = 10_000;
 
 // Made up: no meeting was recorded for this.
 const SENTENCES: [&str; 6] = [
@@ -79,11 +84,28 @@ fn hour(meeting: u32) -> Result<[Change; 3], InvalidId> {
     ])
 }
 
+// The key of the app, never copied: each user of it is given its own.
+fn key() -> Result<Key, Box<dyn Error>> {
+    Ok(Key::new(&[7; 32])?)
+}
+
+// Begun by the recorder and stopped, its audio beside it, never transcribed.
+fn recorded(library: &Library, meeting: u32) -> Result<(), Box<dyn Error>> {
+    let started_at = utc_datetime!(2026-01-05 9:00) + Duration::from_secs(3_600) * meeting;
+    library.apply(Change::Begin { id: id(meeting)?, started_at, offset_minutes: 60 });
+    library.apply(Change::Lasted { meeting: id(meeting)?, duration_ms: RECORDED_MS });
+    let mut writer = library.record(&id(meeting)?, 1)?;
+    for _ in 0..RECORDED_MS / FRAME_MS {
+        writer.write(&[[0; FRAME_SAMPLES]])?;
+    }
+    Ok(writer.finish()?)
+}
+
 // The list is what the first screen waits for; the index is written after it.
-fn open(what: &str, folder: &Path) -> Result<Library, Box<dyn Error>> {
+fn open(what: &str, folder: &Path, key: Option<Key>) -> Result<Library, Box<dyn Error>> {
     let screen = Arc::new(Screen::default());
     let asked = Instant::now();
-    let library = Library::open(folder, None, screen.clone())?;
+    let library = Library::open(folder, key, screen.clone())?;
     let opened = asked.elapsed();
     let listed = screen.listed.get().map_or(opened, |listed| listed.duration_since(asked));
     println!("{what:<42} list after {:>7.1} ms, opened after {:>7.1} ms", millis(listed), millis(opened));
@@ -110,12 +132,30 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("{MEETINGS} meetings of one hour, {} MB, their files still in the memory of the system", size / 1_000_000);
     // A file as recent as the index is read again: the meetings are left to age past that.
     thread::sleep(Duration::from_secs(3));
-    drop(open("without the index", folder)?);
-    let library = open("with the index", folder)?;
+    drop(open("without the index", folder, None)?);
+    let library = open("with the index", folder, None)?;
     for meeting in 0..CHANGED {
         library.apply(Change::Edit { meeting: id(meeting)?, edit: Edit::Rename { title: "Point produit".into() } });
     }
     drop(library);
-    drop(open(&format!("with the index, {CHANGED} meetings changed since"), folder)?);
+    drop(open(&format!("with the index, {CHANGED} meetings changed since"), folder, None)?);
+
+    let owed = tempfile::tempdir()?;
+    let library = Library::open(owed.path(), Some(key()?), Arc::new(Screen::default()))?;
+    for meeting in 0..MEETINGS {
+        recorded(&library, meeting)?;
+    }
+    drop(library);
+    println!("{MEETINGS} meetings recorded, {} s of audio each, their minutes owed", RECORDED_MS / 1_000);
+    thread::sleep(Duration::from_secs(3));
+    drop(open("with their audio", owed.path(), Some(key()?))?);
+    // The best of five: what the core costs, not what the system was doing meanwhile.
+    let mut best = Duration::MAX;
+    for _ in 0..5 {
+        let asked = Instant::now();
+        drop(Library::open(owed.path(), Some(key()?), Arc::new(Screen::default()))?);
+        best = best.min(asked.elapsed());
+    }
+    println!("{:<42} opened after {:>7.1} ms", "with their audio, the best of five", millis(best));
     Ok(())
 }

@@ -118,18 +118,23 @@ impl Library {
         let store = Store::open(directory).map_err(read)?;
         let device = store.device().map_err(read)?;
         let (stored, index) = store.load(clock()).map_err(read)?;
-        // A recording the app did not live to stop lasts as long as its audio. Only those audios are opened: a
-        // launch does not read three hundred of them.
+        // A recording the app did not live to stop lasts as long as its audio. Only an audio whose size tells
+        // another length than its meeting's is opened: a launch deciphers none of three hundred meetings whose
+        // minutes wait for a model.
+        let cut = |meeting: &&Meeting| {
+            let seconds = store.audio(&meeting.id, false).ok().and_then(|file| audio::seconds(file).ok());
+            seconds.is_some_and(|seconds| seconds != meeting.duration_ms.div_ceil(1_000))
+        };
         let lasted: Vec<Change> = stored
             .iter()
             .filter(|meeting| meeting.minutes == MinutesState::Writing)
+            .filter(cut)
             .filter_map(|meeting| {
                 let duration_ms = open_audio(&store, key.as_ref(), &meeting.id).ok()?.duration_ms();
                 Some(Change::Lasted { meeting: meeting.id.clone(), duration_ms })
             })
             .collect();
-        let entries =
-            stored.into_iter().map(|meeting| Entry { meeting: meeting.interrupted(), transcript: Transcript::Written });
+        let entries = stored.into_iter().map(|meeting| Entry { meeting, transcript: Transcript::Written });
         let mut meetings = Meetings { entries: entries.collect(), deleted: HashSet::new() };
         meetings.sort();
         let stamp = Stamp { at: clock(), device: &device };
@@ -213,12 +218,11 @@ impl Library {
         audio::Writer::open(self.store.audio(id, true)?, key, tracks)
     }
 
-    // The meetings kept in a file that `which` picks, in the order of the list: the latest first.
-    pub(crate) fn kept(&self, which: impl Fn(&Meeting) -> bool) -> Vec<MeetingId> {
+    // What `which` makes of the meetings kept in a file, in the order of the list: the latest first.
+    pub(crate) fn kept<T>(&self, which: impl Fn(&Meeting) -> Option<T>) -> Vec<T> {
         let meetings = lock(&self.meetings);
         let kept = meetings.entries.iter().filter(|entry| !matches!(entry.transcript, Transcript::Lent(_)));
-        let kept = kept.filter(|entry| which(&entry.meeting));
-        kept.map(|entry| entry.meeting.id.clone()).collect()
+        kept.filter_map(|entry| which(&entry.meeting)).collect()
     }
 
     pub fn audio(&self, id: &MeetingId) -> Result<audio::Reader, AudioError> {
@@ -334,10 +338,34 @@ impl Meetings {
                 held.extend(lines);
                 entry.meeting.transcribed_ms = until_ms;
                 if until_ms.is_none() {
-                    // The transcript whole, its minutes are owed. This build has no writer yet (G): unavailable, as
-                    // that state says.
-                    MinutesDraft::Unavailable.settle(&mut entry.meeting);
+                    // The transcript whole, its minutes are owed: written as soon as a writer is there, now or once
+                    // a model comes. Never unavailable, which says what this device lacks, not what the meeting is.
+                    MinutesDraft::owed(held).settle(&mut entry.meeting);
                 }
+                stamp.mark(&mut entry.meeting);
+                Some(entry.told(at))
+            }
+            Change::Drafted { meeting, minutes } => {
+                let (at, entry) = self.find(&meeting)?;
+                // Compared, then written: minutes the user asked again, or a meeting the app took meanwhile, are not
+                // settled by a draft of the transcript before.
+                let owed = entry.meeting.minutes == MinutesState::Writing && entry.meeting.transcribed_ms.is_none();
+                if !owed || entry.file().is_none() || matches!(minutes, MinutesDraft::Writing) {
+                    return None;
+                }
+                minutes.settle(&mut entry.meeting);
+                stamp.mark(&mut entry.meeting);
+                Some(entry.told(at))
+            }
+            Change::Rewrite { meeting } => {
+                let (at, entry) = self.find(&meeting)?;
+                // Only minutes that ended without being written, of a transcript whole: minutes written were perhaps
+                // corrected, and a sample has no writer.
+                let ended = matches!(entry.meeting.minutes, MinutesState::Failed | MinutesState::Unavailable);
+                if !ended || entry.meeting.transcribed_ms.is_some() || entry.file().is_none() {
+                    return None;
+                }
+                entry.meeting.minutes = MinutesState::Writing;
                 stamp.mark(&mut entry.meeting);
                 Some(entry.told(at))
             }
@@ -620,12 +648,15 @@ mod tests {
     }
 
     #[test]
-    fn minutes_left_writing_by_a_killed_app_have_failed_unless_the_core_hears_the_meeting() {
-        let writing = Meeting { minutes: MinutesState::Writing, ..meeting("recorded-1") };
-        let heard = Meeting { transcribed_ms: Some(30_000), ..writing.clone() };
-        let phone = phone(&[writing, Meeting { id: id("recorded-2"), ..heard }]);
-        let minutes: Vec<MinutesState> = phone.list().into_iter().map(|meeting| meeting.minutes).collect();
-        assert_eq!(minutes, [MinutesState::Failed, MinutesState::Writing]);
+    fn minutes_owed_are_still_owed_after_a_launch() {
+        // Heard whole, its minutes not written yet: the next writer takes them, whatever stopped the app.
+        let owed = Meeting { minutes: MinutesState::Writing, ..heard("recorded-1") };
+        let heard_on = Meeting { id: id("recorded-2"), transcribed_ms: Some(30_000), ..owed.clone() };
+        let phone = phone(&[owed.clone(), heard_on.clone()]);
+        assert_eq!(
+            phone.relaunched().list(),
+            [owed, heard_on].map(|meeting| Meeting { transcript: vec![], ..meeting })
+        );
     }
 
     #[test]
@@ -640,7 +671,7 @@ mod tests {
         let killed = Meeting { minutes: MinutesState::Writing, ..heard("recorded-1") };
         let (phone, store) = settled(std::slice::from_ref(&killed));
         let listed = phone.list();
-        assert_eq!(listed[0].minutes, MinutesState::Failed);
+        assert_eq!(listed[0].minutes, MinutesState::Writing);
         // Blanked, with the size and the date it had: reading it would lose the meeting.
         let size = fs::metadata(phone.path("recorded-1.notitia")).unwrap().len();
         fs::write(phone.path("recorded-1.notitia"), " ".repeat(usize::try_from(size).unwrap())).unwrap();
@@ -811,9 +842,74 @@ mod tests {
         assert!(phone.heard("recorded-1", &["Et la suite."], 30_000, None));
         let whole = phone.file("recorded-1").unwrap();
         assert_eq!(whole.transcript.len(), 3);
-        // Whole, with no writer for its minutes in this build.
-        assert_eq!((whole.transcribed_ms, whole.minutes), (None, MinutesState::Unavailable));
+        // Whole, its minutes owed to the next writer.
+        assert_eq!((whole.transcribed_ms, whole.minutes), (None, MinutesState::Writing));
         assert!(!phone.heard("recorded-1", &["Encore."], 30_000, None));
+    }
+
+    #[test]
+    fn a_transcript_where_nothing_was_said_ends_with_empty_minutes() {
+        let phone = phone(&[]);
+        phone.begin("recorded-9");
+        assert!(phone.library.change(Change::Heard {
+            meeting: id("recorded-9"),
+            lines: vec![TranscriptLine { at_ms: 0, text: None, speaker: None, extra: Extra::new() }],
+            from_ms: 0,
+            until_ms: None,
+        }));
+        let empty = Minutes { summary: String::new(), decisions: vec![], actions: vec![], extra: Extra::new() };
+        assert_eq!(phone.file("recorded-9").unwrap().minutes, MinutesState::Written { minutes: empty });
+    }
+
+    fn drafted(phone: &Phone, meeting: &str, minutes: MinutesDraft) -> bool {
+        phone.library.change(Change::Drafted { meeting: id(meeting), minutes })
+    }
+
+    #[test]
+    fn minutes_drafted_settle_only_minutes_still_owed() {
+        let owed = Meeting { minutes: MinutesState::Writing, ..heard("recorded-1") };
+        let failed = Meeting { id: id("recorded-2"), minutes: MinutesState::Failed, ..owed.clone() };
+        let heard_on = Meeting { id: id("recorded-3"), transcribed_ms: Some(30_000), ..owed.clone() };
+        let phone = phone(&[owed, failed, heard_on, meeting("recorded-4")]);
+        phone
+            .library
+            .apply(Change::Lend { meetings: vec![Meeting { minutes: MinutesState::Writing, ..heard("sample-1") }] });
+        let told = phone.told();
+        for meeting in ["recorded-2", "recorded-3", "recorded-4", "sample-1", "recorded-7"] {
+            assert!(!drafted(&phone, meeting, one_action()), "{meeting}");
+        }
+        assert!(!drafted(&phone, "recorded-1", MinutesDraft::Writing));
+        assert_eq!(phone.told(), told);
+        assert!(drafted(&phone, "recorded-1", one_action()));
+        let written = phone.file("recorded-1").unwrap();
+        assert_eq!((written.modified_at, written.transcript.len()), (NOW, 1));
+        assert_eq!(done(&written), [false]);
+        // Once settled, a late draft takes nothing back.
+        assert!(!drafted(&phone, "recorded-1", MinutesDraft::Failed));
+    }
+
+    #[test]
+    fn minutes_that_ended_unwritten_are_owed_again_when_asked() {
+        let ended = |name: &str, minutes| Meeting { id: id(name), minutes, ..heard("recorded-1") };
+        let phone = phone(&[
+            ended("recorded-1", MinutesState::Failed),
+            ended("recorded-2", MinutesState::Unavailable),
+            ended("recorded-3", MinutesState::Writing),
+            meeting("recorded-4"),
+            Meeting { transcribed_ms: Some(0), ..ended("recorded-5", MinutesState::Failed) },
+        ]);
+        phone
+            .library
+            .apply(Change::Lend { meetings: vec![Meeting { minutes: MinutesState::Failed, ..heard("sample-1") }] });
+        let rewrite = |meeting: &str| phone.library.change(Change::Rewrite { meeting: id(meeting) });
+        for meeting in ["recorded-3", "recorded-4", "recorded-5", "sample-1", "recorded-7"] {
+            assert!(!rewrite(meeting), "{meeting}");
+        }
+        assert!(rewrite("recorded-1") && rewrite("recorded-2"));
+        for meeting in ["recorded-1", "recorded-2"] {
+            let owed = phone.file(meeting).unwrap();
+            assert_eq!((owed.minutes, owed.modified_at, owed.transcript.len()), (MinutesState::Writing, NOW, 1));
+        }
     }
 
     #[test]
@@ -857,8 +953,9 @@ mod tests {
         assert_eq!(phone.library.meeting(&id("sample-1")).unwrap().transcript, heard("sample-1").transcript);
         assert_eq!((phone.file("recorded-8"), phone.file("sample-1")), (None, None));
         // What the pipeline is given to hear: neither a sample nor a meeting the app transcribes.
-        assert_eq!(phone.library.kept(|meeting| meeting.transcribed_ms.is_some()), []);
-        assert_eq!(phone.library.kept(|_| true), [id("recorded-9")]);
+        let heard = |meeting: &Meeting| meeting.transcribed_ms.map(|_| meeting.id.clone());
+        assert_eq!(phone.library.kept(heard), []);
+        assert_eq!(phone.library.kept(|meeting| Some(meeting.id.clone())), [id("recorded-9")]);
     }
 
     #[test]
@@ -884,6 +981,47 @@ mod tests {
         assert_eq!((kept.duration_ms, kept.transcribed_ms, kept.minutes.clone()), expected);
         assert_eq!(phone.list()[0], kept);
         assert_eq!(phone.list()[1], meeting("recorded-1"));
+    }
+
+    #[test]
+    fn a_launch_opens_only_the_audio_whose_size_tells_another_length() {
+        let phone = phone(&[]);
+        for (meeting, says_ms) in [("recorded-1", 1_500), ("recorded-2", 900)] {
+            phone.begin(meeting);
+            phone.lasted(meeting, says_ms);
+            // 1.4 s: two seconds, the last one short.
+            let mut writer = phone.library.record(&id(meeting), 1).unwrap();
+            chord(70).iter().for_each(|frame| writer.write(&[*frame]).unwrap());
+            writer.finish().unwrap();
+        }
+        let phone = phone.relaunched();
+        let lasted = |meeting: &str| phone.file(meeting).unwrap().duration_ms;
+        // Two seconds as its length says: not opened, though a reader would tell 1.4 s. One second says another.
+        assert_eq!((lasted("recorded-1"), lasted("recorded-2")), (1_500, 1_400));
+    }
+
+    #[test]
+    fn the_seconds_of_an_audio_are_told_by_its_size_alone() {
+        let phone = phone(&[]);
+        let seconds = |meeting: &str| {
+            audio::seconds(Store::open(phone.folder.path().into()).unwrap().audio(&id(meeting), false).unwrap())
+        };
+        for (meeting, frames, held) in
+            [("recorded-1", 0, 0), ("recorded-2", 50, 1), ("recorded-3", 51, 2), ("recorded-4", 130, 3)]
+        {
+            phone.begin(meeting);
+            let mut writer = phone.library.record(&id(meeting), 1).unwrap();
+            chord(frames).iter().for_each(|frame| writer.write(&[*frame]).unwrap());
+            writer.finish().unwrap();
+            assert_eq!(seconds(meeting), Ok(held), "{meeting}");
+        }
+        // A header no version made, or no header at all.
+        let path = phone.path("recorded-4.audio");
+        let sealed = fs::read(&path).unwrap();
+        fs::write(&path, [b"XTTAUDIO".as_slice(), &sealed[8..]].concat()).unwrap();
+        assert_eq!(seconds("recorded-4"), Err(AudioError::Unsupported));
+        fs::write(&path, &sealed[..20]).unwrap();
+        assert_eq!(seconds("recorded-4"), Err(AudioError::Absent));
     }
 
     #[test]

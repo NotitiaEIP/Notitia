@@ -4,6 +4,7 @@
 | --- | --- |
 | Statut | Proposée le 21 novembre 2026, acceptée à la fusion de sa PR |
 | Modifiée | Le 24 novembre 2026 par T-94 (#260) : le rappel `run` depuis un fil du cœur est prouvé sur Android, la réunion est transcrite pendant son enregistrement |
+| Modifiée | Le 25 novembre 2026 par T-95 (#262) : la marge sous la fenêtre d'un moteur de texte est fixée, et une offre laisse au moins 1 024 jetons à l'invite |
 | Proposée par | Clément |
 | Relue par | Alexandre pour le cœur, Lucas pour l'iPhone |
 | Tâche d'origine | T-89 (#256) |
@@ -93,7 +94,7 @@ Mesuré le 21 novembre 2026 sur un portable (Intel i5-12450H), en release :
 **Ce qui reste ouvert.**
 - **Le rappel `run` depuis un fil du cœur.** Prouvé sur Android par T-94 : JNA attache le fil du traitement à la JVM le temps de l'appel (`RustEnginesTest`). Swift le reçoit hors du fil principal, ce que rien ne prouve avant un Mac.
 - **Kotlin relira `engines.json`** avec l'adaptateur de la gateway, dans T-59.
-- **La marge sous la fenêtre d'un moteur de texte** : G la fixe. Si le modèle de T-06 compte ses jetons très loin de la moyenne, une demande `count` exacte s'ajoutera à `run`.
+- **La marge sous la fenêtre d'un moteur de texte.** Fixée par T-95 (ADR 0013) : une invite remplit au plus 85 % de ce que la réponse laisse, et un moteur de texte offert laisse au moins 1 024 jetons à l'invite. Si le modèle de T-06 compte ses jetons très loin de la moyenne, une demande `count` exacte s'ajoutera à `run`.
 - **Le texte écrit au fil de l'eau**, pour la réponse à une question (J), si les mesures sur le téléphone le demandent.
 - **Le choix du moteur par l'utilisateur** : une demande `prefer`, et un écran de réglages.
 - **L'interdiction de tout moteur distant pour une organisation de santé** (T-72, E11).
