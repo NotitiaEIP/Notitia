@@ -486,6 +486,7 @@ mod tests {
             "{\"type\":\"cut\",\"problem\":\"storage2\"}",
             "{\"type\":\"begin\",\"id\":\"recorded-1\",\"startedAt\":\"2026-11-11T07:00:00Z\",\"offsetMinutes\":60}",
             "{\"type\":\"forget\",\"meetings\":[]}",
+            "{\"type\":\"heard\",\"meeting\":\"recorded-1\",\"lines\":[],\"fromMs\":0,\"untilMs\":null}",
         ] {
             assert_eq!(Request::read(text), None, "{text}");
         }

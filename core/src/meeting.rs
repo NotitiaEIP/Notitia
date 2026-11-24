@@ -84,6 +84,11 @@ pub struct Meeting {
     pub offset_minutes: Option<i16>,
     // The audio actually heard, pauses left out.
     pub duration_ms: u64,
+    // How far the core has heard the audio: the edge of the last window it transcribed, from which it resumes. None
+    // once the transcript is whole, as for every meeting from before the core heard them, and for one the app
+    // transcribes itself (until T-59).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transcribed_ms: Option<u64>,
     // When and where it last changed, so two devices can be reconciled later (E10).
     #[serde(with = "instant")]
     pub modified_at: UtcDateTime,
@@ -197,6 +202,7 @@ pub(crate) mod testing {
             started_at: utc_datetime!(2026-11-10 9:30),
             offset_minutes: None,
             duration_ms: 30 * 60_000,
+            transcribed_ms: None,
             modified_at: utc_datetime!(2026-11-10 10:00),
             device: "phone-1".into(),
             title: None,
