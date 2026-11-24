@@ -118,11 +118,17 @@ impl Library {
         let store = Store::open(directory).map_err(read)?;
         let device = store.device().map_err(read)?;
         let (stored, index) = store.load(clock()).map_err(read)?;
-        // A recording the app did not live to stop lasts as long as its audio. Only those audios are opened: a
-        // launch does not read three hundred of them.
+        // A recording the app did not live to stop lasts as long as its audio. Only an audio whose size tells
+        // another length than its meeting's is opened: a launch deciphers none of three hundred meetings whose
+        // minutes wait for a model.
+        let cut = |meeting: &&Meeting| {
+            let seconds = store.audio(&meeting.id, false).ok().and_then(|file| audio::seconds(file).ok());
+            seconds.is_some_and(|seconds| seconds != meeting.duration_ms.div_ceil(1_000))
+        };
         let lasted: Vec<Change> = stored
             .iter()
             .filter(|meeting| meeting.minutes == MinutesState::Writing)
+            .filter(cut)
             .filter_map(|meeting| {
                 let duration_ms = open_audio(&store, key.as_ref(), &meeting.id).ok()?.duration_ms();
                 Some(Change::Lasted { meeting: meeting.id.clone(), duration_ms })
@@ -975,6 +981,47 @@ mod tests {
         assert_eq!((kept.duration_ms, kept.transcribed_ms, kept.minutes.clone()), expected);
         assert_eq!(phone.list()[0], kept);
         assert_eq!(phone.list()[1], meeting("recorded-1"));
+    }
+
+    #[test]
+    fn a_launch_opens_only_the_audio_whose_size_tells_another_length() {
+        let phone = phone(&[]);
+        for (meeting, says_ms) in [("recorded-1", 1_500), ("recorded-2", 900)] {
+            phone.begin(meeting);
+            phone.lasted(meeting, says_ms);
+            // 1.4 s: two seconds, the last one short.
+            let mut writer = phone.library.record(&id(meeting), 1).unwrap();
+            chord(70).iter().for_each(|frame| writer.write(&[*frame]).unwrap());
+            writer.finish().unwrap();
+        }
+        let phone = phone.relaunched();
+        let lasted = |meeting: &str| phone.file(meeting).unwrap().duration_ms;
+        // Two seconds as its length says: not opened, though a reader would tell 1.4 s. One second says another.
+        assert_eq!((lasted("recorded-1"), lasted("recorded-2")), (1_500, 1_400));
+    }
+
+    #[test]
+    fn the_seconds_of_an_audio_are_told_by_its_size_alone() {
+        let phone = phone(&[]);
+        let seconds = |meeting: &str| {
+            audio::seconds(Store::open(phone.folder.path().into()).unwrap().audio(&id(meeting), false).unwrap())
+        };
+        for (meeting, frames, held) in
+            [("recorded-1", 0, 0), ("recorded-2", 50, 1), ("recorded-3", 51, 2), ("recorded-4", 130, 3)]
+        {
+            phone.begin(meeting);
+            let mut writer = phone.library.record(&id(meeting), 1).unwrap();
+            chord(frames).iter().for_each(|frame| writer.write(&[*frame]).unwrap());
+            writer.finish().unwrap();
+            assert_eq!(seconds(meeting), Ok(held), "{meeting}");
+        }
+        // A header no version made, or no header at all.
+        let path = phone.path("recorded-4.audio");
+        let sealed = fs::read(&path).unwrap();
+        fs::write(&path, [b"XTTAUDIO".as_slice(), &sealed[8..]].concat()).unwrap();
+        assert_eq!(seconds("recorded-4"), Err(AudioError::Unsupported));
+        fs::write(&path, &sealed[..20]).unwrap();
+        assert_eq!(seconds("recorded-4"), Err(AudioError::Absent));
     }
 
     #[test]
