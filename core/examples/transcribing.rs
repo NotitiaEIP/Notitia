@@ -1,6 +1,7 @@
 // What the core costs around an engine for an hour of a meeting (T-94): the windows read from the sealed audio, sent
-// to an engine of the app as the bridge sends them, the lines added to the meeting's file one window at a time. Then
-// a launch that takes the hour up at its middle. The engine answers at once: only the core is measured.
+// to an engine of the app as the bridge sends them, the lines added to the meeting's file one window at a time, then
+// its minutes written in slices (T-95). Then a launch that takes the hour up at its middle. The engines answer at
+// once: only the core is measured.
 // Optimised as an app is: cargo run --release --example transcribing
 #![expect(clippy::print_stdout, clippy::disallowed_methods, reason = "a measure reads the clock and prints")]
 
@@ -20,7 +21,8 @@ use notitia::secret::Key;
 use notitia::{Event, Lender, Listener, Offer, Session};
 use time::macros::utc_datetime;
 
-const OFFER: &str = r#"[{"kind":"speech","name":"ready","remote":false,"longestMs":30000}]"#;
+const OFFER: &str = r#"[{"kind":"speech","name":"ready","remote":false,"longestMs":30000},
+    {"kind":"text","name":"pen","remote":false,"contextTokens":4096,"replyTokens":1024}]"#;
 
 // What a model hears in 30 s of speech, some 75 words: the file grows as a real one does.
 const SAID: &str = "On commence par le budget du trimestre, puis on passe aux recrutements prévus pour janvier. \
@@ -28,13 +30,19 @@ const SAID: &str = "On commence par le budget du trimestre, puis on passe aux re
     devis détaillé avant la fin du mois, il faut s'en occuper cette semaine. D'accord, je prépare le document et je \
     l'envoie à tout le monde avant vendredi midi, et on refait un point jeudi matin.";
 
-// An engine of the app that hears every window at once, as many as it is allowed, then is no longer available.
+// Engines of the app that answer at once: one hears every window, as many as it is allowed, then is no longer
+// available; the other writes the minutes of whatever it reads.
 struct Ready {
     left: AtomicUsize,
+    written: AtomicUsize,
 }
 
 impl Lender for Ready {
-    fn run(&self, _: &str, _: &str, sound: Vec<u8>) -> String {
+    fn run(&self, engine: &str, _: &str, sound: Vec<u8>) -> String {
+        if engine == "pen" {
+            self.written.fetch_add(1, Ordering::Relaxed);
+            return r#"{"type":"written","text":"SUMMARY: Un point d'équipe.\nDECISION: -\nACTION: -"}"#.into();
+        }
         if self.left.try_update(Ordering::AcqRel, Ordering::Acquire, |left| left.checked_sub(1)).is_err() {
             return r#"{"type":"unavailable"}"#.into();
         }
@@ -75,15 +83,15 @@ impl library::Listener for Silent {
     fn on_event(&self, _: &library::Event) {}
 }
 
-// The session, and how far the meeting is heard each time that changes.
-type Opened = (Session, Receiver<Option<u64>>);
+// The session, how far the meeting is heard each time it changes, and the engines.
+type Opened = (Session, Receiver<Option<u64>>, Arc<Ready>);
 
 fn open(folder: &Path, windows: usize) -> Result<Opened, Box<dyn Error>> {
     let (sent, heard) = mpsc::channel();
     let session = Session::open(folder, Some(key()?), Arc::new(Heard(Mutex::new(sent))))?;
-    let ready: Arc<dyn Lender> = Arc::new(Ready { left: AtomicUsize::new(windows) });
-    session.offer(Offer::read(OFFER).ok_or("the offer is refused")?, ready);
-    Ok((session, heard))
+    let ready = Arc::new(Ready { left: AtomicUsize::new(windows), written: AtomicUsize::new(0) });
+    session.offer(Offer::read(OFFER).ok_or("the offer is refused")?, ready.clone());
+    Ok((session, heard, ready))
 }
 
 // The time each window took, from the one before, until the meeting is whole or `windows` were heard.
@@ -122,9 +130,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     let folder = tempfile::tempdir()?;
     recorded(folder.path(), &meeting)?;
     let started = Instant::now();
-    let (session, heard) = open(folder.path(), usize::MAX)?;
+    let (session, heard, ready) = open(folder.path(), usize::MAX)?;
     let taken = hear(&heard, usize::MAX, started);
     let whole = started.elapsed();
+    // The change that writes the minutes, once the transcript is whole.
+    let drafting = Instant::now();
+    heard.recv()?;
+    let drafted = drafting.elapsed();
     let transcript = lines(&session, &meeting)?;
     drop(session);
     let windows = taken.len();
@@ -142,16 +154,21 @@ fn main() -> Result<(), Box<dyn Error>> {
         file / 1_000,
         (file * windows as u64) as f64 / 2e6
     );
+    println!(
+        "its minutes written in {:.1} ms: {} calls to an engine of 4,096 tokens, the slices and their merge",
+        millis(drafted),
+        ready.written.load(Ordering::Relaxed)
+    );
 
     let folder = tempfile::tempdir()?;
     recorded(folder.path(), &meeting)?;
-    let (session, heard) = open(folder.path(), windows / 2)?;
+    let (session, heard, _) = open(folder.path(), windows / 2)?;
     hear(&heard, windows / 2, Instant::now());
     let closing = Instant::now();
     drop(session);
     let closed = closing.elapsed();
     let launched = Instant::now();
-    let (session, heard) = open(folder.path(), usize::MAX)?;
+    let (session, heard, _) = open(folder.path(), usize::MAX)?;
     let first = hear(&heard, 1, launched);
     hear(&heard, usize::MAX, Instant::now());
     let resumed = lines(&session, &meeting)? == transcript;

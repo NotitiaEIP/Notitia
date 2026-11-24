@@ -3,6 +3,7 @@
 | | |
 | --- | --- |
 | Statut | Proposée le 24 novembre 2026, acceptée à la fusion de sa PR |
+| Modifiée | Le 25 novembre 2026 par T-95 (#262) : le compte rendu s'écrit sur le fil, `unavailable` et `interrupted` partent |
 | Proposée par | Clément |
 | Relue par | Alexandre pour le cœur |
 | Tâche d'origine | T-94 (#260), moitié cœur de T-38 (#141) |
@@ -117,7 +118,7 @@ Les tests le prouvent aussi :
 - Une réunion mise de côté pour un défaut qui passe attend le prochain lancement.
 
 **Ce qui reste ouvert.**
-- **Le compte rendu (G).** Il remplace le passage à `unavailable`, décide si les réunions `unavailable` reviennent quand un moteur de texte arrive, et ajoute `retry`. Il retire `interrupted` une fois que T-59 a retiré `transcribed`.
+- **Le compte rendu (G).** Fait par T-95 (ADR 0013) : une transcription entière laisse le compte rendu dû (`writing`), qui s'écrit sur ce fil dès qu'un moteur de texte existe. Le cœur n'écrit plus `unavailable`, la demande `rewrite` relance un compte rendu en échec, et `interrupted` part dès G : il aurait fait échouer au lancement un compte rendu dû.
 - **Le branchement des apps (T-59).** L'app offre ses moteurs et lit `transcribedMs`. Elle offre à nouveau quand un moteur revient : modèle téléchargé, réseau retrouvé.
 - **Le réveil du cœur en tâche de fond** : WorkManager sur Android, une tâche de fond sur iPhone. C'est la partie téléphone de T-38.
 - **Transcrire seulement après la réunion**, si le moteur de T-06 ne tient pas le temps réel sur un téléphone.
