@@ -86,7 +86,8 @@ pub struct Progress {
 }
 
 impl State {
-    fn progress(&self) -> Option<&Progress> {
+    // None when no recording is under way.
+    pub fn progress(&self) -> Option<&Progress> {
         match self {
             State::Recording { progress, .. } | State::Paused(progress) | State::Interrupted(progress) => {
                 Some(progress)

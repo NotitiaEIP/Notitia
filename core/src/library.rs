@@ -213,6 +213,14 @@ impl Library {
         audio::Writer::open(self.store.audio(id, true)?, key, tracks)
     }
 
+    // The meetings kept in a file that `which` picks, in the order of the list: the latest first.
+    pub(crate) fn kept(&self, which: impl Fn(&Meeting) -> bool) -> Vec<MeetingId> {
+        let meetings = lock(&self.meetings);
+        let kept = meetings.entries.iter().filter(|entry| !matches!(entry.transcript, Transcript::Lent(_)));
+        let kept = kept.filter(|entry| which(&entry.meeting));
+        kept.map(|entry| entry.meeting.id.clone()).collect()
+    }
+
     pub fn audio(&self, id: &MeetingId) -> Result<audio::Reader, AudioError> {
         open_audio(&self.store, self.key.as_ref(), id)
     }
@@ -848,6 +856,9 @@ mod tests {
         assert_eq!(phone.library.meeting(&id("recorded-9")).unwrap().transcript, [line(0, "Bonjour à tous.")]);
         assert_eq!(phone.library.meeting(&id("sample-1")).unwrap().transcript, heard("sample-1").transcript);
         assert_eq!((phone.file("recorded-8"), phone.file("sample-1")), (None, None));
+        // What the pipeline is given to hear: neither a sample nor a meeting the app transcribes.
+        assert_eq!(phone.library.kept(|meeting| meeting.transcribed_ms.is_some()), []);
+        assert_eq!(phone.library.kept(|_| true), [id("recorded-9")]);
     }
 
     #[test]
