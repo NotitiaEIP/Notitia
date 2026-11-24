@@ -7,6 +7,7 @@ pub mod engine;
 pub mod format;
 pub mod library;
 pub mod meeting;
+pub mod minutes;
 pub mod pipeline;
 pub mod recorder;
 pub mod secret;

@@ -21,7 +21,7 @@ pub(crate) mod civil_date {
     use time::format_description::BorrowedFormatItem;
     use time::macros::format_description;
 
-    const FORMAT: &[BorrowedFormatItem<'_>] = format_description!("[year]-[month]-[day]");
+    pub(crate) const FORMAT: &[BorrowedFormatItem<'_>] = format_description!("[year]-[month]-[day]");
 
     pub fn serialize<S: Serializer>(date: &Option<Date>, serializer: S) -> Result<S::Ok, S::Error> {
         match date {
