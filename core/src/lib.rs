@@ -10,6 +10,7 @@ pub mod meeting;
 pub mod recorder;
 pub mod secret;
 pub mod session;
+pub mod speech;
 #[cfg(test)]
 mod testing;
 

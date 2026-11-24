@@ -4,9 +4,10 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    About, Catalogue, EmbeddingEngine, Engine, EngineError, Hint, Segment, SpeechEngine, Stop, TextEngine, Window,
+    About, Catalogue, EmbeddingEngine, Engine, EngineError, Hint, LONGEST_MS, SHORTEST_MS, Segment, SpeechEngine, Stop,
+    TextEngine, Window,
 };
-use crate::audio::SAMPLE_RATE;
+use crate::audio::SAMPLES_PER_MS;
 
 // Engines the app runs for the core: the gateway in debug, then Gemini Nano and Apple's. One function crosses for all
 // of them, in text, so a new engine touches neither RustCore.kt nor RustCore.swift. tests/fixtures/bridge/engines.json
@@ -22,18 +23,10 @@ pub trait Lender: Send + Sync {
 // Past what a name of an engine needs, a fault of the app.
 const LONGEST_NAME: usize = 64;
 
-// A window longer than ten minutes, 19 MB of sound, would be held whole in memory to be lent.
-const LONGEST_MS: u32 = 600_000;
-
-// A shorter one, too short for a sentence.
-const SHORTEST_MS: u32 = 1_000;
-
 // On average, a token of a model holds three bytes or more of French. Digits and rare words hold fewer, so a text full
 // of them may hold more tokens than counted: the minutes keep a margin under the window. An engine of the core counts
 // its own.
 const BYTES_PER_TOKEN: usize = 3;
-
-const SAMPLES_PER_MS: usize = SAMPLE_RATE / 1_000;
 
 // What the app can run, as it says it. `remote` has no default: an engine that sends what it hears away must say so.
 #[derive(Deserialize)]

@@ -22,8 +22,13 @@ pub trait Engine: Send + Sync {
     fn about(&self) -> &About;
 }
 
+// What `longest_ms` may say. Shorter than a second holds no sentence. Longer than ten minutes, 19 MB of sound, would be
+// held whole in memory to be heard.
+pub const SHORTEST_MS: u32 = 1_000;
+pub const LONGEST_MS: u32 = 600_000;
+
 pub trait SpeechEngine: Engine {
-    // The longest sound one call takes: Whisper hears 30 s at once, another model more.
+    // The longest sound one call takes, from SHORTEST_MS to LONGEST_MS: Whisper hears 30 s at once, another model more.
     fn longest_ms(&self) -> u32;
 
     // The sound of one window, 16 kHz on one channel; times from the start of that window.

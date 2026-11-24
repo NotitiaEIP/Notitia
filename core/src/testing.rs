@@ -38,7 +38,7 @@ const HEADER: usize = 64;
 
 // Few enough for the CI on three systems, in debug. As many as wished, in release:
 // NOTITIA_CASES=1000000 cargo test --release -p notitia damaged
-fn cases(default: usize) -> usize {
+pub fn cases(default: usize) -> usize {
     std::env::var("NOTITIA_CASES").ok().and_then(|cases| cases.parse().ok()).unwrap_or(default)
 }
 
@@ -54,11 +54,11 @@ pub fn each_damaged(good: &[&[u8]], default: usize, mut read: impl FnMut(&[u8]))
     }
 }
 
-// SplitMix64: the same draws on every system, spread enough for damage.
-struct Draw(u64);
+// SplitMix64: the same draws on every system, spread enough for damage, or for the noise of a room.
+pub struct Draw(pub u64);
 
 impl Draw {
-    fn next(&mut self) -> u64 {
+    pub fn next(&mut self) -> u64 {
         self.0 = self.0.wrapping_add(0x9e37_79b9_7f4a_7c15);
         let mixed = (self.0 ^ (self.0 >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
         let mixed = (mixed ^ (mixed >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
@@ -66,7 +66,7 @@ impl Draw {
     }
 
     // From 0 to `bound`, `bound` left out.
-    fn below(&mut self, bound: usize) -> usize {
+    pub fn below(&mut self, bound: usize) -> usize {
         (self.next() % bound.max(1) as u64) as usize
     }
 
