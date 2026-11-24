@@ -1,5 +1,6 @@
 package com.example.notitia.bridge
 
+import com.example.notitia.ai.audio
 import java.io.File
 import java.util.Collections
 import kotlin.io.path.createTempDirectory
@@ -7,9 +8,15 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 // The engines of this app, offered to the real core through the bridge of the phone: what the fake core cannot prove,
 // that the core reads the offer this app writes and tells the engines it chose. Which one it chooses is tested in
@@ -36,6 +43,43 @@ class RustEnginesTest {
         assertEquals(events[1], told.last())
         assertNull(core.offer("[]", none))
         assertEquals(events[0], told.last())
+    }
+
+    // The core calls the engine from a thread of its own, which JNA attaches to the JVM for the call: what no other
+    // test reaches. Through RustCore alone: CoreRecording would transcribe the meeting itself until T-59.
+    @Test
+    fun aMeetingRecordedIsHeardOnAThreadOfTheCoreByAnEngineOfThisApp() = runBlocking {
+        val told = Collections.synchronizedList(mutableListOf<JsonObject>())
+        val core = RustCore()
+        assertNull(core.open(folder.path, ByteArray(KEY_BYTES) { 7 }) { told += CoreJson.parseToJsonElement(it).jsonObject })
+        val asked = Collections.synchronizedList(mutableListOf<String>())
+        val ear = CoreEngines { _, request, sound ->
+            asked += request
+            check(sound.size % 2 == 0 && sound.size <= 30 * 32_000)
+            """{"type":"heard","segments":[{"fromMs":0,"toMs":900,"text":"Bonjour à tous."}]}"""
+        }
+        assertNull(core.offer("""[{"kind":"speech","name":"ear","remote":false,"longestMs":30000}]""", neverThrowing(ear)))
+        assertNull(core.apply("""{"type":"start","tracks":1,"offsetMinutes":60}"""))
+        // Two seconds said between two silences: heard as speech, against the noise learned from the silence.
+        core.hear(0, audio(1_000, level = 0) + audio(2_000) + audio(2_500, level = 0))
+        assertNull(core.apply("""{"type":"stop"}"""))
+        val heard = withTimeout(20.seconds) {
+            var meeting: String? = null
+            while (meeting == null) {
+                meeting = synchronized(told) { told.firstNotNullOfOrNull { it["meeting"]?.jsonPrimitive?.content } }
+                if (meeting == null) delay(10)
+            }
+            // Whole once it no longer says how far it is heard.
+            var whole = CoreJson.parseToJsonElement(checkNotNull(core.meeting(meeting).text)).jsonObject
+            while ("transcribedMs" in whole) {
+                delay(10)
+                whole = CoreJson.parseToJsonElement(checkNotNull(core.meeting(meeting).text)).jsonObject
+            }
+            whole
+        }
+        val lines = heard.getValue("transcript").jsonArray.map { it.jsonObject.getValue("text").jsonPrimitive.content }
+        assertEquals(listOf("Bonjour à tous."), lines)
+        assertEquals("""{"type":"transcribe","language":"fr","previous":""}""", asked.single())
     }
 
     @Test

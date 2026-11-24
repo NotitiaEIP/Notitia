@@ -107,6 +107,7 @@ impl From<Meeting> for meeting::Meeting {
             started_at: file.started_at,
             offset_minutes: None,
             duration_ms: file.duration.0,
+            transcribed_ms: None,
             modified_at: file.modified_at,
             device: file.device,
             title: file.title,

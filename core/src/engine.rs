@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 use serde::{Serialize, Serializer};
 
@@ -74,7 +74,8 @@ pub trait EmbeddingEngine: Engine {
 // Carries nothing that was said: it may end up in a log (product rule 1).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum EngineError {
-    // Not now: a model still downloading, a gateway out of reach. The work waits and nothing is marked.
+    // Not now: a model still downloading, a gateway out of reach. The work waits for the app to offer its engines
+    // again, and nothing is marked.
     Unavailable,
     // This input failed: the work moves on without it.
     Failed,
@@ -97,6 +98,10 @@ impl Stop {
         self.0.load(Ordering::Relaxed)
     }
 }
+
+// The catalogue in force, replaced whole by each offer and read from any thread: by the session, and by the pipeline
+// at each step, which keeps the engines it started with.
+pub type Engines = Arc<Mutex<Arc<Catalogue>>>;
 
 // The engines the core knows, by kind, the preferred first: the one a work takes. Never changed once made: a new
 // offer makes another, and a call already under way keeps the engine it started with.

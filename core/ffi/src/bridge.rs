@@ -12,8 +12,8 @@ pub struct Bridge {
     session: Session,
 }
 
-// Held by the app. Called on the thread that asked for a change, before its file is written, or on the recorder's.
-// It may read a meeting back, it must not ask for anything, which would wait for itself.
+// Held by the app. Called on the thread that asked for a change, before its file is written, or on the recorder's or
+// the pipeline's. It may read a meeting back, it must not ask for anything, which would wait for itself.
 #[uniffi::export(with_foreign)]
 pub trait BridgeListener: Send + Sync {
     fn on_event(&self, event: String);

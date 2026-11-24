@@ -5,7 +5,7 @@ pub mod text;
 pub mod voice;
 pub mod windows;
 
-pub use text::lines;
+pub use text::{lines, previous, unheard};
 pub use windows::{Next, Window, Windows};
 
 // Made up, like every sound of the tests: no meeting was recorded for them.

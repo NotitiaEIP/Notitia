@@ -44,6 +44,16 @@ pub enum Change {
         meeting: MeetingId,
         duration_ms: u64,
     },
+    // What the core heard of a meeting, never read from an app: lines to add after the others, from the edge it had
+    // reached. Made nothing of unless the meeting is heard up to `from_ms`, so a window is never added twice, nor to a
+    // meeting the app transcribes itself. `until_ms` None: the transcript is whole.
+    #[serde(skip)]
+    Heard {
+        meeting: MeetingId,
+        lines: Vec<TranscriptLine>,
+        from_ms: u64,
+        until_ms: Option<u64>,
+    },
 }
 
 #[derive(Deserialize)]
@@ -194,13 +204,14 @@ impl From<ActionDraft> for Action {
 }
 
 impl Meeting {
-    // Heard for the first time: nothing transcribed yet.
+    // Heard for the first time: nothing transcribed yet, and the core hears it from its start.
     pub(crate) fn begun(id: MeetingId, started_at: UtcDateTime, offset_minutes: Option<i16>, stamp: Stamp) -> Self {
         let mut meeting = Meeting {
             id,
             started_at,
             offset_minutes,
             duration_ms: 0,
+            transcribed_ms: Some(0),
             modified_at: stamp.at,
             device: String::new(),
             title: None,
@@ -213,9 +224,10 @@ impl Meeting {
         meeting
     }
 
-    // Minutes left writing belong to an app that was killed: without the audio, nothing can resume them.
+    // Minutes left writing by an app that transcribed the meeting itself and was killed: nothing resumes them. Those
+    // of a meeting the core hears resume instead. Gone once the app hands every meeting to the core (T-59).
     pub(crate) fn interrupted(mut self) -> Self {
-        if self.minutes == MinutesState::Writing {
+        if self.minutes == MinutesState::Writing && self.transcribed_ms.is_none() {
             self.minutes = MinutesState::Failed;
         }
         self
@@ -382,9 +394,12 @@ mod tests {
     #[test]
     fn minutes_left_writing_by_a_killed_app_have_failed() {
         let writing = Meeting { minutes: MinutesState::Writing, ..meeting("recorded-1") };
-        assert_eq!(writing.interrupted().minutes, MinutesState::Failed);
+        assert_eq!(writing.clone().interrupted().minutes, MinutesState::Failed);
         assert_eq!(meeting("recorded-1").interrupted(), meeting("recorded-1"));
         assert_eq!(written(&[]), MinutesState::from(draft(&[])));
+        // The core hears it: it resumes where it was.
+        let heard = Meeting { transcribed_ms: Some(30_000), ..writing };
+        assert_eq!(heard.clone().interrupted(), heard);
     }
 
     #[test]
@@ -449,6 +464,7 @@ mod tests {
             "{\"type\":\"lasted\",\"meeting\":\"recorded-1\",\"durationMs\":60000}".into(),
             "{\"type\":\"lasted\",\"meeting\":\"recorded-1\",\"duration_ms\":60000}".into(),
             "{\"type\":\"transcribed\",\"meeting\":\"recorded-1\"}".into(),
+            "{\"type\":\"heard\",\"meeting\":\"recorded-1\",\"lines\":[],\"fromMs\":0,\"untilMs\":null}".into(),
             // An identifier names a file: one that would leave the folder never reaches the meetings.
             "{\"type\":\"delete\",\"meetings\":[\"../recorded-1\"]}".into(),
             edit("{\"type\":\"rename\"}"),

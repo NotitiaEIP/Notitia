@@ -42,8 +42,9 @@ Une fiche se lit en deux minutes et ne change plus, sauf pour recevoir ce que la
 | [0007](adr/0007-cle-de-l-app.md) | La clé de l'app, gardée par le Keystore, jamais écrasée, durable avant d'être utilisée | Proposée le 19 novembre 2026 |
 | [0008](adr/0008-identifiants.md) | Un identifiant désigne le même fichier sur tous les systèmes : des minuscules, jamais un nom de périphérique de Windows | Proposée le 20 novembre 2026 |
 | [0009](adr/0009-garde-fous.md) | Les règles du cœur tenues par des outils : crates permises, aucun réseau, formats figés, fichiers abîmés lus sans panique | Proposée le 20 novembre 2026 |
-| [0010](adr/0010-moteurs.md) | Les moteurs du cœur : trois interfaces, ceux de l'appareil avant les distants, ceux de l'app prêtés par une seule fonction du pont | Proposée le 21 novembre 2026 |
-| [0011](adr/0011-fenetres.md) | Les fenêtres d'audio : la parole tirée du bruit de la salle, 30 s au plus, un bord qui suffit à reprendre | Proposée le 23 novembre 2026 |
+| [0010](adr/0010-moteurs.md) | Les moteurs du cœur : trois interfaces, ceux de l'appareil avant les distants, ceux de l'app prêtés par une seule fonction du pont | Proposée le 21 novembre 2026, modifiée le 24 novembre |
+| [0011](adr/0011-fenetres.md) | Les fenêtres d'audio : la parole tirée du bruit de la salle, 30 s au plus, un bord qui suffit à reprendre | Proposée le 23 novembre 2026, modifiée le 24 novembre |
+| [0012](adr/0012-traitement.md) | Le traitement d'une réunion : un fil du cœur qui reprend où la réunion en est, sans file sur le disque | Proposée le 24 novembre 2026 |
 
 ## Ailleurs dans le repo
 

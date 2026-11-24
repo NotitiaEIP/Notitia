@@ -4,10 +4,11 @@ use std::sync::{Arc, Mutex};
 use serde::Serialize;
 
 use crate::audio::{self, AudioError};
-use crate::engine::Catalogue;
 use crate::engine::lent::{Lender, Offer};
+use crate::engine::{Catalogue, Engines};
 use crate::library::{self, Library, LibraryError, lock};
 use crate::meeting::{Change, Meeting, MeetingId};
+use crate::pipeline::Pipeline;
 use crate::recorder::{Command, Recorder, State};
 use crate::secret::Key;
 
@@ -53,8 +54,8 @@ impl Event<'_> {
     }
 }
 
-// Called on the thread that asked for a change, or on the recorder's. It may read a meeting back, it must not ask
-// for anything, which would wait for itself.
+// Called on the thread that asked for a change, on the recorder's or on the pipeline's. It may read a meeting back,
+// it must not ask for anything, which would wait for itself.
 pub trait Listener: Send + Sync {
     fn on_event(&self, event: &Event);
 }
@@ -68,11 +69,13 @@ impl library::Listener for Relay {
 }
 
 pub struct Session {
+    // First, so dropped first: its thread ends, its engine call stopped, before anything it uses goes.
+    pipeline: Pipeline,
     recorder: Recorder,
     library: Arc<Library>,
     // Replaced whole, never changed: a call already under way keeps the engines it started with. Never held while the
     // app is told, so anyone may read the engines from any thread.
-    engines: Mutex<Arc<Catalogue>>,
+    engines: Engines,
     // Held while an offer takes effect and is told: two offers from two threads are told in the order they hold.
     offering: Mutex<()>,
     listener: Arc<dyn Listener>,
@@ -86,13 +89,18 @@ impl Session {
         listener: Arc<dyn Listener>,
     ) -> Result<Self, LibraryError> {
         let library = Arc::new(Library::open(directory, key, Arc::new(Relay(listener.clone())))?);
-        let told = listener.clone();
-        let tell = move |state: &State| told.on_event(&Event::Recorder(state));
+        let engines = Engines::default();
         // A system that cannot give a thread cannot keep a meeting either.
+        let pipeline = Pipeline::spawn(library.clone(), engines.clone()).map_err(|_| LibraryError::Unreadable)?;
+        let (waker, told) = (pipeline.waker(), listener.clone());
+        let tell = move |state: &State| {
+            waker.recorded(state);
+            told.on_event(&Event::Recorder(state));
+        };
         let recorder = Recorder::spawn(library.clone(), tell).map_err(|_| LibraryError::Unreadable)?;
-        let engines = Arc::<Catalogue>::default();
-        listener.on_event(&Event::Engines(&engines));
-        Ok(Self { recorder, library, engines: Mutex::new(engines), offering: Mutex::default(), listener })
+        let catalogue = lock(&engines).clone();
+        listener.on_event(&Event::Engines(&catalogue));
+        Ok(Self { pipeline, recorder, library, engines, offering: Mutex::default(), listener })
     }
 
     // The engines of the app, in place of those it offered before.
@@ -100,6 +108,8 @@ impl Session {
         let catalogue = Arc::new(offer.lend(&lender));
         let _told = lock(&self.offering);
         *lock(&self.engines) = catalogue.clone();
+        // Before the app is told: a listener that panics does not keep the pipeline from the engines.
+        self.pipeline.offered();
         self.listener.on_event(&Event::Engines(&catalogue));
     }
 
@@ -113,8 +123,10 @@ impl Session {
         match request {
             Request::Recorder(command) => self.recorder.apply(command),
             Request::Meetings(Change::Delete { meetings }) => {
-                // The recorder lets go of the audio first: Windows refuses to delete an open file.
+                // The recorder and the pipeline let go of the audio first: Windows refuses to delete an open file.
+                // The engine call under way on one of them is stopped, and what it heard is not kept.
                 self.recorder.forget(&meetings);
+                self.pipeline.forget(&meetings);
                 self.library.apply(Change::Delete { meetings });
             }
             Request::Meetings(change) => self.library.apply(change),
@@ -137,17 +149,18 @@ impl Session {
         Ok(audio::mix(self.library.audio(id)?.read(from_ms, length_ms.min(SOUND_MS))?))
     }
 
-    // Once the recorder has done all it was asked: its events are told by then.
+    // Once the recorder has done all it was asked, and the pipeline all it can: their events are told by then.
     #[cfg(any(test, feature = "testing"))]
     pub fn settled(&self) {
         self.recorder.forget(&[]);
+        self.pipeline.settled();
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::fs;
-    use std::sync::Mutex;
+    use std::sync::{Mutex, mpsc};
 
     use serde_json::Value;
     use tempfile::TempDir;
@@ -155,11 +168,14 @@ mod tests {
 
     use super::*;
     use crate::audio::{FRAME_SAMPLES, FRAMES_PER_SECOND};
-    use crate::engine::lent::testing::App as Engines;
+    use crate::engine::lent::testing::App as Lending;
+    use crate::engine::{About, Engine, EngineError, Hint, Segment, SpeechEngine, Stop};
+    use crate::meeting::MinutesState;
     use crate::meeting::testing::id;
     use crate::recorder::testing::sound;
     use crate::recorder::{Problem, Progress};
     use crate::secret::testing::key;
+    use crate::speech::testing::{quiet, talk};
     use crate::testing::each_damaged;
 
     // What the apps write and read of the recorder.
@@ -245,10 +261,10 @@ mod tests {
         assert!(session.engines().speech().is_none());
 
         let offer = Offer::read(&fixture["offer"].to_string()).unwrap();
-        session.offer(offer, Engines::answering(&[]));
+        session.offer(offer, Lending::answering(&[]));
         assert_eq!(app.told().last(), Some(&fixture["events"][1]));
         assert_eq!(chosen(&session).as_deref(), Some("speech-analyzer"));
-        session.offer(Offer::read("[]").unwrap(), Engines::answering(&[]));
+        session.offer(Offer::read("[]").unwrap(), Lending::answering(&[]));
         assert_eq!(app.told().last(), Some(&fixture["events"][0]));
         assert!(session.engines().speech().is_none());
     }
@@ -257,9 +273,9 @@ mod tests {
     fn an_offer_replaces_the_engines_whole_and_a_call_keeps_those_it_started_with() {
         let folder = tempfile::tempdir().unwrap();
         let (_, session) = opened(&folder);
-        session.offer(offered(&["a", "b"]), Engines::answering(&[]));
+        session.offer(offered(&["a", "b"]), Lending::answering(&[]));
         let held = session.engines();
-        session.offer(offered(&["c"]), Engines::answering(&[]));
+        session.offer(offered(&["c"]), Lending::answering(&[]));
         assert_eq!(chosen(&session).as_deref(), Some("c"));
         let told = serde_json::to_value(&*session.engines()).unwrap();
         assert_eq!(told["speech"], serde_json::json!([{"name": "c", "remote": false}]));
@@ -277,7 +293,7 @@ mod tests {
                 let session = session.clone();
                 std::thread::spawn(move || {
                     for _ in 0..200 {
-                        session.offer(offered(&[name]), Engines::answering(&[]));
+                        session.offer(offered(&[name]), Lending::answering(&[]));
                     }
                 })
             })
@@ -313,7 +329,7 @@ mod tests {
         let app = Arc::new(Handing::default());
         let session = Arc::new(Session::open(folder.path(), Some(key(1)), app.clone()).unwrap());
         app.session.set(session.clone()).ok().unwrap();
-        session.offer(offered(&["a"]), Engines::answering(&[]));
+        session.offer(offered(&["a"]), Lending::answering(&[]));
         assert_eq!(*app.read.lock().unwrap(), [Some("a".to_owned())]);
     }
 
@@ -332,11 +348,103 @@ mod tests {
     fn a_listener_that_panics_leaves_the_engines_it_was_told() {
         let folder = tempfile::tempdir().unwrap();
         let session = Session::open(folder.path(), Some(key(1)), Arc::new(Faulty)).unwrap();
-        let offer = || session.offer(offered(&["a"]), Engines::answering(&[]));
+        let offer = || session.offer(offered(&["a"]), Lending::answering(&[]));
         assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(offer)).is_err());
         assert_eq!(chosen(&session).as_deref(), Some("a"));
-        session.offer(Offer::read("[]").unwrap(), Engines::answering(&[]));
+        session.offer(Offer::read("[]").unwrap(), Lending::answering(&[]));
         assert_eq!(chosen(&session), None);
+    }
+
+    // The microphone's bytes of a sound: sentences someone says, each followed by a pause.
+    fn said(talks_ms: &[u64]) -> Vec<u8> {
+        let sound = talks_ms.iter().flat_map(|ms| [talk(*ms), quiet(2_500)].concat());
+        sound.flat_map(i16::to_le_bytes).collect()
+    }
+
+    #[test]
+    fn a_meeting_recorded_is_heard_by_the_engine_the_app_lent_as_it_is_said() {
+        let folder = tempfile::tempdir().unwrap();
+        let (app, session) = opened(&folder);
+        let heard = "{\"type\":\"heard\",\"segments\":[{\"fromMs\":0,\"toMs\":900,\"text\":\"Bonjour à tous.\"}]}";
+        let lender = Lending::answering(&[heard, heard]);
+        session.offer(offered(&["ear"]), lender.clone());
+        ask(&session, "{\"type\":\"start\",\"tracks\":1,\"offsetMinutes\":60}");
+        // A second at a time, as a microphone gives it: the first sentence is heard before the second is said.
+        let first = said(&[3_000]);
+        first.chunks(32_000).for_each(|second| session.hear(0, second.to_vec()));
+        session.settled();
+        let meeting = app.recorded();
+        assert_eq!(session.meeting(&meeting).unwrap().transcript.len(), 1);
+        said(&[2_000]).chunks(32_000).for_each(|second| session.hear(0, second.to_vec()));
+        ask(&session, "{\"type\":\"stop\"}");
+        session.settled();
+        let whole = session.meeting(&meeting).unwrap();
+        let lines: Vec<(bool, Option<&str>)> =
+            whole.transcript.iter().map(|line| (line.at_ms > 5_000, line.text.as_deref())).collect();
+        assert_eq!(lines, [(false, Some("Bonjour à tous.")), (true, Some("Bonjour à tous."))]);
+        assert_eq!((whole.transcribed_ms, whole.minutes), (None, MinutesState::Unavailable));
+        let asked: Vec<Value> =
+            lender.asked().iter().map(|(_, request, _)| serde_json::from_str(request).unwrap()).collect();
+        let previous = ["", "Bonjour à tous."];
+        let expected: Vec<Value> = previous
+            .iter()
+            .map(|previous| serde_json::json!({"type": "transcribe", "language": "fr", "previous": previous}))
+            .collect();
+        assert_eq!(asked, expected);
+        let told = app.told().into_iter().filter(|event| event["meeting"]["id"] == meeting.as_str());
+        let edges: Vec<Value> = told.map(|event| event["meeting"]["transcribedMs"].clone()).collect();
+        assert_eq!(edges.last(), Some(&Value::Null), "the app reads how far it is heard in the meeting");
+    }
+
+    // An engine of the core, which holds its call until the test says, as a model takes seconds over a window.
+    struct Holding {
+        about: About,
+        called: mpsc::Sender<()>,
+        go: Mutex<mpsc::Receiver<()>>,
+        stopped: Mutex<Vec<bool>>,
+    }
+
+    impl Engine for Holding {
+        fn about(&self) -> &About {
+            &self.about
+        }
+    }
+
+    impl SpeechEngine for Holding {
+        fn longest_ms(&self) -> u32 {
+            30_000
+        }
+
+        fn transcribe(&self, _: &[i16], _: &Hint, stop: &Stop) -> Result<Vec<Segment>, EngineError> {
+            self.called.send(()).unwrap();
+            let _ = self.go.lock().unwrap().recv();
+            self.stopped.lock().unwrap().push(stop.stopped());
+            Ok(vec![Segment { from_ms: 0, to_ms: 900, text: "Bonjour à tous.".into() }])
+        }
+    }
+
+    #[test]
+    fn a_meeting_deleted_while_it_is_heard_stops_the_engine_and_does_not_come_back() {
+        let folder = tempfile::tempdir().unwrap();
+        let (app, session) = opened(&folder);
+        ask(&session, "{\"type\":\"start\",\"tracks\":1,\"offsetMinutes\":60}");
+        session.hear(0, said(&[3_000]));
+        ask(&session, "{\"type\":\"stop\"}");
+        session.settled();
+        let meeting = app.recorded();
+        let ((called, calling), (go, going)) = (mpsc::channel(), mpsc::channel());
+        let about = About { name: "holding".into(), remote: false };
+        let engine = Arc::new(Holding { about, called, go: Mutex::new(going), stopped: Mutex::default() });
+        *lock(&session.engines) = Arc::new(Catalogue::new(vec![engine.clone()], vec![], vec![]));
+        session.pipeline.offered();
+        calling.recv().unwrap();
+        ask(&session, &format!("{{\"type\":\"delete\",\"meetings\":[\"{}\"]}}", meeting.as_str()));
+        assert!(files(&folder).is_empty());
+        go.send(()).unwrap();
+        session.settled();
+        assert_eq!(*engine.stopped.lock().unwrap(), [true]);
+        assert_eq!(session.meeting(&meeting).err(), Some(LibraryError::NotFound));
+        assert!(files(&folder).is_empty());
     }
 
     #[test]
@@ -486,6 +594,7 @@ mod tests {
             "{\"type\":\"cut\",\"problem\":\"storage2\"}",
             "{\"type\":\"begin\",\"id\":\"recorded-1\",\"startedAt\":\"2026-11-11T07:00:00Z\",\"offsetMinutes\":60}",
             "{\"type\":\"forget\",\"meetings\":[]}",
+            "{\"type\":\"heard\",\"meeting\":\"recorded-1\",\"lines\":[],\"fromMs\":0,\"untilMs\":null}",
         ] {
             assert_eq!(Request::read(text), None, "{text}");
         }

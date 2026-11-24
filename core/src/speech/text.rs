@@ -1,4 +1,5 @@
 use super::windows::Window;
+use crate::audio::SAMPLES_PER_MS;
 use crate::engine::Segment;
 use crate::meeting::{Extra, TranscriptLine};
 
@@ -25,13 +26,18 @@ const CREDITED: &str = "amara.org";
 // A second of speech holds two to four words: more than this alike is a sentence said again, not heard twice.
 const LONGEST_REPEAT: usize = 6;
 
+// What an engine is told was said before a window, in characters: a sentence or two keeps a model on its words.
+const PREVIOUS: usize = 200;
+
 // The lines a window adds to the transcript, from what the engine heard in it and the text of the last line kept
 // before. Dated from the start of the meeting, and never before the edge of the window before: what the overlap holds
 // was dated by it. The words it heard a second time at a cut in the middle of speech are left out.
 pub fn lines(window: &Window, mut heard: Vec<Segment>, last: Option<&str>) -> Vec<TranscriptLine> {
     // Stable: an engine of the core may give its segments in any order, two at the same time keep theirs.
     heard.sort_by_key(|segment| segment.from_ms);
-    let junction = window.from_ms + window.overlap_ms;
+    let junction = junction(window);
+    // An engine of the core dates as it likes: a line past the sound it heard would come before the next window's.
+    let end = window.from_ms + (window.sound.len() / SAMPLES_PER_MS) as u64;
     let mut repeated = window.overlap_ms > 0;
     let mut lines = Vec::new();
     for segment in heard {
@@ -49,10 +55,38 @@ pub fn lines(window: &Window, mut heard: Vec<Segment>, last: Option<&str>) -> Ve
                 continue;
             }
         }
-        let at_ms = (window.from_ms + u64::from(segment.from_ms)).max(junction);
+        let at_ms = (window.from_ms + u64::from(segment.from_ms)).min(end).max(junction);
         lines.push(TranscriptLine { at_ms, text: Some(text), speaker: None, extra: Extra::new() });
     }
     lines
+}
+
+// The line of a window the engine failed to hear: no text, where the sound it adds starts. The transcript then says
+// that something was said there.
+pub fn unheard(window: &Window) -> TranscriptLine {
+    TranscriptLine { at_ms: junction(window), text: None, speaker: None, extra: Extra::new() }
+}
+
+// What an engine is told was said before a window: the end of the transcript, PREVIOUS characters at most.
+pub fn previous(transcript: &[TranscriptLine]) -> String {
+    let mut said = Vec::new();
+    let mut length = 0;
+    for text in transcript.iter().rev().filter_map(|line| line.text.as_deref()) {
+        if length >= PREVIOUS {
+            break;
+        }
+        length += text.chars().count() + 1;
+        said.push(text);
+    }
+    said.reverse();
+    let said = said.join(" ");
+    let skipped = said.chars().count().saturating_sub(PREVIOUS);
+    said.chars().skip(skipped).collect()
+}
+
+// Where the sound a window adds starts: past its overlap, which the window before ended with.
+fn junction(window: &Window) -> u64 {
+    window.from_ms + window.overlap_ms
 }
 
 // The text without the sentences an engine makes up on silence.
@@ -105,6 +139,7 @@ fn without_repeat(before: &str, text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::meeting::testing::line;
     use crate::testing::{Draw, cases};
 
     fn window(from_ms: u64, overlap_ms: u64) -> Window {
@@ -201,6 +236,33 @@ mod tests {
         let heard = vec![said(0, "Bien."), said(600, "Alors on y va.")];
         let found = lines(&window(28_960, 1_000), heard, None);
         assert_eq!(texts(&found), [(29_960, "Bien."), (29_960, "Alors on y va.")]);
+    }
+
+    #[test]
+    fn a_line_is_never_dated_past_the_sound_of_its_window() {
+        let heard = vec![said(29_000, "Bien."), said(4_000_000_000, "Alors on y va.")];
+        let found = lines(&window(60_000, 0), heard, None);
+        assert_eq!(texts(&found), [(89_000, "Bien."), (90_000, "Alors on y va.")]);
+    }
+
+    #[test]
+    fn a_window_the_engine_failed_to_hear_says_where_something_was_said() {
+        let failed = unheard(&window(28_960, 1_000));
+        assert_eq!((failed.at_ms, failed.text, failed.speaker), (29_960, None, None));
+        assert_eq!(unheard(&window(5_000, 0)).at_ms, 5_000);
+    }
+
+    #[test]
+    fn an_engine_is_told_the_end_of_what_was_said_before() {
+        let silent = TranscriptLine { at_ms: 3_000, text: None, speaker: None, extra: Extra::new() };
+        let transcript = [line(0, "Bonjour à tous."), silent.clone(), line(5_000, "On parle du budget.")];
+        assert_eq!(previous(&transcript), "Bonjour à tous. On parle du budget.");
+        assert_eq!(previous(&[]), "");
+        assert_eq!(previous(&[silent]), "");
+        // The last characters, whole letters, whatever the lines before.
+        let long = [line(0, &"a".repeat(500)), line(1_000, &"é".repeat(150))];
+        assert_eq!(previous(&long), format!("{} {}", "a".repeat(49), "é".repeat(150)));
+        assert_eq!(previous(&[line(0, &"œ".repeat(300))]), "œ".repeat(200));
     }
 
     #[test]

@@ -11,7 +11,7 @@ use serde::Serialize;
 use time::UtcDateTime;
 
 use crate::audio::{self, AudioError};
-use crate::meeting::{Change, Meeting, MeetingId, MinutesState, Stamp, TranscriptLine};
+use crate::meeting::{Change, Meeting, MeetingId, MinutesDraft, MinutesState, Stamp, TranscriptLine};
 use crate::secret::Key;
 use store::Store;
 
@@ -158,16 +158,38 @@ impl Library {
     // Says nothing back: what changed, and a file that could not be written, come as events. A change that leaves
     // the meetings as they were tells nothing.
     pub fn apply(&self, change: Change) {
+        self.change(change);
+    }
+
+    // Whether the meetings changed: the pipeline learns so that a window it heard was kept.
+    pub(crate) fn change(&self, change: Change) -> bool {
         let mut behind = lock(&self.behind);
         let were_behind = behind.clone();
+        if let Change::Heard { meeting, from_ms, .. } = &change {
+            self.hold_lines(meeting, *from_ms);
+        }
         let stamp = Stamp { at: (self.clock)(), device: &self.device };
         let changed = lock(&self.meetings).apply(change, stamp);
+        let applied = changed.is_some();
         if let Some((event, files)) = changed {
             // Before the listener is told: one that panics leaves the files to the next change, never unwritten.
             behind.extend(files);
             self.listener.on_event(&event);
         }
         self.catch_up(&mut behind, &were_behind);
+        applied
+    }
+
+    // Heard lines are added to those of the file, never to a copy the pipeline read before: a line corrected meanwhile
+    // stays corrected. They are brought into memory under `behind`, so no change comes between the read and the
+    // adding, and only for a change that will take them. A file that cannot be read keeps them: nothing is added.
+    fn hold_lines(&self, id: &MeetingId, from_ms: u64) {
+        if !lock(&self.meetings).hears_from_file(id, from_ms) {
+            return;
+        }
+        if let Ok(file) = self.store.read(id) {
+            lock(&self.meetings).hold(id, file.transcript);
+        }
     }
 
     // The files of the meetings just changed, and those left behind by an earlier failure, a full disk say, which
@@ -189,6 +211,14 @@ impl Library {
             return Err(AudioError::Absent);
         }
         audio::Writer::open(self.store.audio(id, true)?, key, tracks)
+    }
+
+    // The meetings kept in a file that `which` picks, in the order of the list: the latest first.
+    pub(crate) fn kept(&self, which: impl Fn(&Meeting) -> bool) -> Vec<MeetingId> {
+        let meetings = lock(&self.meetings);
+        let kept = meetings.entries.iter().filter(|entry| !matches!(entry.transcript, Transcript::Lent(_)));
+        let kept = kept.filter(|entry| which(&entry.meeting));
+        kept.map(|entry| entry.meeting.id.clone()).collect()
     }
 
     pub fn audio(&self, id: &MeetingId) -> Result<audio::Reader, AudioError> {
@@ -269,6 +299,8 @@ impl Meetings {
             Change::Transcribed { meeting, transcript, minutes } => {
                 let (at, entry) = self.find(&meeting)?;
                 minutes.settle(&mut entry.meeting);
+                // The app transcribes it: the core no longer does.
+                entry.meeting.transcribed_ms = None;
                 stamp.mark(&mut entry.meeting);
                 entry.transcript = match entry.transcript {
                     Transcript::Lent(_) => Transcript::Lent(transcript),
@@ -289,6 +321,23 @@ impl Meetings {
                     return None;
                 }
                 entry.meeting.duration_ms = duration_ms;
+                stamp.mark(&mut entry.meeting);
+                Some(entry.told(at))
+            }
+            Change::Heard { meeting, lines, from_ms, until_ms } => {
+                let (at, entry) = self.find(&meeting)?;
+                // In memory by now, unless the meeting is a sample or its file could not be read.
+                let Transcript::Unwritten(held) = &mut entry.transcript else { return None };
+                if entry.meeting.transcribed_ms != Some(from_ms) {
+                    return None;
+                }
+                held.extend(lines);
+                entry.meeting.transcribed_ms = until_ms;
+                if until_ms.is_none() {
+                    // The transcript whole, its minutes are owed. This build has no writer yet (G): unavailable, as
+                    // that state says.
+                    MinutesDraft::Unavailable.settle(&mut entry.meeting);
+                }
                 stamp.mark(&mut entry.meeting);
                 Some(entry.told(at))
             }
@@ -337,6 +386,23 @@ impl Meetings {
             Transcript::Unwritten(lines) | Transcript::Lent(lines) => Some(lines.clone()),
         };
         Some((entry.meeting.clone(), lines))
+    }
+
+    // Heard lines from `from_ms` would be added to lines that are only in the file.
+    fn hears_from_file(&self, id: &MeetingId, from_ms: u64) -> bool {
+        self.entries.iter().any(|entry| {
+            &entry.meeting.id == id
+                && entry.meeting.transcribed_ms == Some(from_ms)
+                && matches!(entry.transcript, Transcript::Written)
+        })
+    }
+
+    // The lines of its file, held until they are written again with those added.
+    fn hold(&mut self, id: &MeetingId, lines: Vec<TranscriptLine>) {
+        let entry = self.entries.iter_mut().find(|entry| &entry.meeting.id == id);
+        if let Some(Entry { transcript: transcript @ Transcript::Written, .. }) = entry {
+            *transcript = Transcript::Unwritten(lines);
+        }
     }
 
     fn has_file(&self, id: &MeetingId) -> bool {
@@ -507,6 +573,12 @@ mod tests {
             self.library.apply(Change::Lasted { meeting: id(meeting), duration_ms });
         }
 
+        // As the pipeline adds what it heard of a window: whether the meetings took it.
+        fn heard(&self, meeting: &str, texts: &[&str], from_ms: u64, until_ms: Option<u64>) -> bool {
+            let lines = texts.iter().map(|text| line(from_ms, text)).collect();
+            self.library.change(Change::Heard { meeting: id(meeting), lines, from_ms, until_ms })
+        }
+
         fn transcribed(&self, meeting: &str, lines: &[&str], minutes: MinutesDraft) {
             let transcript = lines.iter().map(|text| line(0, text)).collect();
             self.library.apply(Change::Transcribed { meeting: id(meeting), transcript, minutes });
@@ -548,9 +620,12 @@ mod tests {
     }
 
     #[test]
-    fn minutes_left_writing_by_a_killed_app_have_failed() {
-        let phone = phone(&[Meeting { minutes: MinutesState::Writing, ..meeting("recorded-1") }]);
-        assert_eq!(phone.list()[0].minutes, MinutesState::Failed);
+    fn minutes_left_writing_by_a_killed_app_have_failed_unless_the_core_hears_the_meeting() {
+        let writing = Meeting { minutes: MinutesState::Writing, ..meeting("recorded-1") };
+        let heard = Meeting { transcribed_ms: Some(30_000), ..writing.clone() };
+        let phone = phone(&[writing, Meeting { id: id("recorded-2"), ..heard }]);
+        let minutes: Vec<MinutesState> = phone.list().into_iter().map(|meeting| meeting.minutes).collect();
+        assert_eq!(minutes, [MinutesState::Failed, MinutesState::Writing]);
     }
 
     #[test]
@@ -679,6 +754,7 @@ mod tests {
             started_at: utc_datetime!(2026-11-11 7:00),
             offset_minutes: Some(60),
             duration_ms: 0,
+            transcribed_ms: Some(0),
             modified_at: NOW,
             device: phone.device(),
             minutes: MinutesState::Writing,
@@ -717,7 +793,85 @@ mod tests {
     }
 
     #[test]
-    fn a_recording_cut_by_a_crash_lasts_as_long_as_its_audio() {
+    fn heard_lines_are_added_after_those_of_the_file_from_the_edge_reached() {
+        // Written by an app that held the meeting, its lines only in the file.
+        let stored = Meeting { transcribed_ms: Some(0), minutes: MinutesState::Writing, ..heard("recorded-1") };
+        let phone = phone(&[stored]);
+        assert!(phone.heard("recorded-1", &["Je prépare la démo."], 0, Some(30_000)));
+        let kept = phone.file("recorded-1").unwrap();
+        assert_eq!(kept.transcript, [line(0, "Bonjour à tous."), line(0, "Je prépare la démo.")]);
+        assert_eq!((kept.transcribed_ms, kept.modified_at), (Some(30_000), NOW));
+        assert_eq!(phone.list()[0].transcribed_ms, Some(30_000));
+        // The same window again, or one from another edge, is not added.
+        let told = phone.told();
+        assert!(!phone.heard("recorded-1", &["Je prépare la démo."], 0, Some(30_000)));
+        assert!(!phone.heard("recorded-1", &["Plus tard."], 45_000, Some(61_000)));
+        assert_eq!((phone.told(), phone.file("recorded-1")), (told, Some(kept)));
+        let phone = phone.relaunched();
+        assert!(phone.heard("recorded-1", &["Et la suite."], 30_000, None));
+        let whole = phone.file("recorded-1").unwrap();
+        assert_eq!(whole.transcript.len(), 3);
+        // Whole, with no writer for its minutes in this build.
+        assert_eq!((whole.transcribed_ms, whole.minutes), (None, MinutesState::Unavailable));
+        assert!(!phone.heard("recorded-1", &["Encore."], 30_000, None));
+    }
+
+    #[test]
+    fn heard_lines_stay_in_memory_until_their_file_is_written() {
+        let phone = phone(&[]);
+        phone.begin("recorded-9");
+        fs::create_dir(phone.path("recorded-9.notitia.tmp")).unwrap();
+        assert!(phone.heard("recorded-9", &["Bonjour à tous."], 0, Some(20_000)));
+        assert!(phone.heard("recorded-9", &["Je prépare la démo."], 20_000, Some(40_000)));
+        // Held in memory, a window already added is refused all the same.
+        assert!(!phone.heard("recorded-9", &["Je prépare la démo."], 20_000, Some(40_000)));
+        assert_eq!(phone.unsaved(), [id("recorded-9")]);
+        assert_eq!(phone.library.meeting(&id("recorded-9")).unwrap().transcript.len(), 2);
+        fs::remove_dir(phone.path("recorded-9.notitia.tmp")).unwrap();
+        phone.lasted("recorded-9", 40_000);
+        assert_eq!(phone.unsaved(), []);
+        assert_eq!(phone.file("recorded-9"), phone.library.meeting(&id("recorded-9")).ok());
+    }
+
+    #[test]
+    fn the_end_of_a_transcript_keeps_minutes_already_written() {
+        let phone = phone(&[Meeting { transcribed_ms: Some(0), ..heard("recorded-1") }]);
+        assert!(phone.heard("recorded-1", &[], 0, None));
+        assert_eq!(phone.file("recorded-1").unwrap().minutes, heard("recorded-1").minutes);
+    }
+
+    #[test]
+    fn heard_lines_never_reach_a_meeting_the_app_transcribes_a_sample_or_a_deleted_one() {
+        let phone = phone(&[]);
+        phone.begin("recorded-9");
+        phone.transcribed("recorded-9", &["Bonjour à tous."], MinutesDraft::Writing);
+        assert_eq!(phone.list()[0].transcribed_ms, None);
+        let sample = Meeting { transcribed_ms: Some(0), ..heard("sample-1") };
+        phone.library.apply(Change::Lend { meetings: vec![sample] });
+        phone.begin("recorded-8");
+        phone.delete(&["recorded-8"]);
+        for meeting in ["recorded-9", "sample-1", "recorded-8", "recorded-7"] {
+            assert!(!phone.heard(meeting, &["Je prépare la démo."], 0, Some(30_000)), "{meeting}");
+        }
+        assert_eq!(phone.library.meeting(&id("recorded-9")).unwrap().transcript, [line(0, "Bonjour à tous.")]);
+        assert_eq!(phone.library.meeting(&id("sample-1")).unwrap().transcript, heard("sample-1").transcript);
+        assert_eq!((phone.file("recorded-8"), phone.file("sample-1")), (None, None));
+        // What the pipeline is given to hear: neither a sample nor a meeting the app transcribes.
+        assert_eq!(phone.library.kept(|meeting| meeting.transcribed_ms.is_some()), []);
+        assert_eq!(phone.library.kept(|_| true), [id("recorded-9")]);
+    }
+
+    #[test]
+    fn heard_lines_are_not_added_to_a_file_that_cannot_be_read() {
+        let phone = phone(&[Meeting { transcribed_ms: Some(0), ..heard("recorded-1") }]);
+        fs::write(phone.path("recorded-1.notitia"), "{\"version\":").unwrap();
+        assert!(!phone.heard("recorded-1", &["Je prépare la démo."], 0, Some(30_000)));
+        assert_eq!(phone.list()[0].transcribed_ms, Some(0));
+        assert_eq!(fs::read_to_string(phone.path("recorded-1.notitia")).unwrap(), "{\"version\":");
+    }
+
+    #[test]
+    fn a_recording_cut_by_a_crash_lasts_as_long_as_its_audio_and_is_heard_on() {
         let phone = phone(&[meeting("recorded-1")]);
         phone.begin("recorded-9");
         let mut writer = phone.library.record(&id("recorded-9"), 1).unwrap();
@@ -725,8 +879,9 @@ mod tests {
         // Killed: the last 30 frames were only in memory.
         drop(writer);
         let phone = phone.relaunched();
-        let kept = Meeting { duration_ms: 2_000, minutes: MinutesState::Failed, ..phone.file("recorded-9").unwrap() };
-        assert_eq!(phone.file("recorded-9"), Some(kept.clone()));
+        let kept = phone.file("recorded-9").unwrap();
+        let expected = (2_000, Some(0), MinutesState::Writing);
+        assert_eq!((kept.duration_ms, kept.transcribed_ms, kept.minutes.clone()), expected);
         assert_eq!(phone.list()[0], kept);
         assert_eq!(phone.list()[1], meeting("recorded-1"));
     }

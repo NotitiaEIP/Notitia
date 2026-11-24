@@ -102,6 +102,7 @@ mod tests {
             started_at: utc_datetime!(2026-11-10 9:30),
             offset_minutes: None,
             duration_ms: 42 * 60_000,
+            transcribed_ms: None,
             modified_at: utc_datetime!(2026-11-10 10:15),
             device: "phone-1".into(),
             title: Some("Revue de sprint".into()),
@@ -232,6 +233,18 @@ mod tests {
         let text = written(&meeting);
         assert!(text.contains("\"startedAt\":\"2026-11-10T09:30:00Z\",\"offsetMinutes\":-210,"));
         assert_eq!(read(&text), meeting);
+    }
+
+    // Added to version 2 without raising it: a file written before the core heard meetings has no such field, and its
+    // transcript is whole.
+    #[test]
+    fn how_far_a_meeting_is_heard_is_written_after_its_duration() {
+        let meeting = Meeting { transcribed_ms: Some(61_040), ..sprint_review() };
+        let text = written(&meeting);
+        assert!(text.contains("\"durationMs\":2520000,\"transcribedMs\":61040,"));
+        assert_eq!(read(&text), meeting);
+        assert!(!VERSION_2.contains("transcribedMs"));
+        assert_eq!(read(VERSION_2).transcribed_ms, None);
     }
 
     #[test]
