@@ -96,8 +96,8 @@ final class RustCore: NSObject, Shared.NotitiaCore {
     }
 }
 
-// Rust calls it on the thread Kotlin asked from, or on the recorder's. Unchecked: the Kotlin object behind it may be
-// called from any thread.
+// Rust calls it on the thread Kotlin asked from, or on the recorder's or the pipeline's. Unchecked: the Kotlin object
+// behind it may be called from any thread.
 private final class ListenerAdapter: BridgeListener, @unchecked Sendable {
     private let listener: Shared.CoreListener
 

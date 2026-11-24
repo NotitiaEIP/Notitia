@@ -51,9 +51,9 @@ fun neverThrowing(engines: CoreEngines): CoreEngines = CoreEngines { engine, req
 // The key of the app, as the core takes it (core/src/secret.rs).
 internal const val KEY_BYTES = 32
 
-// Called by the core on the thread that asked for a change, before its file is written, or on the recorder's own
-// thread. It must not ask the core for anything, which would wait for itself, and it must not throw: nothing on the
-// way back catches.
+// Called by the core on the thread that asked for a change, before its file is written, or on a thread of its own,
+// the recorder's or the pipeline's. It must not ask the core for anything, which would wait for itself, and it must
+// not throw: nothing on the way back catches.
 fun interface CoreListener {
     fun onEvent(event: String)
 }
