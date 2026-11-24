@@ -44,6 +44,11 @@ internal sealed interface Change : CoreRequest {
     @SerialName("delete")
     data class Delete(val meetings: Set<String>) : Change
 
+    // Minutes that failed or were never written: owed again, to the core's writer.
+    @Serializable
+    @SerialName("rewrite")
+    data class Rewrite(val meeting: String) : Change
+
     // What the app transcribed of a meeting the recorder made, the whole of it each time, and its minutes once
     // written. Changes nothing of a meeting the core does not know.
     @Serializable

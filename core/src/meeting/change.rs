@@ -20,6 +20,10 @@ pub enum Change {
     Delete {
         meetings: Vec<MeetingId>,
     },
+    // Minutes that failed, or that an app older than the core never wrote: owed again, to the next writer.
+    Rewrite {
+        meeting: MeetingId,
+    },
     // What the app has transcribed of a meeting the recorder began, the whole of it each time, and its minutes once
     // written. Makes no meeting.
     Transcribed {
@@ -53,6 +57,13 @@ pub enum Change {
         lines: Vec<TranscriptLine>,
         from_ms: u64,
         until_ms: Option<u64>,
+    },
+    // The minutes the core wrote, never read from an app. Made nothing of unless they are still owed: a meeting heard
+    // whole, kept in a file, its minutes writing.
+    #[serde(skip)]
+    Drafted {
+        meeting: MeetingId,
+        minutes: MinutesDraft,
     },
 }
 
@@ -162,6 +173,15 @@ fn correct(meeting: &mut Meeting, id: &ActionId, correction: impl FnOnce(&mut Ac
 }
 
 impl MinutesDraft {
+    // What a whole transcript owes: minutes to write, or none at all when nothing was said, which no model is asked.
+    pub(crate) fn owed(transcript: &[TranscriptLine]) -> Self {
+        if transcript.iter().any(|line| line.said().is_some()) {
+            Self::Writing
+        } else {
+            Self::Written { summary: String::new(), decisions: Vec::new(), actions: Vec::new() }
+        }
+    }
+
     // What the user gave while the meeting was transcribed stays: its title, and minutes already corrected.
     pub(crate) fn settle(self, meeting: &mut Meeting) {
         if !matches!(meeting.minutes, MinutesState::Written { .. }) {
@@ -222,15 +242,6 @@ impl Meeting {
         };
         stamp.mark(&mut meeting);
         meeting
-    }
-
-    // Minutes left writing by an app that transcribed the meeting itself and was killed: nothing resumes them. Those
-    // of a meeting the core hears resume instead. Gone once the app hands every meeting to the core (T-59).
-    pub(crate) fn interrupted(mut self) -> Self {
-        if self.minutes == MinutesState::Writing && self.transcribed_ms.is_none() {
-            self.minutes = MinutesState::Failed;
-        }
-        self
     }
 }
 
@@ -392,14 +403,13 @@ mod tests {
     }
 
     #[test]
-    fn minutes_left_writing_by_a_killed_app_have_failed() {
-        let writing = Meeting { minutes: MinutesState::Writing, ..meeting("recorded-1") };
-        assert_eq!(writing.clone().interrupted().minutes, MinutesState::Failed);
-        assert_eq!(meeting("recorded-1").interrupted(), meeting("recorded-1"));
-        assert_eq!(written(&[]), MinutesState::from(draft(&[])));
-        // The core hears it: it resumes where it was.
-        let heard = Meeting { transcribed_ms: Some(30_000), ..writing };
-        assert_eq!(heard.clone().interrupted(), heard);
+    fn a_whole_transcript_owes_minutes_unless_nothing_was_said() {
+        assert_eq!(MinutesDraft::owed(&[line(0, "Bonjour à tous.")]), MinutesDraft::Writing);
+        let silent = TranscriptLine { at_ms: 0, text: None, speaker: None, extra: Extra::new() };
+        let empty = draft(&[]);
+        assert_eq!(MinutesDraft::owed(&[]), empty);
+        assert_eq!(MinutesDraft::owed(&[silent, line(30_000, "  ")]), empty);
+        assert_eq!(written(&[]), MinutesState::from(empty));
     }
 
     #[test]
@@ -436,6 +446,7 @@ mod tests {
             edit(Edit::SetDue { action: first(), due: None }),
             edit(Edit::SetReminder { action: first(), on: true }),
             Change::Delete { meetings: vec![id("recorded-1"), id("recorded-3")] },
+            Change::Rewrite { meeting: id("recorded-1") },
             transcribed(vec![line(0, "Bonjour à tous."), silence.clone()], MinutesDraft::Writing),
             transcribed(
                 vec![line(0, "Bonjour à tous."), silence, line(724_000, "Je prépare la démo.")],
@@ -465,6 +476,8 @@ mod tests {
             "{\"type\":\"lasted\",\"meeting\":\"recorded-1\",\"duration_ms\":60000}".into(),
             "{\"type\":\"transcribed\",\"meeting\":\"recorded-1\"}".into(),
             "{\"type\":\"heard\",\"meeting\":\"recorded-1\",\"lines\":[],\"fromMs\":0,\"untilMs\":null}".into(),
+            "{\"type\":\"drafted\",\"meeting\":\"recorded-1\",\"minutes\":{\"type\":\"failed\"}}".into(),
+            "{\"type\":\"rewrite\"}".into(),
             // An identifier names a file: one that would leave the folder never reaches the meetings.
             "{\"type\":\"delete\",\"meetings\":[\"../recorded-1\"]}".into(),
             edit("{\"type\":\"rename\"}"),

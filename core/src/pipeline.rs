@@ -539,7 +539,7 @@ mod tests {
         let heard = library.meeting(&meeting).unwrap();
         assert_eq!(heard.transcript, whole);
         assert!(whole[1].at_ms > 5_000, "dated from the start of the meeting");
-        assert_eq!((heard.transcribed_ms, heard.minutes), (None, MinutesState::Unavailable));
+        assert_eq!((heard.transcribed_ms, heard.minutes), (None, MinutesState::Writing));
         // The edge moved on window by window, each time told.
         let edges = told.edges(&meeting);
         assert_eq!(edges.len(), 5, "{edges:?}");
@@ -788,7 +788,10 @@ mod tests {
         pipeline.waker().recorded(&recording(&starting, 0));
         pipeline.settled();
         let whole = library.meeting(&failed).unwrap();
-        assert_eq!((whole.transcribed_ms, whole.transcript, whole.minutes), (None, vec![], MinutesState::Unavailable));
+        assert_eq!(
+            (whole.transcribed_ms, whole.transcript, whole.minutes),
+            (None, vec![], MinutesState::from(MinutesDraft::owed(&[])))
+        );
         let waiting = library.meeting(&starting).unwrap();
         assert_eq!((waiting.transcribed_ms, waiting.minutes), (Some(0), MinutesState::Writing));
         assert_eq!(ear.calls(), []);

@@ -382,7 +382,8 @@ mod tests {
         let lines: Vec<(bool, Option<&str>)> =
             whole.transcript.iter().map(|line| (line.at_ms > 5_000, line.text.as_deref())).collect();
         assert_eq!(lines, [(false, Some("Bonjour à tous.")), (true, Some("Bonjour à tous."))]);
-        assert_eq!((whole.transcribed_ms, whole.minutes), (None, MinutesState::Unavailable));
+        // Owed: the app lent no engine to write them.
+        assert_eq!((whole.transcribed_ms, whole.minutes), (None, MinutesState::Writing));
         let asked: Vec<Value> =
             lender.asked().iter().map(|(_, request, _)| serde_json::from_str(request).unwrap()).collect();
         let previous = ["", "Bonjour à tous."];
