@@ -85,8 +85,7 @@ pub struct Meeting {
     // The audio actually heard, pauses left out.
     pub duration_ms: u64,
     // How far the core has heard the audio: the edge of the last window it transcribed, from which it resumes. None
-    // once the transcript is whole, as for every meeting from before the core heard them, and for one the app
-    // transcribes itself (until T-59).
+    // once the transcript is whole, as for every meeting from before the core heard them.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transcribed_ms: Option<u64>,
     // When and where it last changed, so two devices can be reconciled later (E10).

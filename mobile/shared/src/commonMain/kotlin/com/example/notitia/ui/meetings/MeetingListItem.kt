@@ -1,6 +1,7 @@
 package com.example.notitia.ui.meetings
 
 import androidx.compose.runtime.Composable
+import com.example.notitia.meeting.Abilities
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MeetingStatus
 import com.example.notitia.meeting.MinutesState
@@ -29,6 +30,21 @@ data class MeetingListItem(
     val participants: Int get() = speakers.size.coerceAtLeast(1)
 }
 
+// From what the core holds of the meeting and what the engines of this device can do now. remaining is the time left
+// to hear it, once the pace of the core is seen.
+fun Meeting.status(today: LocalDate, abilities: Abilities, remaining: Duration? = null): MeetingStatus {
+    val heard = transcribed
+    return when {
+        heard != null -> if (abilities.hear) MeetingStatus.Transcribing(share(heard, duration), remaining) else MeetingStatus.Waiting
+        minutes == MinutesState.Writing -> if (abilities.write) MeetingStatus.WritingMinutes else MeetingStatus.Waiting
+        else -> minutes.status(today)
+    }
+}
+
+// While it is recorded the core may have heard past the duration it last told (ADR 0012): never past the end.
+private fun share(heard: Duration, of: Duration): Float =
+    if (of <= Duration.ZERO) 0f else (heard / of).toFloat().coerceIn(0f, 1f)
+
 fun MinutesState.status(today: LocalDate): MeetingStatus = when (this) {
     MinutesState.Writing -> MeetingStatus.WritingMinutes
     is MinutesState.Written -> with(minutes.actions) {
@@ -40,20 +56,19 @@ fun MinutesState.status(today: LocalDate): MeetingStatus = when (this) {
     MinutesState.Failed, MinutesState.Unavailable -> MeetingStatus.Ready()
 }
 
-// progress is given while the meeting is still transcribed: the kept meeting does not hold it.
-fun Meeting.listItem(title: String, today: LocalDate, progress: MeetingStatus? = null) = MeetingListItem(
+fun Meeting.listItem(title: String, status: MeetingStatus) = MeetingListItem(
     id = id,
     title = title,
     startedAt = startedAt,
     duration = duration,
     speakers = speakers,
-    status = progress ?: minutes.status(today),
+    status = status,
 )
 
 // A meeting the user has not named is called after the moment it was recorded.
 @Composable
-fun Meeting.listItem(today: LocalDate, progress: MeetingStatus? = null): MeetingListItem {
+fun Meeting.listItem(status: MeetingStatus): MeetingListItem {
     val start = startedAt.toLocalDateTime(TimeZone.currentSystemDefault())
     val shown = title ?: stringResource(Res.string.recording_title, shortDateLabel(start.date), clockTime(start.time))
-    return listItem(shown, today, progress)
+    return listItem(shown, status)
 }

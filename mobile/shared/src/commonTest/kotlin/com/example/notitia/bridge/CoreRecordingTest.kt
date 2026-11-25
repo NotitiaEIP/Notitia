@@ -1,30 +1,22 @@
 package com.example.notitia.bridge
 
-import androidx.compose.runtime.snapshots.Snapshot
-import com.example.notitia.ai.MinutesWriter
-import com.example.notitia.ai.SpeechEngine
-import com.example.notitia.ai.audio
 import com.example.notitia.bridge.CoreEvent.Recorder.Phase
-import com.example.notitia.meeting.MinutesDraft
-import com.example.notitia.meeting.MinutesState
 import com.example.notitia.meeting.RecorderState
 import com.example.notitia.meeting.RecordingProblem
-import com.example.notitia.meeting.TranscriptLine
 import com.example.notitia.recording.FakeMicrophone
 import com.example.notitia.recording.Microphone
+import com.example.notitia.recording.audio
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
-import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
-import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
-import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 
 class CoreRecordingTest {
@@ -36,27 +28,13 @@ class CoreRecordingTest {
         override fun now() = Instant.parse("2026-11-19T09:00:00Z")
     }
 
-    private class Speech(private val said: String) : SpeechEngine {
-        override suspend fun transcribe(wav: ByteArray, previousText: String) = said
-    }
+    private fun recording(microphone: Microphone? = this.microphone) =
+        CoreRecording(session, microphone, clock, { TimeZone.of("Europe/Paris") }, work = dispatcher).also { settled() }
 
-    private object Writer : MinutesWriter {
-        val minutes = MinutesDraft.Written("Point sur la démo.", decisions = emptyList(), actions = emptyList())
-
-        override suspend fun write(lines: List<TranscriptLine>, day: LocalDate) = minutes
-    }
-
-    private fun recording(microphone: Microphone? = this.microphone, speech: SpeechEngine? = null, writer: MinutesWriter? = null) =
-        CoreRecording(session, microphone, speech, writer, clock, { TimeZone.of("Europe/Paris") }, work = dispatcher, engines = dispatcher)
-            .also { settled() }
-
-    // What was asked, then what that asked in turn, until nothing is left. The snapshots of the transcription too,
-    // which Compose sends in the app.
+    // What was asked, then what that asked in turn, until nothing is left.
     private fun settled() {
-        do Snapshot.sendApplyNotifications() while (dispatcher.runAll())
+        dispatcher.runAll()
     }
-
-    private fun transcribed() = core.applied.filterIsInstance<Change.Transcribed>()
 
     @Test
     fun aRecordingStartsWithOneTrackAtTheOffsetOfThePhone() {
@@ -88,14 +66,18 @@ class CoreRecordingTest {
     }
 
     @Test
-    fun theSoundGoesToTheCoreWhichMakesTheMeetingAtTheFirstSound() {
+    fun theSoundGoesToTheCoreAloneWhichMakesTheMeetingAtTheFirstSound() {
         val recording = recording()
         recording.start()
         settled()
         assertNull(assertIs<RecorderState.Recording>(recording.state.value).meetingId)
-        microphone.hear(audio(1_000))
+        val said = audio(1_000)
+        microphone.hear(said)
         settled()
         assertEquals(RecorderState.Recording(fakeStart, 1.seconds, level = 0f, meetingId = FAKE_RECORDED), recording.state.value)
+        assertContentEquals(said, core.sound(FAKE_RECORDED, fromMs = 0, lengthMs = 1_000).pcm)
+        // Nothing else is asked of the core: it hears the meeting itself.
+        assertEquals(listOf<CoreRequest>(Command.Start(1, 60)), core.applied)
     }
 
     @Test
@@ -164,35 +146,6 @@ class CoreRecordingTest {
         recording.start()
         settled()
         assertEquals(RecorderState.Failed(RecordingProblem.Unavailable), recording.state.value)
-    }
-
-    @Test
-    fun theLinesGoToTheMeetingOfTheCoreAndTheMinutesOnceWritten() {
-        val recording = recording(speech = Speech("Bonjour à tous."), writer = Writer)
-        recording.start()
-        settled()
-        microphone.hear(audio(3_000) + audio(800, level = 0))
-        settled()
-        val said = listOf(TranscriptLine(Duration.ZERO, "Bonjour à tous."))
-        assertEquals(listOf(Change.Transcribed(FAKE_RECORDED, said, MinutesDraft.Writing)), transcribed())
-        assertNotNull(recording.progress(FAKE_RECORDED))
-        recording.stop()
-        settled()
-        assertEquals(Change.Transcribed(FAKE_RECORDED, said, Writer.minutes), transcribed().last())
-        assertNull(recording.progress(FAKE_RECORDED))
-        assertIs<MinutesState.Written>(session.meetings.value?.single()?.minutes)
-    }
-
-    @Test
-    fun aMeetingWithoutAnEngineDoesNotStayWriting() {
-        val recording = recording()
-        recording.start()
-        settled()
-        microphone.hear(audio(1_000))
-        recording.stop()
-        settled()
-        assertEquals(listOf(Change.Transcribed(FAKE_RECORDED, emptyList(), MinutesDraft.Unavailable)), transcribed())
-        assertEquals(MinutesState.Unavailable, session.meetings.value?.single()?.minutes)
     }
 
     @Test

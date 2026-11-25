@@ -5,6 +5,7 @@
 | Statut | Proposée le 21 novembre 2026, acceptée à la fusion de sa PR |
 | Modifiée | Le 24 novembre 2026 par T-94 (#260) : le rappel `run` depuis un fil du cœur est prouvé sur Android, la réunion est transcrite pendant son enregistrement |
 | Modifiée | Le 25 novembre 2026 par T-95 (#262) : la marge sous la fenêtre d'un moteur de texte est fixée, et une offre laisse au moins 1 024 jetons à l'invite |
+| Modifiée | Le 25 novembre 2026 par T-59 (#190) : Kotlin relit `engines.json`, le rappel `run` traverse Swift sur le simulateur |
 | Proposée par | Clément |
 | Relue par | Alexandre pour le cœur, Lucas pour l'iPhone |
 | Tâche d'origine | T-89 (#256) |
@@ -92,8 +93,8 @@ Mesuré le 21 novembre 2026 sur un portable (Intel i5-12450H), en release :
 - Le compte des jetons d'un moteur prêté est une moyenne : 3 octets par jeton. Elle surestime un texte en français courant, mais un texte plein de chiffres ou de mots rares peut tenir plus de jetons que compté.
 
 **Ce qui reste ouvert.**
-- **Le rappel `run` depuis un fil du cœur.** Prouvé sur Android par T-94 : JNA attache le fil du traitement à la JVM le temps de l'appel (`RustEnginesTest`). Swift le reçoit hors du fil principal, ce que rien ne prouve avant un Mac.
-- **Kotlin relira `engines.json`** avec l'adaptateur de la gateway, dans T-59.
+- **Le rappel `run` depuis un fil du cœur.** Prouvé sur Android par T-94 : JNA attache le fil du traitement à la JVM le temps de l'appel (`RustEnginesTest`). Swift le reçoit hors du fil principal, ce que rien ne prouve avant un Mac. Depuis T-59 (#190), le contrôle du pont (`CoreSelfCheck`) prête deux moteurs inventés et attend le compte rendu qu'ils écrivent sur le fil du cœur : la CI le prouve sur le simulateur de l'iPhone. Reste un vrai iPhone.
+- **Kotlin relira `engines.json`** avec l'adaptateur de la gateway, dans T-59. Fait par T-59 (#190) : `BridgeContractTest` relit l'offre, les demandes, les réponses et l'événement. Un moteur de l'app ne voit que des types Kotlin (`Engine`, dans `ai/Engine.kt`) ; seul `Lending` écrit et lit le JSON. La gateway devient deux moteurs distants, en debug seulement : `gateway-transcribe` (30 s, phrases datées par `verbose_json`) et `gateway-write` (8 192 jetons, dont 1 024 de réponse, pour qu'une heure passe par les tranches comme sur un téléphone).
 - **La marge sous la fenêtre d'un moteur de texte.** Fixée par T-95 (ADR 0013) : une invite remplit au plus 85 % de ce que la réponse laisse, et un moteur de texte offert laisse au moins 1 024 jetons à l'invite. Si le modèle de T-06 compte ses jetons très loin de la moyenne, une demande `count` exacte s'ajoutera à `run`.
 - **Le texte écrit au fil de l'eau**, pour la réponse à une question (J), si les mesures sur le téléphone le demandent.
 - **Le choix du moteur par l'utilisateur** : une demande `prefer`, et un écran de réglages.

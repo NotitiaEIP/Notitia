@@ -19,6 +19,8 @@ data class Meeting(
     val id: String,
     val startedAt: Instant,
     @SerialName("durationMs") @Serializable(Milliseconds::class) val duration: Duration,
+    // How far the core has heard it, while it does: null once the transcript is whole.
+    @SerialName("transcribedMs") @Serializable(Milliseconds::class) val transcribed: Duration? = null,
     // When and where it last changed, so two devices can be reconciled later (E10).
     val modifiedAt: Instant,
     val device: String,
@@ -76,7 +78,7 @@ sealed interface MinutesState {
     @SerialName("failed")
     data object Failed : MinutesState
 
-    // No writer in this build: release builds have no gateway.
+    // Left by an app older than the core's writer, which had none: never written now, asked again by rewrite.
     @Serializable
     @SerialName("unavailable")
     data object Unavailable : MinutesState
@@ -104,27 +106,3 @@ data class ActionSource(
     val speaker: String?,
     @SerialName("atMs") @Serializable(Milliseconds::class) val at: Duration,
 )
-
-// The minutes as their writer hands them over: an action as heard, before the core gives it an identifier and a
-// state.
-@Serializable
-sealed interface MinutesDraft {
-    @Serializable
-    @SerialName("writing")
-    data object Writing : MinutesDraft
-
-    @Serializable
-    @SerialName("written")
-    data class Written(val summary: String, val decisions: List<String>, val actions: List<ActionDraft>) : MinutesDraft
-
-    @Serializable
-    @SerialName("failed")
-    data object Failed : MinutesDraft
-
-    @Serializable
-    @SerialName("unavailable")
-    data object Unavailable : MinutesDraft
-}
-
-@Serializable
-data class ActionDraft(val text: String, val owner: String?, val due: LocalDate?, val source: ActionSource? = null)

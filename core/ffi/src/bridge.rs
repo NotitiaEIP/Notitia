@@ -186,33 +186,53 @@ mod tests {
         (folder, app, bridge)
     }
 
-    // A second heard, then stopped: the meeting the recorder made, once its audio is whole.
-    fn recorded(bridge: &Bridge, app: &App) -> String {
+    // Heard, then stopped: the meeting the recorder made, once its audio is whole.
+    fn recorded(bridge: &Bridge, app: &App, pcm: Vec<u8>) -> String {
         bridge.apply(json!({"type": "start", "tracks": 1, "offsetMinutes": 60}).to_string()).unwrap();
-        bridge.hear(0, sound(1_000, 5_000.0, 440.0));
+        bridge.hear(0, pcm);
         bridge.apply(json!({"type": "stop"}).to_string()).unwrap();
         bridge.session.settled();
         assert_eq!(app.last("recorder")["state"], "idle");
         app.last("changed")["meeting"]["id"].as_str().unwrap().to_owned()
     }
 
+    // The side of an app that lends an ear and a pen: it hears every window as the same sentence, and writes minutes
+    // that fail, as a model out of reach once answered.
+    struct Lending;
+
+    impl BridgeEngines for Lending {
+        fn run(&self, engine: String, _: String, _: Vec<u8>) -> String {
+            match engine.as_str() {
+                "ear" => json!({"type": "heard", "segments": [{"fromMs": 0, "toMs": 900, "text": "Bonjour à tous."}]}),
+                _ => json!({"type": "failed"}),
+            }
+            .to_string()
+        }
+    }
+
     #[test]
-    fn a_meeting_is_heard_transcribed_corrected_played_back_and_deleted_in_text() {
+    fn a_meeting_is_heard_written_corrected_played_back_and_deleted_in_text() {
         let (folder, app, bridge) = opened();
-        let meeting = recorded(&bridge, &app);
-        let lines = json!([{"atMs": 0, "text": "Bonjour à tous."}]);
-        let minutes = json!({"type": "failed"});
-        let transcribed = json!({"type": "transcribed", "meeting": meeting, "transcript": lines, "minutes": minutes});
-        bridge.apply(transcribed.to_string()).unwrap();
+        let offer = json!([
+            {"kind": "speech", "name": "ear", "remote": false, "longestMs": 30_000},
+            {"kind": "text", "name": "pen", "remote": false, "contextTokens": 4_096, "replyTokens": 1_024},
+        ]);
+        bridge.offer(offer.to_string(), Arc::new(Lending)).unwrap();
+        // Two seconds said between two silences: speech, against the noise learned from the silence.
+        let said = [sound(1_000, 0.0, 440.0), sound(2_000, 5_000.0, 440.0), sound(2_500, 0.0, 440.0)].concat();
+        let meeting = recorded(&bridge, &app, said);
         let rename = json!({"type": "edit", "meeting": meeting, "edit": {"type": "rename", "title": "Point"}});
         bridge.apply(rename.to_string()).unwrap();
         let whole: Value = serde_json::from_str(&bridge.meeting(meeting.clone()).unwrap()).unwrap();
-        let read = (&whole["title"], &whole["durationMs"], &whole["transcript"], &whole["minutes"]["type"]);
-        assert_eq!(read, (&json!("Point"), &json!(1_000), &lines, &json!("failed")));
+        let read = (&whole["title"], &whole["durationMs"], &whole["transcript"][0]["text"], &whole["minutes"]["type"]);
+        assert_eq!(read, (&json!("Point"), &json!(5_500), &json!("Bonjour à tous."), &json!("failed")));
+        // What the Kotlin transcription handed over, gone with it: the core hears every meeting.
+        let transcribed = json!({"type": "transcribed", "meeting": meeting, "minutes": {"type": "writing"}});
+        assert_eq!(bridge.apply(transcribed.to_string()), Err(BridgeError::Invalid));
         let changed = app.last("changed");
         // The meeting an event tells has the shape of the one read back, without its lines.
         assert_eq!((&changed["meeting"]["title"], &changed["meeting"]["transcript"]), (&whole["title"], &Value::Null));
-        let played = bridge.sound(meeting.clone(), 0, 1_000).unwrap();
+        let played = bridge.sound(meeting.clone(), 1_000, 1_000).unwrap();
         assert_eq!(played.len(), 32_000);
         assert!(played.chunks(2).any(|sample| i16::from_le_bytes([sample[0], sample[1]]).abs() > 1_000));
         bridge.apply(json!({"type": "delete", "meetings": [meeting]}).to_string()).unwrap();
@@ -236,7 +256,7 @@ mod tests {
             assert_eq!(bridge.apply(text.into()), Err(BridgeError::Invalid));
         }
         assert_eq!(app.told(), ["listed", "engines"]);
-        let meeting = recorded(&bridge, &app);
+        let meeting = recorded(&bridge, &app, sound(1_000, 5_000.0, 440.0));
         fs::write(folder.path().join(format!("{meeting}.notitia")), "{\"version\":").unwrap();
         assert_eq!(bridge.meeting(meeting), Err(BridgeError::Unreadable));
         let taken = folder.path().join("device").join("meetings");

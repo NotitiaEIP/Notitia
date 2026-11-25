@@ -18,10 +18,6 @@ interface Recording {
     fun stop()
 
     fun dismissFailure()
-
-    // null unless the meeting is still transcribed: the kept meeting does not hold that progress. Read during
-    // composition, which follows it as it moves.
-    fun progress(meetingId: String): MeetingStatus?
 }
 
 sealed interface RecorderState {
@@ -74,8 +70,6 @@ object PreviewRecording : Recording {
     override fun stop() = Unit
 
     override fun dismissFailure() = Unit
-
-    override fun progress(meetingId: String): MeetingStatus? = null
 }
 
 // As the core names them. Storage: no key to seal the audio with, so none is written.

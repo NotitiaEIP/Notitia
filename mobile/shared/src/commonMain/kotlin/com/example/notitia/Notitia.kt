@@ -1,7 +1,6 @@
 package com.example.notitia
 
-import com.example.notitia.ai.MinutesWriter
-import com.example.notitia.ai.SpeechEngine
+import com.example.notitia.ai.Engine
 import com.example.notitia.bridge.CoreMeetings
 import com.example.notitia.bridge.CoreRecording
 import com.example.notitia.bridge.CoreSession
@@ -22,7 +21,9 @@ import kotlin.time.Clock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -33,7 +34,7 @@ import notitia.shared.generated.resources.reminder_message
 import org.jetbrains.compose.resources.getPluralString
 
 // Built once per process, by the platform: screens come and go, the meetings and what works on them stay. microphone
-// is null on a platform that cannot record yet, speechEngine when this build cannot transcribe, core in a preview.
+// is null on a platform that cannot record yet, core in a preview.
 class Notitia(
     core: NotitiaCore? = null,
     // Chosen by the platform, which keeps it out of every backup (product rule 3).
@@ -41,24 +42,24 @@ class Notitia(
     // Kept by the platform, which alone can (Keystore, Keychain): null records nothing.
     meetingsKey: () -> ByteArray? = { null },
     microphone: Microphone? = null,
-    speechEngine: SpeechEngine? = null,
-    minutesWriter: MinutesWriter? = null,
+    // What this build can run for the core, which hears and sums up the meetings: none, and they wait for a model.
+    engines: Flow<List<Engine>> = emptyFlow(),
     val answerEngine: AnswerEngine = SampleAnswerEngine,
     reminderScheduler: ReminderScheduler = NoReminderScheduler,
-    private val clock: Clock = Clock.System,
+    val clock: Clock = Clock.System,
 ) {
     // Tied to no screen: closing the app's window must not stop what runs for the meetings.
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     // Made-up meetings beside the user's, so the app has something to show before a first recording.
     private val samples = sampleMeetings(clock.now())
-    private val session = core?.let { CoreSession(it, meetingsDirectory, meetingsKey, samples) }
+    private val session = core?.let { CoreSession(it, meetingsDirectory, meetingsKey, samples, engines) }
 
     // All the screens know of the meetings and of a recording: what holds them can change without touching a screen.
     val meetings: Meetings = session?.let(::CoreMeetings) ?: PreviewMeetings(samples)
 
     val recording: Recording =
-        session?.let { CoreRecording(it, microphone, speechEngine, minutesWriter, clock) } ?: PreviewRecording
+        session?.let { CoreRecording(it, microphone, clock) } ?: PreviewRecording
 
     // The reminders follow the meetings: ticking, moving or removing an action moves its notification too. A new line
     // of a transcription changes no reminder, so it schedules nothing.

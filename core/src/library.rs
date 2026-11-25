@@ -300,18 +300,6 @@ impl Meetings {
                 let meetings: Vec<MeetingId> = gone.into_iter().map(|entry| entry.meeting.id).collect();
                 (!meetings.is_empty()).then_some((Event::Removed { meetings }, files))
             }
-            Change::Transcribed { meeting, transcript, minutes } => {
-                let (at, entry) = self.find(&meeting)?;
-                minutes.settle(&mut entry.meeting);
-                // The app transcribes it: the core no longer does.
-                entry.meeting.transcribed_ms = None;
-                stamp.mark(&mut entry.meeting);
-                entry.transcript = match entry.transcript {
-                    Transcript::Lent(_) => Transcript::Lent(transcript),
-                    Transcript::Written | Transcript::Unwritten(_) => Transcript::Unwritten(transcript),
-                };
-                Some(entry.told(at))
-            }
             Change::Begin { id, started_at, offset_minutes } => {
                 if self.deleted.contains(&id) || self.find(&id).is_some() {
                     return None;
@@ -347,13 +335,21 @@ impl Meetings {
             }
             Change::Drafted { meeting, minutes } => {
                 let (at, entry) = self.find(&meeting)?;
-                // Compared, then written: minutes the user asked again, or a meeting the app took meanwhile, are not
-                // settled by a draft of the transcript before.
-                let owed = entry.meeting.minutes == MinutesState::Writing && entry.meeting.transcribed_ms.is_none();
-                if !owed || entry.file().is_none() || matches!(minutes, MinutesDraft::Writing) {
+                // Compared, then written: minutes settled meanwhile, or a meeting heard again, are not settled by a
+                // draft of the transcript before.
+                if !entry.owes_minutes() || matches!(minutes, MinutesDraft::Writing) {
                     return None;
                 }
                 minutes.settle(&mut entry.meeting);
+                stamp.mark(&mut entry.meeting);
+                Some(entry.told(at))
+            }
+            Change::Rehear { meeting } => {
+                let (at, entry) = self.find(&meeting)?;
+                if !entry.owes_minutes() {
+                    return None;
+                }
+                entry.meeting.transcribed_ms = Some(0);
                 stamp.mark(&mut entry.meeting);
                 Some(entry.told(at))
             }
@@ -449,6 +445,12 @@ impl Meetings {
 impl Entry {
     fn told(&self, at: usize) -> (Event, Vec<MeetingId>) {
         (Event::Changed { meeting: self.meeting.clone(), at }, Vec::from_iter(self.file()))
+    }
+
+    // Heard whole, kept in a file, its minutes writing: what the core's writer may settle.
+    fn owes_minutes(&self) -> bool {
+        let meeting = &self.meeting;
+        meeting.minutes == MinutesState::Writing && meeting.transcribed_ms.is_none() && self.file().is_some()
     }
 
     // The file to bring up to date after a change: none for a sample.
@@ -607,11 +609,6 @@ mod tests {
             self.library.change(Change::Heard { meeting: id(meeting), lines, from_ms, until_ms })
         }
 
-        fn transcribed(&self, meeting: &str, lines: &[&str], minutes: MinutesDraft) {
-            let transcript = lines.iter().map(|text| line(0, text)).collect();
-            self.library.apply(Change::Transcribed { meeting: id(meeting), transcript, minutes });
-        }
-
         // The app is killed, then opened again on the same folder.
         fn relaunched(self) -> Phone {
             drop(self.library);
@@ -626,12 +623,6 @@ mod tests {
 
     fn first() -> ActionId {
         ActionId::new("0").unwrap()
-    }
-
-    // Drawn when the minutes were written.
-    fn first_of(meeting: &Meeting) -> ActionId {
-        let MinutesState::Written { minutes } = &meeting.minutes else { panic!("not written") };
-        minutes.actions[0].id.clone()
     }
 
     fn done(meeting: &Meeting) -> Vec<bool> {
@@ -738,14 +729,15 @@ mod tests {
     }
 
     #[test]
-    fn a_meeting_is_kept_as_it_is_recorded_and_its_title_is_not_taken_back() {
+    fn a_meeting_is_kept_as_it_is_recorded_and_heard_and_its_title_is_not_taken_back() {
         let phone = phone(&[meeting("recorded-1")]);
         phone.begin("recorded-9");
-        phone.transcribed("recorded-9", &["Bonjour à tous."], MinutesDraft::Writing);
+        assert!(phone.heard("recorded-9", &["Bonjour à tous."], 0, Some(30_000)));
         assert_eq!(phone.ids(), ["recorded-9", "recorded-1"]);
         assert_eq!(phone.file("recorded-9").unwrap().transcript.len(), 1);
         phone.rename("recorded-9", "Point produit");
-        phone.transcribed("recorded-9", &["Bonjour à tous.", "Je prépare la démo."], one_action());
+        assert!(phone.heard("recorded-9", &["Je prépare la démo."], 30_000, None));
+        assert!(drafted(&phone, "recorded-9", one_action()));
         let recorded = phone.file("recorded-9").unwrap();
         assert_eq!((recorded.title.as_deref(), recorded.transcript.len()), (Some("Point produit"), 2));
         assert_eq!((recorded.device.clone(), done(&recorded)), (phone.device(), vec![false]));
@@ -767,12 +759,15 @@ mod tests {
     }
 
     #[test]
-    fn a_meeting_deleted_while_it_is_transcribed_does_not_come_back() {
+    fn a_meeting_deleted_while_it_is_heard_does_not_come_back() {
         let phone = phone(&[]);
         phone.begin("recorded-9");
-        phone.transcribed("recorded-9", &["Bonjour à tous."], MinutesDraft::Writing);
+        assert!(phone.heard("recorded-9", &["Bonjour à tous."], 0, Some(30_000)));
         phone.delete(&["recorded-9"]);
-        phone.transcribed("recorded-9", &["Bonjour à tous.", "Je prépare la démo."], one_action());
+        assert!(!phone.heard("recorded-9", &["Je prépare la démo."], 30_000, None));
+        assert!(!drafted(&phone, "recorded-9", one_action()));
+        assert!(!phone.library.change(Change::Rehear { meeting: id("recorded-9") }));
+        phone.begin("recorded-9");
         assert_eq!(phone.list(), []);
         assert_eq!(phone.relaunched().list(), []);
     }
@@ -803,24 +798,34 @@ mod tests {
     }
 
     #[test]
-    fn a_transcription_changes_the_lines_and_the_minutes_of_a_known_meeting_only() {
-        let phone = phone(&[]);
-        phone.begin("recorded-9");
-        phone.lasted("recorded-9", 60_000);
-        phone.rename("recorded-9", "Point produit");
-        phone.transcribed("recorded-9", &["Bonjour à tous."], MinutesDraft::Writing);
-        phone.transcribed("recorded-9", &["Bonjour à tous.", "Je prépare la démo."], one_action());
-        phone.edit("recorded-9", Edit::SetDone { action: first_of(&phone.list()[0]), done: true });
-        phone.transcribed("recorded-9", &["Bonjour à tous."], MinutesDraft::Failed);
-        let kept = phone.file("recorded-9").unwrap();
-        assert_eq!((kept.title.as_deref(), kept.duration_ms, done(&kept)), (Some("Point produit"), 60_000, vec![true]));
-        assert_eq!(kept.transcript, [line(0, "Bonjour à tous.")]);
-        // Neither a meeting it does not know, nor one deleted while it was transcribed.
-        phone.transcribed("recorded-7", &["Bonjour à tous."], MinutesDraft::Writing);
-        phone.delete(&["recorded-9"]);
-        phone.transcribed("recorded-9", &["Bonjour à tous."], one_action());
-        phone.begin("recorded-9");
-        assert_eq!((phone.list(), phone.file("recorded-7"), phone.file("recorded-9")), (vec![], None, None));
+    fn minutes_owed_of_a_meeting_never_heard_are_heard_from_its_start_first() {
+        // Left by an app before the core's: its minutes owed, or asked again, and not a line.
+        let unheard = |name: &str, minutes| Meeting { minutes, ..meeting(name) };
+        let phone = phone(&[
+            unheard("recorded-1", MinutesState::Writing),
+            unheard("recorded-2", MinutesState::Failed),
+            Meeting { transcribed_ms: Some(30_000), ..unheard("recorded-3", MinutesState::Writing) },
+            meeting("recorded-4"),
+        ]);
+        let sample = Meeting { minutes: MinutesState::Writing, ..meeting("sample-1") };
+        phone.library.apply(Change::Lend { meetings: vec![sample] });
+        let rehear = |meeting: &str| phone.library.change(Change::Rehear { meeting: id(meeting) });
+        let told = phone.told();
+        for meeting in ["recorded-2", "recorded-3", "recorded-4", "sample-1", "recorded-7"] {
+            assert!(!rehear(meeting), "{meeting}");
+        }
+        assert_eq!(phone.told(), told);
+        assert!(rehear("recorded-1"));
+        let owed = phone.file("recorded-1").unwrap();
+        assert_eq!(
+            (owed.transcribed_ms, owed.minutes.clone(), owed.modified_at),
+            (Some(0), MinutesState::Writing, NOW)
+        );
+        assert_eq!(phone.list().iter().find(|kept| kept.id == id("recorded-1")), Some(&owed));
+        // Heard from its start now: a late one changes nothing.
+        assert!(!rehear("recorded-1"));
+        assert!(phone.heard("recorded-1", &["Bonjour à tous."], 0, None));
+        assert!(drafted(&phone, "recorded-1", one_action()));
     }
 
     #[test]
@@ -937,11 +942,8 @@ mod tests {
     }
 
     #[test]
-    fn heard_lines_never_reach_a_meeting_the_app_transcribes_a_sample_or_a_deleted_one() {
-        let phone = phone(&[]);
-        phone.begin("recorded-9");
-        phone.transcribed("recorded-9", &["Bonjour à tous."], MinutesDraft::Writing);
-        assert_eq!(phone.list()[0].transcribed_ms, None);
+    fn heard_lines_never_reach_a_meeting_heard_whole_a_sample_or_a_deleted_one() {
+        let phone = phone(&[heard("recorded-9")]);
         let sample = Meeting { transcribed_ms: Some(0), ..heard("sample-1") };
         phone.library.apply(Change::Lend { meetings: vec![sample] });
         phone.begin("recorded-8");
@@ -952,7 +954,7 @@ mod tests {
         assert_eq!(phone.library.meeting(&id("recorded-9")).unwrap().transcript, [line(0, "Bonjour à tous.")]);
         assert_eq!(phone.library.meeting(&id("sample-1")).unwrap().transcript, heard("sample-1").transcript);
         assert_eq!((phone.file("recorded-8"), phone.file("sample-1")), (None, None));
-        // What the pipeline is given to hear: neither a sample nor a meeting the app transcribes.
+        // What the pipeline is given to hear: neither a sample nor a meeting heard whole.
         let heard = |meeting: &Meeting| meeting.transcribed_ms.map(|_| meeting.id.clone());
         assert_eq!(phone.library.kept(heard), []);
         assert_eq!(phone.library.kept(|meeting| Some(meeting.id.clone())), [id("recorded-9")]);
@@ -1115,7 +1117,7 @@ mod tests {
         let phone = phone(&[]);
         fs::create_dir(phone.path("recorded-9.notitia.tmp")).unwrap();
         phone.begin("recorded-9");
-        phone.transcribed("recorded-9", &["Bonjour à tous."], MinutesDraft::Writing);
+        assert!(phone.heard("recorded-9", &["Bonjour à tous."], 0, Some(30_000)));
         assert_eq!(phone.unsaved(), [id("recorded-9")]);
         assert_eq!(phone.library.meeting(&id("recorded-9")).unwrap().transcript, [line(0, "Bonjour à tous.")]);
         fs::remove_dir(phone.path("recorded-9.notitia.tmp")).unwrap();
@@ -1239,7 +1241,8 @@ mod tests {
         let events = [
             Event::Listed {
                 meetings: vec![
-                    with("recorded-2", MinutesState::Writing),
+                    // Heard ten minutes in.
+                    Meeting { transcribed_ms: Some(600_000), ..with("recorded-2", MinutesState::Writing) },
                     with("recorded-3", MinutesState::Failed),
                     with("recorded-4", MinutesState::Unavailable),
                 ],

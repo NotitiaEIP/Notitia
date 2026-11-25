@@ -2,10 +2,8 @@ package com.example.notitia.bridge
 
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.Milliseconds
-import com.example.notitia.meeting.MinutesDraft
 import com.example.notitia.meeting.RecorderState
 import com.example.notitia.meeting.RecordingProblem
-import com.example.notitia.meeting.TranscriptLine
 import kotlin.time.Duration
 import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
@@ -30,6 +28,9 @@ internal fun readEvent(event: String): CoreEvent? = try {
     null
 }
 
+@Serializable
+internal data class EngineAbout(val name: String, val remote: Boolean)
+
 // What the app asks of the core: a change of the meetings, or a command of the recorder.
 @Serializable
 internal sealed interface CoreRequest
@@ -48,16 +49,6 @@ internal sealed interface Change : CoreRequest {
     @Serializable
     @SerialName("rewrite")
     data class Rewrite(val meeting: String) : Change
-
-    // What the app transcribed of a meeting the recorder made, the whole of it each time, and its minutes once
-    // written. Changes nothing of a meeting the core does not know.
-    @Serializable
-    @SerialName("transcribed")
-    data class Transcribed(
-        val meeting: String,
-        val transcript: List<TranscriptLine> = emptyList(),
-        val minutes: MinutesDraft,
-    ) : Change
 
     // Samples: changed like the others for as long as the app runs, never written.
     @Serializable
@@ -140,6 +131,15 @@ internal sealed interface CoreEvent {
     @Serializable
     @SerialName("unsaved")
     data class Unsaved(val meetings: Set<String>) : CoreEvent
+
+    // The engines the core knows, by kind, the one it chose first: once the meetings are listed, then at each offer.
+    @Serializable
+    @SerialName("engines")
+    data class Engines(
+        val speech: List<EngineAbout>,
+        val text: List<EngineAbout>,
+        val embedding: List<EngineAbout>,
+    ) : CoreEvent
 
     // The whole state of the recorder, told at each change and every 100 ms of sound. Each state has its own
     // fields: a problem when it failed, the rest while it is active, the level while it records. meeting is made at

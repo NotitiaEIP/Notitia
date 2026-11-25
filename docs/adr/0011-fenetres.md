@@ -4,6 +4,7 @@
 | --- | --- |
 | Statut | Proposée le 23 novembre 2026, acceptée à la fusion de sa PR |
 | Modifiée | Le 24 novembre 2026 par T-94 (#260) : le traitement prend les fenêtres |
+| Modifiée | Le 25 novembre 2026 par T-59 (#190) : le téléphone passe par le cœur, le Kotlin part |
 | Proposée par | Clément |
 | Relue par | Alexandre pour le cœur |
 | Tâche d'origine | T-90 (#258) |
@@ -74,7 +75,7 @@ Le découpage vit dans le cœur (`core/src/speech/`), le même pour toutes les a
 | Un morceau jeté s'il contient « sous-titr » | La seule phrase inventée | #156 |
 | Aucun recouvrement | 1 s, et les mots en double retirés | Un mot coupé en deux est entendu entier |
 
-Le Kotlin reste jusqu'à T-59, qui le supprime.
+Le Kotlin reste jusqu'à T-59, qui le supprime. Fait par T-59 (#190) : `SpeechSegmenter` et ses tests sont partis.
 
 ## Options écartées
 
@@ -110,7 +111,7 @@ Les tests le prouvent aussi :
 
 **Ce qu'on gagne.**
 - Toutes les apps, l'ordinateur compris, découpent de la même façon.
-- #155 et #156 sont corrigés dans le cœur. Ils se ferment avec T-59, quand le téléphone passe par lui.
+- #155 et #156 sont corrigés dans le cœur. Ils se ferment avec T-59 (#190), qui fait passer le téléphone par lui.
 - Le traitement (H) n'a qu'à garder `until_ms` : reprendre ne demande rien d'autre.
 
 **Ce qu'on paie.**

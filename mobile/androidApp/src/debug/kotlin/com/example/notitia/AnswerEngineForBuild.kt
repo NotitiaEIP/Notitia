@@ -9,5 +9,5 @@ fun answerEngineForBuild(): AnswerEngine =
     if (BuildConfig.GATEWAY_URL.isBlank() || BuildConfig.GATEWAY_KEY.isBlank()) {
         SampleAnswerEngine
     } else {
-        RagAnswerEngine(GatewayLanguageModel(BuildConfig.GATEWAY_URL, BuildConfig.GATEWAY_KEY))
+        RagAnswerEngine(GatewayLanguageModel(Gateway(BuildConfig.GATEWAY_URL, BuildConfig.GATEWAY_KEY)))
     }

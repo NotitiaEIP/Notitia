@@ -4,6 +4,7 @@
 | --- | --- |
 | Statut | Proposée le 18 novembre 2026, acceptée à la fusion de sa PR |
 | Modifiée | Le 20 novembre 2026 par T-58 (#189) : les apps passent par l'enregistreur, mesuré sur un téléphone |
+| Modifiée | Le 25 novembre 2026 par T-59 (#190) : le cœur entend lui-même chaque réunion, `transcribed` part |
 | Proposée par | Clément |
 | Relue par | Alexandre pour le cœur |
 | Tâche d'origine | T-81 (#241), troisième étape de T-58 (#189) |
@@ -38,9 +39,9 @@ Le micro ne doit jamais attendre : un téléphone qui rate des lectures perd du 
 
 L'événement `recorder` porte l'état entier : `state`, puis `meeting`, `startedAt` et `recordedMs` pour un état actif, et `level` (de 0 à 1) en `recording`. Il part à chaque changement, au premier son et toutes les 100 ms de son. Au premier son, il nomme la réunion avant que `changed` ne la montre : une app qui laisse la réunion en cours hors de sa liste ne la montre jamais, même une image. `problem` vaut `denied`, `busy`, `unavailable` ou `storage`.
 
-La transcription reste en Kotlin jusqu'à T-59. L'app la confie par la modification `transcribed` (`meeting`, `transcript`, `minutes`). Elle ne crée pas de réunion, ne change pas sa durée, et garde le titre donné et un compte rendu déjà corrigé.
+La transcription est restée en Kotlin jusqu'à T-59 (#190), qui l'a confiée au cœur : il entend chaque réunion sur son propre fil (ADR 0012), et la modification `transcribed` n'existe plus. Le micro ne nourrit que le cœur.
 
-`core/tests/fixtures/bridge/recorder.json` porte un exemple de chaque commande, de `transcribed` et de chaque état. Les apps le liront avec T-58. Les modifications du cœur lui-même, `begin` et `lasted`, ne se lisent jamais depuis une app.
+`core/tests/fixtures/bridge/recorder.json` porte un exemple de chaque commande et de chaque état. Les apps le liront avec T-58. Les modifications du cœur lui-même, `begin` et `lasted`, ne se lisent jamais depuis une app.
 
 ## Mesure
 
