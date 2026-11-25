@@ -1,6 +1,14 @@
 package com.example.notitia.bridge
 
-import com.example.notitia.ai.audio
+import com.example.notitia.ai.Engine
+import com.example.notitia.ai.EngineReply
+import com.example.notitia.ai.EngineRequest
+import com.example.notitia.ai.OfferedEngine
+import com.example.notitia.ai.Said
+import com.example.notitia.meeting.Abilities
+import com.example.notitia.meeting.MinutesState
+import com.example.notitia.meeting.RecorderState
+import com.example.notitia.recording.audio
 import java.io.File
 import java.util.Collections
 import kotlin.io.path.createTempDirectory
@@ -9,8 +17,13 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonElement
@@ -47,7 +60,7 @@ class RustEnginesTest {
     }
 
     // The core calls the engine from a thread of its own, which JNA attaches to the JVM for the call: what no other
-    // test reaches. Through RustCore alone: CoreRecording would transcribe the meeting itself until T-59.
+    // test reaches. Through RustCore alone, in the text of the bridge.
     @Test
     fun aMeetingRecordedIsHeardOnAThreadOfTheCoreByAnEngineOfThisApp() = runBlocking {
         val told = Collections.synchronizedList(mutableListOf<JsonObject>())
@@ -128,6 +141,39 @@ class RustEnginesTest {
         assertEquals("complete", request.getValue("type").jsonPrimitive.content)
         assertEquals(1_024, request.getValue("replyTokens").jsonPrimitive.content.toInt())
         assertTrue("] Lucas prépare la démo." in request.getValue("prompt").jsonPrimitive.content)
+    }
+
+    // The whole of this app on the real core: its engines, in its own types, lent through the session, and a meeting
+    // recorded that comes back heard and written up, its action pointing to the sentence heard.
+    @Test
+    fun aMeetingRecordedThroughTheSessionIsHeardAndWrittenUpByTheEnginesOfThisApp() = runBlocking {
+        val ear = object : Engine {
+            override val offered = OfferedEngine.Speech("ear", remote = false, longest = 30.seconds)
+
+            override fun run(request: EngineRequest, sound: ByteArray) =
+                EngineReply.Heard(listOf(Said(Duration.ZERO, 900.milliseconds, "Lucas prépare la démo.")))
+        }
+        val pen = object : Engine {
+            override val offered = OfferedEngine.Text("pen", remote = false, contextTokens = 4_096, replyTokens = 1_024)
+
+            // As a model does: the time copied from the line it read.
+            override fun run(request: EngineRequest, sound: ByteArray): EngineReply {
+                val time = (request as EngineRequest.Complete).prompt.substringAfter("[").substringBefore("]")
+                return EngineReply.Written("SUMMARY: Point sur la démo.\nACTION: Préparer la démo | Lucas | - | $time")
+            }
+        }
+        val session = CoreSession(RustCore(), folder.path, key = { ByteArray(KEY_BYTES) { 7 } }, engines = flowOf(listOf(ear, pen)))
+        withTimeout(20.seconds) {
+            session.abilities.first { it == Abilities(hear = true, write = true) }
+            session.send(Command.Start(tracks = 1, offsetMinutes = 60))
+            session.recorder.first { it is RecorderState.Recording }
+            session.hear(audio(1_000, level = 0) + audio(2_000) + audio(2_500, level = 0))
+            session.send(Command.Stop)
+            val meeting = session.meetings.map { it?.singleOrNull() }.first { it?.minutes is MinutesState.Written }
+            assertNull(checkNotNull(meeting).transcribed)
+            val action = (meeting.minutes as MinutesState.Written).minutes.actions.single()
+            assertEquals(Triple("Préparer la démo", "Lucas", "Lucas prépare la démo."), Triple(action.text, action.owner, action.source?.quote))
+        }
     }
 
     @Test

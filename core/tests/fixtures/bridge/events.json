@@ -1,6 +1,6 @@
 [
   {"type":"listed","meetings":[
-    {"id":"recorded-2","startedAt":"2026-11-10T09:30:00Z","durationMs":1800000,"modifiedAt":"2026-11-10T10:00:00Z","device":"phone-1","minutes":{"type":"writing"}},
+    {"id":"recorded-2","startedAt":"2026-11-10T09:30:00Z","durationMs":1800000,"transcribedMs":600000,"modifiedAt":"2026-11-10T10:00:00Z","device":"phone-1","minutes":{"type":"writing"}},
     {"id":"recorded-3","startedAt":"2026-11-10T09:30:00Z","durationMs":1800000,"modifiedAt":"2026-11-10T10:00:00Z","device":"phone-1","minutes":{"type":"failed"}},
     {"id":"recorded-4","startedAt":"2026-11-10T09:30:00Z","durationMs":1800000,"modifiedAt":"2026-11-10T10:00:00Z","device":"phone-1","minutes":{"type":"unavailable"}}
   ]},

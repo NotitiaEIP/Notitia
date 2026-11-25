@@ -72,4 +72,4 @@ fun sampleMinutes(now: Instant, timeZone: TimeZone = TimeZone.currentSystemDefau
     sampleMeetings(now, timeZone).map { it.toMinutes(it.sampleItem(now, timeZone)) }
 
 private fun Meeting.sampleItem(now: Instant, timeZone: TimeZone) =
-    listItem(checkNotNull(title), now.toLocalDateTime(timeZone).date)
+    listItem(checkNotNull(title), minutes.status(now.toLocalDateTime(timeZone).date))

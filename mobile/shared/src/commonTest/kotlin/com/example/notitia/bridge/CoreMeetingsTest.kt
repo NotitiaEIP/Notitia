@@ -52,6 +52,7 @@ class CoreMeetingsTest {
         kept.setOwner(action, "Nathan")
         kept.setDue(action, day)
         kept.setReminder(action, true)
+        kept.rewrite("recorded-1")
         kept.delete(setOf("recorded-1"))
         fun edit(edit: MeetingEdit) = Change.Edit("recorded-1", edit)
         assertEquals(
@@ -61,6 +62,7 @@ class CoreMeetingsTest {
                 edit(MeetingEdit.SetOwner("0", "Nathan")),
                 edit(MeetingEdit.SetDue("0", day)),
                 edit(MeetingEdit.SetReminder("0", true)),
+                Change.Rewrite("recorded-1"),
                 Change.Delete(setOf("recorded-1")),
             ),
             core.applied,

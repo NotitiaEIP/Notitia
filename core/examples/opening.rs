@@ -53,8 +53,8 @@ fn id(meeting: u32) -> Result<MeetingId, InvalidId> {
     MeetingId::new(format!("recorded-{meeting}"))
 }
 
-// As a recording leaves it: begun by the recorder, an hour long, then transcribed and summed up by the app.
-fn hour(meeting: u32) -> Result<[Change; 3], InvalidId> {
+// As a recording leaves it: begun by the recorder, an hour long, then heard and summed up by the core.
+fn hour(meeting: u32) -> Result<[Change; 4], InvalidId> {
     let said = || SENTENCES.iter().cycle().zip((0..).step_by(6_000));
     let line = |(text, at_ms): (&&str, u64)| TranscriptLine {
         at_ms,
@@ -72,9 +72,14 @@ fn hour(meeting: u32) -> Result<[Change; 3], InvalidId> {
     Ok([
         Change::Begin { id: id(meeting)?, started_at, offset_minutes: 60 },
         Change::Lasted { meeting: id(meeting)?, duration_ms: 3_600_000 },
-        Change::Transcribed {
+        Change::Heard {
             meeting: id(meeting)?,
-            transcript: said().take(LINES).map(line).collect(),
+            lines: said().take(LINES).map(line).collect(),
+            from_ms: 0,
+            until_ms: None,
+        },
+        Change::Drafted {
+            meeting: id(meeting)?,
             minutes: MinutesDraft::Written {
                 summary: SENTENCES.concat(),
                 decisions: SENTENCES.map(String::from).into(),

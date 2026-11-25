@@ -40,6 +40,7 @@ import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import notitia.shared.generated.resources.Res
 import notitia.shared.generated.resources.actions_late
+import notitia.shared.generated.resources.meeting_waiting
 import notitia.shared.generated.resources.minutes_writing
 import notitia.shared.generated.resources.transcription_progress
 import notitia.shared.generated.resources.transcription_remaining
@@ -98,6 +99,10 @@ fun MeetingCard(
                         text = stringResource(Res.string.minutes_writing),
                         modifier = Modifier.padding(top = spacing.m),
                     )
+                    MeetingStatus.Waiting -> NotitiaBadge(
+                        text = stringResource(Res.string.meeting_waiting),
+                        modifier = Modifier.padding(top = spacing.m),
+                    )
                 }
             }
         }
@@ -146,9 +151,9 @@ private fun TranscriptionProgress(status: MeetingStatus.Transcribing, modifier: 
             )
         }
         DetailsLine(
-            parts = listOf(
+            parts = listOfNotNull(
                 stringResource(Res.string.transcription_progress, (status.progress * 100).roundToInt()),
-                stringResource(Res.string.transcription_remaining, lengthLabel(status.remaining)),
+                status.remaining?.let { stringResource(Res.string.transcription_remaining, lengthLabel(it)) },
             ),
             modifier = Modifier.padding(top = NotitiaTheme.spacing.s),
         )

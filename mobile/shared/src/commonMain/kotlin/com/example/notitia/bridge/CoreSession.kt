@@ -1,28 +1,37 @@
 package com.example.notitia.bridge
 
+import com.example.notitia.ai.Engine
+import com.example.notitia.meeting.Abilities
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.RecorderState
 import com.example.notitia.meeting.RecordingProblem
 import kotlin.concurrent.Volatile
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+// An engine that said it was not available is offered again after this: the core waits for the next offer, and has
+// no clock (ADR 0009). Out of reach, a gateway fails at once, so this costs two calls a minute.
+private val RETRY_AFTER = 30.seconds
+
 // The core as this app holds it: opened once, its calls made one at a time and in order, its events read once into
-// the state they tell. The screens reach it through facades that keep no state of their own, CoreMeetings and
-// CoreRecording: a new kind of event changes only the facade that follows it. Nothing is changed here, where no rule
-// lives: a tick shows at once because the core tells it before it writes the file.
+// the state they tell, and the engines of this app lent to it. The screens reach it through facades that keep no state
+// of their own, CoreMeetings and CoreRecording: a new kind of event changes only the facade that follows it. Nothing is
+// changed here, where no rule lives: a tick shows at once because the core tells it before it writes the file.
 internal class CoreSession(
     private val core: NotitiaCore,
     directory: String,
@@ -31,9 +40,14 @@ internal class CoreSession(
     key: () -> ByteArray? = { null },
     // Shown and changed like the others, never written: they are not the user's meetings.
     samples: List<Meeting> = emptyList(),
+    // The engines this app can run, offered to the core once it is open, then again at each emission: a model that
+    // has come, say.
+    engines: Flow<List<Engine>> = emptyFlow(),
     // One call at a time and in order, off the main thread: the core writes the file before it returns. Not tied to
     // a screen: closing the app must not cancel a write.
     private val calls: CoroutineDispatcher = Dispatchers.IO.limitedParallelism(1),
+    // Before engines that said they were not available are offered again.
+    private val beforeRetry: suspend () -> Unit = { delay(RETRY_AFTER) },
 ) {
     private val scope = CoroutineScope(SupervisorJob() + calls)
     private val shown = MutableStateFlow<List<Meeting>?>(null)
@@ -43,6 +57,13 @@ internal class CoreSession(
     // changes by compare-and-set, so no change is lost between two threads.
     private val told = MutableStateFlow(emptyList<Meeting>())
     private val recording = MutableStateFlow<RecorderState>(RecorderState.Idle)
+    private val able = MutableStateFlow(Abilities.None)
+
+    // The engines offered last, touched by the calls alone, one at a time.
+    private var lent: List<Engine> = emptyList()
+
+    // Set from a thread of the core, by an engine that was not available: one retry waits at a time.
+    private val retrying = MutableStateFlow(false)
 
     // Every state the recorder tells, in order: whoever drives the microphone acts on each step, which a StateFlow
     // could merge. Dropped while nobody follows.
@@ -64,6 +85,8 @@ internal class CoreSession(
 
     val recorderChanges: Flow<RecorderState> = recorderSteps.asSharedFlow()
 
+    val abilities: StateFlow<Abilities> = able.asStateFlow()
+
     init {
         scope.launch {
             // A key that cannot be read, or that is no key, must not hold the app on its splash screen either: the
@@ -80,6 +103,7 @@ internal class CoreSession(
             // read must not hold the app on its splash screen: it then starts with no meeting.
             listed = true
             shown.update { told.value }
+            if (opened) engines.collect(::lend)
         }
     }
 
@@ -113,6 +137,24 @@ internal class CoreSession(
         core.apply(CoreJson.encodeToString(CoreRequest.serializer(), request))
     }
 
+    // In place of those offered before.
+    private fun lend(engines: List<Engine>) {
+        lent = engines
+        val lending = Lending(engines, ::retryLater)
+        core.offer(lending.offer, lending)
+    }
+
+    // The core asks an engine away nothing more until the next offer: each kind of work says so once, and one retry
+    // is enough for all.
+    private fun retryLater() {
+        if (!retrying.compareAndSet(expect = false, update = true)) return
+        scope.launch {
+            beforeRetry()
+            retrying.value = false
+            lend(lent)
+        }
+    }
+
     // Nothing here calls the core, which would wait for itself.
     private fun follow(event: String) {
         when (val read = readEvent(event)) {
@@ -128,6 +170,7 @@ internal class CoreSession(
             is CoreEvent.Removed -> list { told -> told.filterNot { it.id in read.meetings } }
             is CoreEvent.Unsaved -> behind.value = read.meetings
             is CoreEvent.Recorder -> read.toState()?.let(::tellRecorder)
+            is CoreEvent.Engines -> able.value = Abilities(hear = read.speech.isNotEmpty(), write = read.text.isNotEmpty())
         }
     }
 

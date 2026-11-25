@@ -24,6 +24,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +42,9 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
@@ -48,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import com.example.notitia.meeting.Abilities
 import com.example.notitia.meeting.ActionId
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MinutesState
@@ -87,7 +92,6 @@ import notitia.shared.generated.resources.meetings_title
 import notitia.shared.generated.resources.minutes_actions
 import notitia.shared.generated.resources.minutes_back_description
 import notitia.shared.generated.resources.minutes_decisions
-import notitia.shared.generated.resources.minutes_failed
 import notitia.shared.generated.resources.minutes_more
 import notitia.shared.generated.resources.minutes_no_actions
 import notitia.shared.generated.resources.minutes_no_decisions
@@ -98,8 +102,6 @@ import notitia.shared.generated.resources.minutes_summary_more
 import notitia.shared.generated.resources.minutes_summary_unfold
 import notitia.shared.generated.resources.minutes_tab_minutes
 import notitia.shared.generated.resources.minutes_tab_transcript
-import notitia.shared.generated.resources.minutes_unavailable
-import notitia.shared.generated.resources.minutes_writing
 import notitia.shared.generated.resources.more_horiz
 import notitia.shared.generated.resources.participants
 import notitia.shared.generated.resources.transcript_empty
@@ -116,8 +118,10 @@ private const val SUMMARY_FOLDED_LINES = 3
 fun MinutesRoute(
     meeting: Meeting,
     item: MeetingListItem,
+    abilities: Abilities,
     transcript: suspend () -> List<TranscriptLine>?,
     onSetDone: (ActionId, Boolean) -> Unit,
+    onRewrite: () -> Unit,
     onRename: (String) -> Unit,
     onDelete: () -> Unit,
     backLabel: String,
@@ -134,14 +138,16 @@ fun MinutesRoute(
         state = rememberNavigationEventState(NavigationEventInfo.None),
         onBackCompleted = onBack,
     )
+    // The lines are read only for minutes written empty, to tell an engine that failed from a silent meeting.
+    val everyPassageFailed by produceState(false, meeting.id, meeting.minutes) {
+        val written = (meeting.minutes as? MinutesState.Written)?.minutes
+        value = written?.isEmpty() == true && transcript()?.let(::everyPassageFailed) == true
+    }
+    val notice = meeting.minutesNotice(abilities, everyPassageFailed)
+    MinutesArrival(meeting)
     MinutesScreen(
         minutes = minutes,
-        notice = when (meeting.minutes) {
-            MinutesState.Writing -> Res.string.minutes_writing
-            MinutesState.Failed -> Res.string.minutes_failed
-            MinutesState.Unavailable -> Res.string.minutes_unavailable
-            is MinutesState.Written -> null
-        },
+        notice = notice,
         now = now,
         backLabel = backLabel,
         backDescription = backDescription,
@@ -149,19 +155,32 @@ fun MinutesRoute(
         onToggleAction = { index -> minutes.actions[index].let { onSetDone(ActionId(meeting.id, it.id), !it.done) } },
         onRename = onRename,
         onDelete = onDelete,
-        onShare = if (meeting.minutes is MinutesState.Written) {
+        onShare = if (notice == null) {
             { share(minutesShareText(minutes, shareWords, TimeZone.currentSystemDefault())) {} }
         } else {
             null
         },
+        onRewrite = onRewrite,
         transcript = transcript,
         revision = meeting.id to meeting.modifiedAt,
         modifier = modifier,
     )
 }
 
-// notice replaces the minutes when they are not written, and onShare is null then: there is nothing to send.
-// transcript reads the lines, null when it cannot: asked when their tab is shown, and again when revision changes.
+// The success vibration of DESIGN.md, once minutes awaited on this screen are written: not for minutes opened ready.
+@Composable
+private fun MinutesArrival(meeting: Meeting) {
+    val haptics = LocalHapticFeedback.current
+    var awaited by remember(meeting.id) { mutableStateOf(false) }
+    LaunchedEffect(meeting.id, meeting.minutes) {
+        if (awaited && meeting.minutes is MinutesState.Written) haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+        awaited = meeting.minutes == MinutesState.Writing
+    }
+}
+
+// notice replaces the minutes when there is nothing to read of them, and onShare is null then: there is nothing to
+// send. The notice's button, when it has one, takes the place of sharing. transcript reads the lines, null when it
+// cannot: asked when their tab is shown, and again when revision changes.
 @Composable
 fun MinutesScreen(
     minutes: Minutes,
@@ -173,7 +192,8 @@ fun MinutesScreen(
     onRename: (String) -> Unit,
     onDelete: () -> Unit,
     onShare: (() -> Unit)?,
-    notice: StringResource? = null,
+    notice: MinutesNotice? = null,
+    onRewrite: () -> Unit = {},
     transcript: suspend () -> List<TranscriptLine>? = { emptyList() },
     revision: Any? = null,
     modifier: Modifier = Modifier,
@@ -238,18 +258,14 @@ fun MinutesScreen(
             }
             when {
                 tab != 0 -> transcriptItems(lines)
-                notice != null -> item { Notice(stringResource(notice), Modifier.padding(top = spacing.xxl)) }
+                notice != null -> item { Notice(stringResource(notice.text), Modifier.padding(top = spacing.xxl)) }
                 else -> item { Column { MinutesContent(minutes, onToggleAction) } }
             }
         }
-        if (onShare != null) {
-            HorizontalDivider(color = NotitiaTheme.colors.divider)
-            NotitiaButton(
-                text = stringResource(Res.string.minutes_share),
-                onClick = onShare,
-                icon = painterResource(shareIcon),
-                modifier = Modifier.fillMaxWidth().padding(spacing.l),
-            )
+        val rewrite = notice?.rewrite
+        when {
+            onShare != null -> BottomAction(stringResource(Res.string.minutes_share), onShare, painterResource(shareIcon))
+            rewrite != null -> BottomAction(stringResource(rewrite), onRewrite)
         }
     }
     DestructiveConfirmation(
@@ -397,6 +413,18 @@ private fun Summary(text: String) {
             }
         }
     }
+}
+
+// The one main action of the screen, at its foot.
+@Composable
+private fun BottomAction(text: String, onClick: () -> Unit, icon: Painter? = null) {
+    HorizontalDivider(color = NotitiaTheme.colors.divider)
+    NotitiaButton(
+        text = text,
+        onClick = onClick,
+        icon = icon,
+        modifier = Modifier.fillMaxWidth().padding(NotitiaTheme.spacing.l),
+    )
 }
 
 @Composable

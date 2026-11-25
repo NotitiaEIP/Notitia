@@ -4,6 +4,7 @@
 | --- | --- |
 | Statut | Proposée le 24 novembre 2026, acceptée à la fusion de sa PR |
 | Modifiée | Le 25 novembre 2026 par T-95 (#262) : le compte rendu s'écrit sur le fil, `unavailable` et `interrupted` partent |
+| Modifiée | Le 25 novembre 2026 par T-59 (#190) : les apps offrent leurs moteurs et lisent `transcribedMs`, `transcribed` part |
 | Proposée par | Clément |
 | Relue par | Alexandre pour le cœur |
 | Tâche d'origine | T-94 (#260), moitié cœur de T-38 (#141) |
@@ -119,9 +120,13 @@ Les tests le prouvent aussi :
 
 **Ce qui reste ouvert.**
 - **Le compte rendu (G).** Fait par T-95 (ADR 0013) : une transcription entière laisse le compte rendu dû (`writing`), qui s'écrit sur ce fil dès qu'un moteur de texte existe. Le cœur n'écrit plus `unavailable`, la demande `rewrite` relance un compte rendu en échec, et `interrupted` part dès G : il aurait fait échouer au lancement un compte rendu dû.
-- **Le branchement des apps (T-59).** L'app offre ses moteurs et lit `transcribedMs`. Elle offre à nouveau quand un moteur revient : modèle téléchargé, réseau retrouvé.
+- **Le branchement des apps (T-59).** L'app offre ses moteurs et lit `transcribedMs`. Elle offre à nouveau quand un moteur revient : modèle téléchargé, réseau retrouvé. Fait par T-59 (#190) :
+  - la plateforme donne ses moteurs comme un flux, et chaque émission est une offre ;
+  - un moteur qui répond `unavailable` est offert de nouveau 30 s plus tard, une seule fois en attente, puisque le cœur n'a pas d'horloge (ADR 0009). Hors réseau, cela fait deux appels par minute, qui échouent tout de suite. La gateway répond `unavailable` sans réseau, après un délai dépassé, ou sur un HTTP 429 ou 5xx, et `failed` sur tout autre refus : une coupure en pleine réunion ne laisse aucun passage perdu ;
+  - la carte montre la part entendue, `transcribedMs` sur `durationMs` bornée à 100 %, et le temps restant à l'allure vue depuis qu'elle s'est mise à avancer, rien avant. Sans moteur de voix, elle dit « En attente d'un modèle » ;
+  - `transcribed` n'existe plus : le cœur entend chaque réunion, et le point 1 ne connaît plus que `begin` pour poser le champ.
 - **Le réveil du cœur en tâche de fond** : WorkManager sur Android, une tâche de fond sur iPhone. C'est la partie téléphone de T-38.
 - **Transcrire seulement après la réunion**, si le moteur de T-06 ne tient pas le temps réel sur un téléphone.
 - **La langue de la réunion**, donnée par l'app avec `start` quand l'app parlera anglais.
 - **Garder les lignes en mémoire tant que la réunion s'entend**, si le coût de la réécriture se mesure sur des réunions de plusieurs heures.
-- **L'appel Swift hors du fil principal**, que rien ne prouve avant un Mac.
+- **L'appel Swift hors du fil principal**, que rien ne prouve avant un Mac. Prouvé sur le simulateur par T-59 (ADR 0010). Reste un vrai iPhone.

@@ -3,6 +3,7 @@
 | | |
 | --- | --- |
 | Statut | Proposée le 25 novembre 2026, acceptée à la fusion de sa PR |
+| Modifiée | Le 25 novembre 2026 par T-59 (#190) : l'écran suit le cœur, et une réunion jamais entendue l'est avant d'être rédigée |
 | Proposée par | Clément |
 | Relue par | Alexandre pour le cœur |
 | Tâche d'origine | T-95 (#262) |
@@ -99,7 +100,13 @@ Les tests le prouvent aussi :
 - Entre la fusion de cette PR et celle de T-59, une transcription Kotlin tuée en cours reste « Rédaction… » au lieu d'« échec ». T-59 la fait rédiger par le cœur.
 
 **Ce qui reste ouvert.**
-- **Le branchement des apps (T-59).** L'app offre la gateway comme moteur de texte, montre « en attente du modèle » et « Réessayer », et retire `transcribed`. Jusque-là, aucun moteur de texte n'est offert : si un moteur était offert pendant que Kotlin transcrit, le cœur rédigerait trop tôt. Un compte rendu vide sur une transcription dont chaque passage a raté se dit « transcription ratée » à l'écran, pas « rien n'a été dit ».
+- **Le branchement des apps (T-59).** L'app offre la gateway comme moteur de texte, montre « en attente du modèle » et « Réessayer », et retire `transcribed`. Jusque-là, aucun moteur de texte n'est offert : si un moteur était offert pendant que Kotlin transcrit, le cœur rédigerait trop tôt. Un compte rendu vide sur une transcription dont chaque passage a raté se dit « transcription ratée » à l'écran, pas « rien n'a été dit ». Fait par T-59 (#190) :
+  - sans moteur de texte, la carte dit « En attente d'un modèle », et l'écran « Le compte rendu attend un modèle sur ce téléphone. » ;
+  - un compte rendu en échec offre « Rédiger à nouveau », un `unavailable` laissé par une ancienne app « Rédiger le compte rendu » : deux verbes qui disent ce qui se passe (`DESIGN.md`), à la place du bouton de partage ;
+  - un compte rendu écrit vide, sur des lignes qui ont toutes raté, dit « Aucun passage n'a pu être transcrit. » ;
+  - la vibration « succès » part quand un compte rendu attendu sur son écran arrive ;
+  - **une réunion jamais entendue est entendue avant d'être rédigée** (`rehear`, modification interne du cœur). Au pas d'écriture, une réunion sans aucune ligne et de durée non nulle repasse `transcribedMs` à 0 au lieu d'un compte rendu vide sur une heure d'audio. Ce sont les réunions `unavailable` des téléphones de l'équipe, enregistrées sans gateway, et les transcriptions Kotlin tuées avant leur première ligne. Pas de boucle : une écoute finie sans texte clôt en `written` vide, jamais en `writing`. Ce pas n'a lieu qu'avec un moteur de texte, comme toute écriture ;
+  - une transcription Kotlin tuée après sa première ligne est rédigée depuis ce qui a été entendu, comme prévu plus haut.
 - **La citation d'une décision gardée**, avec un format qui la porte, quand viendront les corrections à la main (US-38).
 - **Alterner le modèle de voix et le modèle de texte sur l'appareil** coûte un chargement à chaque fois. Pour un moteur du cœur (T-83), rédiger après la réunion se réglera dans `next`.
 - **Une demande `count` exacte des jetons**, si le moteur de T-06 compte loin de la moyenne.

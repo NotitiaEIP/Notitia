@@ -1,12 +1,10 @@
 package com.example.notitia.bridge
 
 import com.example.notitia.bridge.CoreEvent.Recorder.Phase
+import com.example.notitia.ai.OfferedEngine
 import com.example.notitia.meeting.Meeting
-import com.example.notitia.meeting.MinutesAction
-import com.example.notitia.meeting.MinutesDraft
 import com.example.notitia.meeting.MinutesState
 import com.example.notitia.meeting.RecordingProblem
-import com.example.notitia.meeting.WrittenMinutes
 import com.example.notitia.recording.BYTES_PER_MS
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -25,6 +23,9 @@ private val active = setOf(Phase.Recording, Phase.Paused, Phase.Interrupted)
 internal open class FakeCore(vararg stored: Meeting, private val opens: Boolean = true) : NotitiaCore {
     val applied = mutableListOf<CoreRequest>()
 
+    // Each offer as it crossed, the callback through which this core would run the engines.
+    val offers = mutableListOf<Pair<List<OfferedEngine>, CoreEngines>>()
+
     // As the app gave it, before the app wiped its own copy.
     var key: ByteArray? = null
         private set
@@ -39,6 +40,7 @@ internal open class FakeCore(vararg stored: Meeting, private val opens: Boolean 
         this.key = key?.copyOf()
         this.listener = listener
         tell(CoreEvent.Listed(listed()))
+        tellEngines(emptyList())
         return null
     }
 
@@ -67,11 +69,6 @@ internal open class FakeCore(vararg stored: Meeting, private val opens: Boolean 
             is Change.Rewrite -> kept[asked.meeting]
                 ?.takeIf { it.minutes == MinutesState.Failed || it.minutes == MinutesState.Unavailable }
                 ?.let { keep(it.copy(minutes = MinutesState.Writing)) }
-            // Minutes already written stay, as the core keeps those the user corrected.
-            is Change.Transcribed -> kept[asked.meeting]?.let {
-                val minutes = it.minutes as? MinutesState.Written ?: asked.minutes.settled()
-                keep(it.copy(transcript = asked.transcript, minutes = minutes))
-            }
             is Change.Lend -> {
                 asked.meetings.forEach { kept.getOrPut(it.id) { it } }
                 tell(CoreEvent.Listed(listed()))
@@ -100,11 +97,22 @@ internal open class FakeCore(vararg stored: Meeting, private val opens: Boolean 
         return CoreSound(pcm.copyOfRange(from, until), failure = null)
     }
 
-    // Which engine the core chooses is tested in Rust, where the rule lives.
+    // Which engine the core chooses is tested in Rust, where the rule lives: here, the first of each kind.
     override fun offer(offered: String, engines: CoreEngines): CoreFailure? {
         outsideTheListener()
+        val read = try {
+            CoreJson.decodeFromString<List<OfferedEngine>>(offered)
+        } catch (_: IllegalArgumentException) {
+            return CoreFailure.Invalid
+        }
+        offers += read to engines
+        tellEngines(read)
         return null
     }
+
+    // The engines lent last, run as the core would, from its own side of the bridge.
+    fun run(engine: String, request: String, sound: ByteArray = ByteArray(0)): String =
+        offers.last().second.run(engine, request, sound)
 
     fun tell(event: CoreEvent) = tell(CoreJson.encodeToString(CoreEvent.serializer(), event))
 
@@ -144,6 +152,17 @@ internal open class FakeCore(vararg stored: Meeting, private val opens: Boolean 
         }
     }
 
+    private fun tellEngines(offered: List<OfferedEngine>) {
+        fun about(kind: List<OfferedEngine>) = kind.map { EngineAbout(it.name, it.remote) }
+        tell(
+            CoreEvent.Engines(
+                speech = about(offered.filterIsInstance<OfferedEngine.Speech>()),
+                text = about(offered.filterIsInstance<OfferedEngine.Text>()),
+                embedding = about(offered.filterIsInstance<OfferedEngine.Embedding>()),
+            ),
+        )
+    }
+
     private fun tellRecorder(state: CoreEvent.Recorder) {
         recorder = state
         tell(state)
@@ -169,15 +188,3 @@ private fun Meeting.edited(edit: MeetingEdit): Meeting = when (edit) {
     else -> this
 }
 
-private fun MinutesDraft.settled(): MinutesState = when (this) {
-    MinutesDraft.Writing -> MinutesState.Writing
-    MinutesDraft.Failed -> MinutesState.Failed
-    MinutesDraft.Unavailable -> MinutesState.Unavailable
-    is MinutesDraft.Written -> MinutesState.Written(
-        WrittenMinutes(
-            summary,
-            decisions,
-            actions.mapIndexed { rank, heard -> MinutesAction("drawn-$rank", heard.text, heard.owner, heard.due, done = false, heard.source) },
-        ),
-    )
-}

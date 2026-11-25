@@ -63,6 +63,7 @@
     <string name="speakers_more">+%1$d</string>
     <string name="transcription_progress">Transcription %1$d&#160;%</string>
     <string name="transcription_remaining">environ %1$s</string>
+    <string name="meeting_waiting">En attente d’un modèle</string>
     <string name="recording_collapse">Réduire</string>
     <string name="recording_in_progress">Enregistrement</string>
     <string name="recording_paused">En pause</string>
@@ -109,6 +110,12 @@
     <string name="minutes_writing">Rédaction du compte rendu…</string>
     <string name="minutes_failed">Le compte rendu n’a pas pu être rédigé.</string>
     <string name="minutes_unavailable">Le compte rendu n’est pas encore rédigé sur le téléphone.</string>
+    <string name="minutes_transcribing">Transcription en cours…</string>
+    <string name="minutes_waiting_transcription">La transcription attend un modèle sur ce téléphone.</string>
+    <string name="minutes_waiting">Le compte rendu attend un modèle sur ce téléphone.</string>
+    <string name="minutes_unheard">Aucun passage n’a pu être transcrit.</string>
+    <string name="minutes_rewrite">Rédiger à nouveau</string>
+    <string name="minutes_write">Rédiger le compte rendu</string>
     <string name="minutes_no_decisions">Aucune décision.</string>
     <string name="minutes_no_actions">Aucune action.</string>
     <string name="minutes_no_summary">Rien à résumer.</string>

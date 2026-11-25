@@ -308,7 +308,7 @@ impl Worker {
     // One window: read, heard, then added to the meeting with the edge it reaches.
     fn transcribe(&mut self, id: &MeetingId, (generation, offers): (u64, u64), ended: bool, engine: &dyn SpeechEngine) {
         let Ok(meeting) = self.library.meeting(id) else { return self.set_aside(id) };
-        // The app took it, or it ended, since it was listed.
+        // Heard whole since it was listed.
         let Some(from_ms) = meeting.transcribed_ms else { return };
         let (name, longest_ms) = (&engine.about().name, engine.longest_ms());
         let same = |held: &Held| {
@@ -366,7 +366,7 @@ impl Worker {
             }
         };
         let heard = Change::Heard { meeting: id.clone(), lines, from_ms, until_ms };
-        // Refused only if the meeting changed under the step: deleted, taken by the app, or its file unreadable.
+        // Refused only if the meeting changed under the step: deleted, or its file unreadable.
         // Trying again could call the engine on the same window for ever.
         if !self.library.change(heard) {
             return self.set_aside(id);
@@ -810,22 +810,6 @@ mod tests {
         let ear = Ear::new(30_000, vec![]);
         Pipeline::spawn(library.clone(), engines(&ear)).unwrap().settled();
         assert_eq!(transcript(&library, &meeting), expected(&library, &meeting, 30_000));
-    }
-
-    #[test]
-    fn a_meeting_the_app_transcribes_itself_is_never_heard_by_the_core() {
-        let folder = tempfile::tempdir().unwrap();
-        let (_, library) = open(&folder);
-        let meeting = recorded(&library, "recorded-1", 0, &sentences(&[3_000]));
-        library.apply(Change::Transcribed {
-            meeting: meeting.clone(),
-            transcript: vec![],
-            minutes: MinutesDraft::Writing,
-        });
-        let ear = Ear::new(30_000, vec![]);
-        Pipeline::spawn(library.clone(), engines(&ear)).unwrap().settled();
-        assert_eq!(ear.calls(), []);
-        assert_eq!(library.meeting(&meeting).unwrap().minutes, MinutesState::Writing);
     }
 
     #[test]

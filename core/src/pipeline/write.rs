@@ -8,12 +8,20 @@ impl Worker {
     // One call of the minutes, its draft kept until the next, then the minutes settled once written.
     pub(super) fn write(&mut self, id: &MeetingId, offers: u64, engine: &dyn TextEngine) {
         let Ok(meeting) = self.library.meeting(id) else { return self.set_aside(id) };
-        // Asked of someone else since it was listed, the app say.
+        // Settled, or to be heard again, since it was listed.
         if !matches!(Job::owed(&meeting), Some(Job::Write(_))) {
             return;
         }
         if lock(&self.shared.forgotten).contains(id) {
             return self.set_aside(id);
+        }
+        // Never heard: an app before the core's, or one without an engine, left it so. Heard from its start first:
+        // minutes of no line at all would say nothing of the audio. A meeting heard whole has a line, or no minutes owed.
+        if meeting.transcript.is_empty() && meeting.duration_ms > 0 {
+            if !self.library.change(Change::Rehear { meeting: id.clone() }) {
+                self.set_aside(id);
+            }
+            return;
         }
         let mut draft = self.drafts.remove(id).unwrap_or_default();
         let stop = self.call(id);
@@ -400,6 +408,57 @@ mod tests {
             [&earlier, &latest].iter().map(|meeting| summary(&library, meeting).is_some()).collect();
         assert_eq!(written.iter().filter(|written| **written).count(), 1, "{written:?}");
         assert_eq!(scribe.prompts().len(), 2);
+    }
+
+    // Recorded and kept by an app before the core's, which had no engine: its audio beside it, not a line, its minutes
+    // as that app left them.
+    fn unheard(folder: &tempfile::TempDir, name: &str, minutes: MinutesState) -> MeetingId {
+        let (_, library) = open(folder);
+        let meeting = recorded(&library, name, 0, &sentences(&[3_000]));
+        let kept = library.meeting(&meeting).unwrap();
+        let left = Meeting { duration_ms: 5_500, transcribed_ms: None, minutes, transcript: vec![], ..kept };
+        drop(library);
+        fs::write(folder.path().join(format!("{name}.notitia")), format::encode(&left).unwrap()).unwrap();
+        let _ = fs::remove_file(folder.path().join("index"));
+        meeting
+    }
+
+    #[test]
+    fn a_meeting_an_app_without_an_engine_left_is_heard_then_written_once_asked() {
+        let folder = tempfile::tempdir().unwrap();
+        let meeting = unheard(&folder, "recorded-1", MinutesState::Unavailable);
+        let (_, library) = open(&folder);
+        let log = Log::default();
+        let (ear, scribe) = (Ear::new(30_000, vec![]), Scribe::new(vec![], &log));
+        let pipeline = Arc::new(Pipeline::spawn(library.clone(), engines(&ear, &scribe, &log)).unwrap());
+        settles(&pipeline);
+        assert!(log.lock().unwrap().is_empty(), "left as it was until the user asks");
+        assert!(library.change(Change::Rewrite { meeting: meeting.clone() }));
+        pipeline.changed();
+        settles(&pipeline);
+        assert_eq!(*log.lock().unwrap(), ["hear", "write"]);
+        let written = library.meeting(&meeting).unwrap();
+        assert_eq!((written.transcribed_ms, written.transcript.len()), (None, 1));
+        assert!(summary(&library, &meeting).is_some());
+        let prompt = &scribe.prompts()[0];
+        assert_eq!(prompt.lines().filter(|line| line.starts_with('[')).count(), 1, "written from what was heard");
+    }
+
+    #[test]
+    fn minutes_owed_of_a_meeting_never_heard_are_written_once_it_is_heard_and_of_no_sound_without_a_call() {
+        let folder = tempfile::tempdir().unwrap();
+        // A transcription of the app killed before its first line.
+        let cut = unheard(&folder, "recorded-1", MinutesState::Writing);
+        let silent = Meeting { duration_ms: 0, minutes: MinutesState::Writing, ..meeting("recorded-2") };
+        fs::write(folder.path().join("recorded-2.notitia"), format::encode(&silent).unwrap()).unwrap();
+        let (_, library) = open(&folder);
+        let log = Log::default();
+        let (ear, scribe) = (Ear::new(30_000, vec![]), Scribe::new(vec![], &log));
+        Pipeline::spawn(library.clone(), engines(&ear, &scribe, &log)).unwrap().settled();
+        assert_eq!(*log.lock().unwrap(), ["hear", "write"]);
+        assert!(summary(&library, &cut).is_some());
+        assert_eq!(summary(&library, &silent.id).as_deref(), Some(""));
+        assert!(library.meeting(&silent.id).unwrap().transcript.is_empty());
     }
 
     #[test]

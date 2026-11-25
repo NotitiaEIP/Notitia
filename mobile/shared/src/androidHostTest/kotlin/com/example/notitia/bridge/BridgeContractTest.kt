@@ -1,11 +1,13 @@
 package com.example.notitia.bridge
 
+import com.example.notitia.ai.EngineReply
+import com.example.notitia.ai.EngineRequest
+import com.example.notitia.ai.OfferedEngine
+import com.example.notitia.ai.Said
 import com.example.notitia.bridge.CoreEvent.Recorder.Phase
-import com.example.notitia.meeting.ActionDraft
 import com.example.notitia.meeting.ActionSource
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MinutesAction
-import com.example.notitia.meeting.MinutesDraft
 import com.example.notitia.meeting.MinutesState
 import com.example.notitia.meeting.RecordingProblem
 import com.example.notitia.meeting.TranscriptLine
@@ -15,6 +17,7 @@ import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
@@ -32,16 +35,7 @@ class BridgeContractTest {
     @Test
     fun theChangesThisAppWritesAreTheOnesTheCoreReads() {
         fun edit(edit: MeetingEdit) = Change.Edit("recorded-1", edit)
-        fun transcribed(transcript: List<TranscriptLine>, minutes: MinutesDraft) =
-            Change.Transcribed("6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f", transcript, minutes)
         val hello = TranscriptLine(Duration.ZERO, "Bonjour à tous.")
-        val silence = TranscriptLine(30.seconds, text = null)
-        val demo = ActionDraft(
-            "Préparer la démo", "Lucas", LocalDate(2026, 11, 14),
-            ActionSource("Je prépare la démo.", speaker = null, at = 12.minutes + 4.seconds),
-        )
-        fun written(actions: List<ActionDraft>) =
-            MinutesDraft.Written(summary = "Point sur la démo.", decisions = listOf("La démo a lieu le 15 novembre."), actions)
         val changes = listOf(
             edit(MeetingEdit.Rename("Point produit")),
             edit(MeetingEdit.SetDone("0", done = true)),
@@ -52,8 +46,6 @@ class BridgeContractTest {
             edit(MeetingEdit.SetReminder("0", on = true)),
             Change.Delete(setOf("recorded-1", "recorded-3")),
             Change.Rewrite("recorded-1"),
-            transcribed(listOf(hello, silence), MinutesDraft.Writing),
-            transcribed(listOf(hello, silence, TranscriptLine(12.minutes + 4.seconds, "Je prépare la démo.")), written(listOf(demo))),
             Change.Lend(listOf(meeting("sample-1").copy(transcript = listOf(hello)))),
         )
         assertEquals(
@@ -89,7 +81,7 @@ class BridgeContractTest {
         val events = listOf(
             CoreEvent.Listed(
                 listOf(
-                    meeting("recorded-2", MinutesState.Writing),
+                    meeting("recorded-2", MinutesState.Writing).copy(transcribed = 10.minutes),
                     meeting("recorded-3", MinutesState.Failed),
                     meeting("recorded-4", MinutesState.Unavailable),
                 ),
@@ -101,6 +93,43 @@ class BridgeContractTest {
         )
         val read = CoreJson.decodeFromString(ListSerializer(CoreEvent.serializer()), examples.resolve("events.json").readText())
         assertEquals(events, read)
+    }
+
+    // An engine of this app is offered, asked and heard in the text the core writes and reads, and the core tells the
+    // engines it chose in the same text.
+    @Test
+    fun theEnginesThisAppLendsAreOfferedAskedAndHeardAsTheCoreReadsAndWritesThem() {
+        val fixture = CoreJson.parseToJsonElement(examples.resolve("engines.json").readText()).jsonObject
+        val offer = listOf(
+            OfferedEngine.Speech("gateway-transcribe", remote = true, longest = 30.seconds),
+            OfferedEngine.Speech("speech-analyzer", remote = false, longest = 10.minutes),
+            OfferedEngine.Text("gemini-nano", remote = false, contextTokens = 4_096, replyTokens = 1_024),
+            OfferedEngine.Embedding("gateway-embed", remote = true),
+        )
+        assertEquals(fixture.getValue("offer"), CoreJson.encodeToJsonElement(ListSerializer(OfferedEngine.serializer()), offer))
+        val requests = listOf(
+            EngineRequest.Transcribe("fr", previous = "Bonjour à tous."),
+            EngineRequest.Complete("Tu écris des comptes rendus.", "Bonjour à tous.", replyTokens = 1_024),
+            EngineRequest.Embed(listOf("la démo", "le budget")),
+        )
+        assertEquals(requests, CoreJson.decodeFromJsonElement(ListSerializer(EngineRequest.serializer()), fixture.getValue("requests")))
+        val replies = listOf(
+            EngineReply.Heard(
+                listOf(Said(Duration.ZERO, 1_200.milliseconds, "On commence."), Said(1_200.milliseconds, 1_900.milliseconds, "La démo d'abord.")),
+            ),
+            EngineReply.Written("SUMMARY: Point sur la démo."),
+            EngineReply.Embedded(listOf(listOf(0.6f, 0.8f), listOf(1.0f, 0.0f))),
+            EngineReply.Unavailable,
+            EngineReply.Failed,
+        )
+        assertEquals(fixture.getValue("replies"), CoreJson.encodeToJsonElement(ListSerializer(EngineReply.serializer()), replies))
+        val engines = CoreEvent.Engines(
+            speech = listOf(EngineAbout("speech-analyzer", remote = false), EngineAbout("gateway-transcribe", remote = true)),
+            text = listOf(EngineAbout("gemini-nano", remote = false)),
+            embedding = listOf(EngineAbout("gateway-embed", remote = true)),
+        )
+        val none = CoreEvent.Engines(emptyList(), emptyList(), emptyList())
+        assertEquals(listOf(none, engines), CoreJson.decodeFromJsonElement(ListSerializer(CoreEvent.serializer()), fixture.getValue("events")))
     }
 
     @Test

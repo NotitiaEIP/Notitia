@@ -24,14 +24,6 @@ pub enum Change {
     Rewrite {
         meeting: MeetingId,
     },
-    // What the app has transcribed of a meeting the recorder began, the whole of it each time, and its minutes once
-    // written. Makes no meeting.
-    Transcribed {
-        meeting: MeetingId,
-        #[serde(default)]
-        transcript: Vec<TranscriptLine>,
-        minutes: MinutesDraft,
-    },
     // Samples: changed like the others for as long as the app runs, never written.
     Lend {
         meetings: Vec<Meeting>,
@@ -49,8 +41,8 @@ pub enum Change {
         duration_ms: u64,
     },
     // What the core heard of a meeting, never read from an app: lines to add after the others, from the edge it had
-    // reached. Made nothing of unless the meeting is heard up to `from_ms`, so a window is never added twice, nor to a
-    // meeting the app transcribes itself. `until_ms` None: the transcript is whole.
+    // reached. Made nothing of unless the meeting is heard up to `from_ms`, so a window is never added twice. `until_ms`
+    // None: the transcript is whole.
     #[serde(skip)]
     Heard {
         meeting: MeetingId,
@@ -64,6 +56,12 @@ pub enum Change {
     Drafted {
         meeting: MeetingId,
         minutes: MinutesDraft,
+    },
+    // Minutes owed of a meeting never heard, left so by an app before the core's or by one without an engine: heard
+    // from its start first, never written from no line at all. Made nothing of unless they are still owed.
+    #[serde(skip)]
+    Rehear {
+        meeting: MeetingId,
     },
 }
 
@@ -94,23 +92,18 @@ pub enum Edit {
     },
 }
 
-// The minutes as their writer hands them over: an action as heard, before it has an identifier or a state.
-#[derive(Deserialize)]
+// The minutes as the core's writer hands them over: an action as heard, before it has an identifier or a state.
 #[cfg_attr(test, derive(Debug, PartialEq))]
-#[serde(tag = "type", rename_all = "lowercase")]
 pub enum MinutesDraft {
     Writing,
     Written { summary: String, decisions: Vec<String>, actions: Vec<ActionDraft> },
     Failed,
-    Unavailable,
 }
 
-#[derive(Deserialize)]
 #[cfg_attr(test, derive(Debug, PartialEq))]
 pub struct ActionDraft {
     pub text: String,
     pub owner: Option<String>,
-    #[serde(default, with = "civil_date")]
     pub due: Option<Date>,
     pub source: Option<ActionSource>,
 }
@@ -195,7 +188,6 @@ impl From<MinutesDraft> for MinutesState {
         match draft {
             MinutesDraft::Writing => Self::Writing,
             MinutesDraft::Failed => Self::Failed,
-            MinutesDraft::Unavailable => Self::Unavailable,
             MinutesDraft::Written { summary, decisions, actions } => Self::Written {
                 minutes: Minutes {
                     summary,
@@ -415,28 +407,6 @@ mod tests {
     #[test]
     fn the_changes_the_apps_write_are_read() {
         let edit = |edit| Change::Edit { meeting: id("recorded-1"), edit };
-        let written = |actions| MinutesDraft::Written {
-            summary: "Point sur la démo.".into(),
-            decisions: vec!["La démo a lieu le 15 novembre.".into()],
-            actions,
-        };
-        let demo = || ActionDraft {
-            text: "Préparer la démo".into(),
-            owner: Some("Lucas".into()),
-            due: Some(date!(2026 - 11 - 14)),
-            source: Some(ActionSource {
-                quote: "Je prépare la démo.".into(),
-                speaker: None,
-                at_ms: 724_000,
-                extra: Extra::new(),
-            }),
-        };
-        let transcribed = |transcript, minutes| Change::Transcribed {
-            meeting: id("6f1c2d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f"),
-            transcript,
-            minutes,
-        };
-        let silence = TranscriptLine { at_ms: 30_000, text: None, speaker: None, extra: Extra::new() };
         let expected = vec![
             edit(Edit::Rename { title: "Point produit".into() }),
             edit(Edit::SetDone { action: first(), done: true }),
@@ -447,11 +417,6 @@ mod tests {
             edit(Edit::SetReminder { action: first(), on: true }),
             Change::Delete { meetings: vec![id("recorded-1"), id("recorded-3")] },
             Change::Rewrite { meeting: id("recorded-1") },
-            transcribed(vec![line(0, "Bonjour à tous."), silence.clone()], MinutesDraft::Writing),
-            transcribed(
-                vec![line(0, "Bonjour à tous."), silence, line(724_000, "Je prépare la démo.")],
-                written(vec![demo()]),
-            ),
             Change::Lend { meetings: vec![heard("sample-1")] },
         ];
         assert_eq!(serde_json::from_str::<Vec<Change>>(BY_THE_APPS).unwrap(), expected);
@@ -474,7 +439,10 @@ mod tests {
                 .into(),
             "{\"type\":\"lasted\",\"meeting\":\"recorded-1\",\"durationMs\":60000}".into(),
             "{\"type\":\"lasted\",\"meeting\":\"recorded-1\",\"duration_ms\":60000}".into(),
-            "{\"type\":\"transcribed\",\"meeting\":\"recorded-1\"}".into(),
+            // The Kotlin transcription's, gone with it: the core hears every meeting.
+            "{\"type\":\"transcribed\",\"meeting\":\"recorded-1\",\"transcript\":[],\"minutes\":{\"type\":\"writing\"}}"
+                .into(),
+            "{\"type\":\"rehear\",\"meeting\":\"recorded-1\"}".into(),
             "{\"type\":\"heard\",\"meeting\":\"recorded-1\",\"lines\":[],\"fromMs\":0,\"untilMs\":null}".into(),
             "{\"type\":\"drafted\",\"meeting\":\"recorded-1\",\"minutes\":{\"type\":\"failed\"}}".into(),
             "{\"type\":\"rewrite\"}".into(),

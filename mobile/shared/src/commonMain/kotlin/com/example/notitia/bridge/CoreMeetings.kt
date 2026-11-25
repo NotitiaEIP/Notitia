@@ -1,5 +1,6 @@
 package com.example.notitia.bridge
 
+import com.example.notitia.meeting.Abilities
 import com.example.notitia.meeting.ActionId
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.Meetings
@@ -12,12 +13,15 @@ import kotlinx.datetime.LocalDate
 internal class CoreMeetings(private val session: CoreSession) : Meetings {
     override val meetings: StateFlow<List<Meeting>?> = session.meetings
     override val unsaved: StateFlow<Set<String>> = session.unsaved
+    override val abilities: StateFlow<Abilities> = session.abilities
 
     override suspend fun transcript(id: String): List<TranscriptLine>? = session.meeting(id)?.transcript
 
     override fun rename(id: String, title: String) = edit(id, MeetingEdit.Rename(title))
 
     override fun delete(ids: Set<String>) = session.send(Change.Delete(ids))
+
+    override fun rewrite(id: String) = session.send(Change.Rewrite(id))
 
     override fun setDone(id: ActionId, done: Boolean) = edit(id.meetingId, MeetingEdit.SetDone(id.actionId, done))
 

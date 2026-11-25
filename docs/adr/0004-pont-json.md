@@ -4,6 +4,7 @@
 | --- | --- |
 | Statut | Proposée le 17 novembre 2026, acceptée à la fusion de sa PR |
 | Modifiée | Le 19 novembre 2026 par T-58 (#189) : l'enregistreur, le son et la clé passent par le pont |
+| Modifiée | Le 25 novembre 2026 par T-59 (#190) : les moteurs de l'app traversent en JSON, `transcribed` part |
 | Proposée par | Clément |
 | Relue par | Alexandre pour le cœur, Lucas pour l'iPhone |
 | Tâche d'origine | T-57 (#188) |
@@ -31,7 +32,7 @@ fun interface CoreListener { fun onEvent(event: String) }                       
 
 1. **Une demande entre, un événement ressort.** `apply` ne rend rien d'autre qu'un refus de lire : ce qui a changé, et un fichier qui n'a pas pu être écrit, arrivent par l'écouteur. L'app ne garde aucune copie qu'elle modifierait elle-même.
 2. **Le JSON est celui des types du cœur**, `Request` (`Change` et `Command`) et `Event` dans `core/src/`, sans type intermédiaire. Une réunion y a la forme du fichier `.notitia` version 2 (ADR 0003). L'app Tauri prendra ces mêmes types sans passer par UniFFI.
-3. **Les exemples font foi.** `core/tests/fixtures/bridge/changes.json`, `events.json` et `recorder.json` portent un exemple de chaque sorte. Les tests Rust et les tests Kotlin (`BridgeContractTest`) lisent les mêmes fichiers : un champ renommé d'un seul côté casse un test. `RustCoreTest` et `RustRecordingTest` font passer une réunion inventée par le vrai cœur, compilé pour la machine qui lance les tests, de son premier son à sa suppression : le pont d'Android est prouvé à chaque PR, sans téléphone.
+3. **Les exemples font foi.** `core/tests/fixtures/bridge/changes.json`, `events.json`, `recorder.json` et `engines.json` portent un exemple de chaque sorte. Les tests Rust et les tests Kotlin (`BridgeContractTest`) lisent les mêmes fichiers : un champ renommé d'un seul côté casse un test. `RustCoreTest` et `RustRecordingTest` font passer une réunion inventée par le vrai cœur, compilé pour la machine qui lance les tests, de son premier son à sa suppression : le pont d'Android est prouvé à chaque PR, sans téléphone.
 4. **L'événement arrive avant l'écriture**, sur le fil qui a demandé la modification, ou sur le fil de l'enregistreur pour ses états et pour la réunion qu'il crée puis prolonge. Le cœur dit les événements des réunions un à un. L'écouteur peut relire une réunion. Il ne demande jamais rien au cœur, qui s'attendrait lui-même, et il ne lève jamais d'erreur.
 5. **Un appel à la fois.** L'app envoie ses appels dans l'ordre, sur un seul fil d'exécution hors de l'écran (`CoreSession`). Seule exception : `hear`, que le micro appelle depuis son propre fil, sans jamais attendre une écriture.
 6. **Une erreur ne porte aucun texte de réunion** : `NotFound` (pas de réunion, ou pas d'audio), `Unreadable`, `Invalid` (le texte n'est pas une demande, ou la clé ne fait pas 32 octets), et `Broken` côté app pour une panne du pont lui-même.
@@ -41,7 +42,7 @@ fun interface CoreListener { fun onEvent(event: String) }                       
 | --- | --- |
 | `edit` | `meeting`, `edit` : `rename` (`title`), `setDone` (`action`, `done`), `setOwner` (`action`, `owner`), `setDue` (`action`, `due`), `setReminder` (`action`, `on`) |
 | `delete` | `meetings` : des identifiants |
-| `transcribed` | `meeting`, `transcript`, `minutes` : ce que l'app a transcrit d'une réunion de l'enregistreur, jusqu'à T-59 |
+| `rewrite` | `meeting` : un compte rendu en échec, ou jamais écrit par une ancienne app, de nouveau dû (ADR 0013) |
 | `lend` | `meetings` : des réunions d'exemple, jamais écrites |
 
 | Commande (`type`) | Champs |
@@ -57,6 +58,7 @@ fun interface CoreListener { fun onEvent(event: String) }                       
 | `removed` | `meetings` : des identifiants |
 | `unsaved` | `meetings` : les réunions dont le fichier est en retard, vide quand tout est écrit |
 | `recorder` | `state` et ses champs (ADR 0006). Il nomme la réunion avant que `changed` ne la montre |
+| `engines` | `speech`, `text`, `embedding` : les moteurs que le cœur connaît, le choisi d'abord (ADR 0010) |
 
 Ajouter une demande : une variante dans `Change` ou `Command`, une classe `@Serializable` dans `CoreWire.kt`, une ligne dans `changes.json` ou `recorder.json`. `RustCore.kt` et `RustCore.swift` ne changent pas.
 

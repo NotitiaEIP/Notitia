@@ -48,6 +48,7 @@ import com.example.notitia.ui.meetings.MeetingsScreen
 import com.example.notitia.ui.meetings.MeetingsViewModel
 import com.example.notitia.ui.meetings.SelectionToolbar
 import com.example.notitia.ui.meetings.listItem
+import com.example.notitia.ui.meetings.status
 import com.example.notitia.ui.minutes.MinutesRoute
 import com.example.notitia.ui.minutes.toMinutes
 import com.example.notitia.ui.navigation.Tab
@@ -91,10 +92,12 @@ fun App(
     val darkTheme = theme.isDark()
     SystemBarsFollow(darkTheme)
     val meetingsModel = viewModel {
-        MeetingsViewModel(notitia.meetings, notitia.recording)
+        MeetingsViewModel(notitia.meetings, notitia.recording, notitia.clock)
     }
     val kept = meetingsModel.meetings.collectAsStateWithLifecycle()
     val recorder = meetingsModel.recording.collectAsStateWithLifecycle()
+    val abilities by meetingsModel.abilities.collectAsStateWithLifecycle()
+    val pace by meetingsModel.pace.collectAsStateWithLifecycle()
     // The microphone moves the recorder ten times per second: the screens follow only a recording that starts, stops
     // or fails, and the sheet reads the rest.
     val recordingStart by remember { derivedStateOf { (recorder.value as? RecorderState.Active)?.startedAt } }
@@ -109,7 +112,7 @@ fun App(
         val stored = listed ?: return@NotitiaTheme
         LaunchedEffect(Unit) { onLoaded() }
         val today = rememberToday()
-        val meetings = stored.map { it.listItem(today, meetingsModel.progress(it.id)) }
+        val meetings = stored.map { it.listItem(it.status(today, abilities, pace.remaining(it))) }
         var actionsView by rememberSaveable { mutableStateOf(ActionsView.ByDue) }
         val snackbars = remember { SnackbarHostState() }
         var openedMeetingId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -205,8 +208,10 @@ fun App(
                             MinutesRoute(
                                 meeting = openedMeeting.first,
                                 item = openedMeeting.second,
+                                abilities = abilities,
                                 transcript = { meetingsModel.transcript(openedMeeting.first.id) },
                                 onSetDone = meetingsModel::setDone,
+                                onRewrite = { meetingsModel.rewrite(openedMeeting.first.id) },
                                 onRename = { meetingsModel.rename(openedMeeting.first.id, it) },
                                 onDelete = {
                                     val id = openedMeeting.first.id

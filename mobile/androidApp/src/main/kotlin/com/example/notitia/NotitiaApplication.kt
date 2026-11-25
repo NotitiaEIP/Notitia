@@ -15,8 +15,7 @@ class NotitiaApplication : Application() {
             meetingsDirectory = meetingsDirectory(this),
             meetingsKey = MeetingsKey(this)::read,
             microphone = AndroidMicrophone(this),
-            speechEngine = speechEngineForBuild(),
-            minutesWriter = minutesWriterForBuild(),
+            engines = enginesForBuild(),
             answerEngine = answerEngineForBuild(),
             reminderScheduler = AlarmReminderScheduler(this),
         )
