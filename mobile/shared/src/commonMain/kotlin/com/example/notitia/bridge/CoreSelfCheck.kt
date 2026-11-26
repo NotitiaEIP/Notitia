@@ -19,6 +19,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.datetime.LocalDate
+import kotlinx.io.IOException
 import kotlinx.io.files.FileSystem
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
@@ -167,9 +168,14 @@ class CoreSelfCheck(
     // Played back as it was heard: a second, as loud as a voice. The codec keeps the sound, not every sample.
     private fun CoreSound.isTheNote(): Boolean = pcm?.takeIf { it.size == note.size }?.let { rms(it) > 2_000 } == true
 
+    // The core tells a change before it writes it: the check may end while it still writes in the folder, which then
+    // cannot be removed. What it leaves goes with the next check, which clears the folder before opening the core.
     private fun clear() {
-        if (!files.exists(directory)) return
-        files.list(directory).forEach { files.delete(it, mustExist = false) }
-        files.delete(directory, mustExist = false)
+        try {
+            if (!files.exists(directory)) return
+            files.list(directory).forEach { files.delete(it, mustExist = false) }
+            files.delete(directory, mustExist = false)
+        } catch (_: IOException) {
+        }
     }
 }

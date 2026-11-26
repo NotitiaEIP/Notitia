@@ -1,4 +1,5 @@
 mod index;
+mod sealed;
 mod store;
 
 use std::cmp::Ordering;
@@ -13,7 +14,7 @@ use time::UtcDateTime;
 use crate::audio::{self, AudioError};
 use crate::meeting::{Change, Meeting, MeetingId, MinutesDraft, MinutesState, Stamp, TranscriptLine};
 use crate::secret::Key;
-use store::Store;
+use store::{Loaded, Store};
 
 // Called on the thread that asked for the change, once the meetings have changed and before their file is written:
 // a tick shows at once. It may read a meeting back. It must not ask for a change, which would wait for itself.
@@ -84,9 +85,8 @@ type Clock = Box<dyn Fn() -> UtcDateTime + Send + Sync>;
 
 // The meetings of a folder: the one place that holds them, changes them and writes them.
 pub struct Library {
+    // With the key of the app: without one, no meeting nor audio is written, and no audio is read.
     store: Store,
-    // The key of the app. Without one no audio is written nor read: none ever reaches the disk in clear.
-    key: Option<Key>,
     device: String,
     listener: Arc<dyn Listener>,
     clock: Clock,
@@ -115,9 +115,9 @@ impl Library {
         clock: Clock,
     ) -> Result<Self, LibraryError> {
         let read = |_: io::Error| LibraryError::Unreadable;
-        let store = Store::open(directory).map_err(read)?;
+        let store = Store::open(directory, key).map_err(read)?;
         let device = store.device().map_err(read)?;
-        let (stored, index) = store.load(clock()).map_err(read)?;
+        let Loaded { meetings: stored, index, clear } = store.load(clock()).map_err(read)?;
         // A recording the app did not live to stop lasts as long as its audio. Only an audio whose size tells
         // another length than its meeting's is opened: a launch deciphers none of three hundred meetings whose
         // minutes wait for a model.
@@ -130,7 +130,7 @@ impl Library {
             .filter(|meeting| meeting.minutes == MinutesState::Writing)
             .filter(cut)
             .filter_map(|meeting| {
-                let duration_ms = open_audio(&store, key.as_ref(), &meeting.id).ok()?.duration_ms();
+                let duration_ms = open_audio(&store, &meeting.id).ok()?.duration_ms();
                 Some(Change::Lasted { meeting: meeting.id.clone(), duration_ms })
             })
             .collect();
@@ -138,11 +138,16 @@ impl Library {
         let mut meetings = Meetings { entries: entries.collect(), deleted: HashSet::new() };
         meetings.sort();
         let stamp = Stamp { at: clock(), device: &device };
-        let behind: BTreeSet<MeetingId> = lasted
+        let mut behind: BTreeSet<MeetingId> = lasted
             .into_iter()
             .filter_map(|change| meetings.apply(change, stamp))
             .flat_map(|(_, files)| files)
             .collect();
+        // Written in clear before the files were sealed: sealed now, by the same path as any file behind. Without a key
+        // they stay as they are, read and never written.
+        if store.key().is_some() {
+            behind.extend(clear);
+        }
         listener.on_event(&Event::Listed { meetings: meetings.list() });
         // After the list: the first screen does not wait for a cache, nor for the meetings that lasted, to reach the
         // disk.
@@ -150,7 +155,7 @@ impl Library {
             store.keep(index);
         }
         let library =
-            Self { store, key, device, listener, clock, behind: Mutex::new(behind), meetings: Mutex::new(meetings) };
+            Self { store, device, listener, clock, behind: Mutex::new(behind), meetings: Mutex::new(meetings) };
         library.catch_up(&mut lock(&library.behind), &BTreeSet::new());
         Ok(library)
     }
@@ -209,7 +214,7 @@ impl Library {
     // The audio of a meeting, to add sound to: made the first time, taken up where it stopped after that. A sample
     // has none, nor a meeting the library does not keep.
     pub fn record(&self, id: &MeetingId, tracks: usize) -> Result<audio::Writer, AudioError> {
-        let key = self.key.as_ref().ok_or(AudioError::Locked)?;
+        let key = self.store.key().ok_or(AudioError::Locked)?;
         // Held as a change holds it: a meeting deleted meanwhile does not get an audio back.
         let _changes = lock(&self.behind);
         if !lock(&self.meetings).has_file(id) {
@@ -226,12 +231,12 @@ impl Library {
     }
 
     pub fn audio(&self, id: &MeetingId) -> Result<audio::Reader, AudioError> {
-        open_audio(&self.store, self.key.as_ref(), id)
+        open_audio(&self.store, id)
     }
 
     // Without it nothing is recorded: no audio reaches the disk in clear.
     pub(crate) fn has_key(&self) -> bool {
-        self.key.is_some()
+        self.store.key().is_some()
     }
 
     // A recording is dated by the clock its changes are.
@@ -264,8 +269,8 @@ impl Library {
     }
 }
 
-fn open_audio(store: &Store, key: Option<&Key>, id: &MeetingId) -> Result<audio::Reader, AudioError> {
-    let key = key.ok_or(AudioError::Locked)?;
+fn open_audio(store: &Store, id: &MeetingId) -> Result<audio::Reader, AudioError> {
+    let key = store.key().ok_or(AudioError::Locked)?;
     let file = store.audio(id, false).map_err(|error| match error.kind() {
         io::ErrorKind::NotFound => AudioError::Absent,
         _ => AudioError::Unreadable,
@@ -482,6 +487,7 @@ mod tests {
     const NOW: UtcDateTime = utc_datetime!(2026-11-11 8:00);
     const LONG_BEFORE: UtcDateTime = utc_datetime!(2026-11-10 8:00);
     const V1_BY_KOTLIN: &str = include_str!("../tests/fixtures/meeting-v1.notitia");
+    const V2_BY_THE_CORE: &str = include_str!("../tests/fixtures/meeting-v2.notitia");
     // One event of each kind, as the apps read them.
     const FOR_THE_APPS: &str = include_str!("../tests/fixtures/bridge/events.json");
 
@@ -519,7 +525,7 @@ mod tests {
     }
 
     fn on_disk(folder: &std::path::Path, id: &MeetingId) -> Option<Meeting> {
-        Store::open(folder.into()).unwrap().read(id).ok()
+        Store::open(folder.into(), Some(key(1))).unwrap().read(id).ok()
     }
 
     struct Phone {
@@ -530,7 +536,7 @@ mod tests {
 
     fn phone(stored: &[Meeting]) -> Phone {
         let folder = tempfile::tempdir().unwrap();
-        let store = Store::open(folder.path().into()).unwrap();
+        let store = Store::open(folder.path().into(), Some(key(1))).unwrap();
         stored.iter().for_each(|meeting| store.write(meeting).unwrap());
         launch(folder)
     }
@@ -538,7 +544,7 @@ mod tests {
     // Its meetings written long before the launch: the next launch trusts what the index kept of them.
     fn settled(stored: &[Meeting]) -> (Phone, Store) {
         let folder = tempfile::tempdir().unwrap();
-        let store = Store::open(folder.path().into()).unwrap();
+        let store = Store::open(folder.path().into(), Some(key(1))).unwrap();
         for meeting in stored {
             store.write(meeting).unwrap();
             store.date(&meeting.id, LONG_BEFORE);
@@ -1006,7 +1012,7 @@ mod tests {
     fn the_seconds_of_an_audio_are_told_by_its_size_alone() {
         let phone = phone(&[]);
         let seconds = |meeting: &str| {
-            audio::seconds(Store::open(phone.folder.path().into()).unwrap().audio(&id(meeting), false).unwrap())
+            audio::seconds(Store::open(phone.folder.path().into(), None).unwrap().audio(&id(meeting), false).unwrap())
         };
         for (meeting, frames, held) in
             [("recorded-1", 0, 0), ("recorded-2", 50, 1), ("recorded-3", 51, 2), ("recorded-4", 130, 3)]
@@ -1139,16 +1145,66 @@ mod tests {
         assert_eq!(phone.unsaved(), []);
     }
 
+    // Kotlin's version 1 and the core's version 2, both in clear: every file a phone held before the seal.
     #[test]
-    fn a_version_1_meeting_moves_to_version_2_with_its_first_change() {
+    fn a_meeting_written_in_clear_is_sealed_at_launch_as_version_2_and_loses_nothing() {
         let folder = tempfile::tempdir().unwrap();
         fs::write(folder.path().join("recorded-1.notitia"), V1_BY_KOTLIN).unwrap();
+        let v2 = V2_BY_THE_CORE.replace("recorded-1", "recorded-2");
+        fs::write(folder.path().join("recorded-2.notitia"), &v2).unwrap();
+        let read = |text: &str| crate::format::decode(text.as_bytes()).unwrap();
+        let (first, second) = (read(V1_BY_KOTLIN), read(&v2));
         let phone = launch(folder);
-        assert_eq!(fs::read_to_string(phone.path("recorded-1.notitia")).unwrap(), V1_BY_KOTLIN);
+        assert_eq!(phone.unsaved(), []);
+        for (name, before) in [("recorded-1", &first), ("recorded-2", &second)] {
+            let file = fs::read(phone.path(&format!("{name}.notitia"))).unwrap();
+            assert!(file.starts_with(b"NTTMEET1") && !file.windows(15).any(|window| window == b"Revue de sprint"));
+            assert_eq!(phone.file(name).as_ref(), Some(before));
+        }
+        let phone = phone.relaunched();
+        assert_eq!(phone.library.meeting(&id("recorded-1")), Ok(first));
         phone.edit("recorded-1", Edit::SetDone { action: ActionId::new("1").unwrap(), done: true });
-        assert!(fs::read_to_string(phone.path("recorded-1.notitia")).unwrap().starts_with("{\"version\":2,"));
         let written = phone.file("recorded-1").unwrap();
         assert_eq!((done(&written), written.transcript.len()), (vec![true, true], 2));
+    }
+
+    #[test]
+    fn with_the_key_no_word_of_a_meeting_reaches_the_disk_in_clear() {
+        let phone = phone(&[heard("recorded-1")]);
+        phone.rename("recorded-1", "Revue confidentielle");
+        phone.begin("recorded-9");
+        assert!(phone.heard("recorded-9", &["Le budget secret est validé."], 0, None));
+        let phone = phone.relaunched();
+        assert_eq!(phone.list().len(), 2);
+        for entry in fs::read_dir(phone.folder.path()).unwrap() {
+            let file = fs::read(entry.unwrap().path()).unwrap();
+            for words in ["confidentielle", "Bonjour", "budget secret"] {
+                assert!(!file.windows(words.len()).any(|window| window == words.as_bytes()), "{words}");
+            }
+        }
+    }
+
+    #[test]
+    fn without_the_key_meetings_in_clear_are_shown_and_nothing_is_written() {
+        let folder = tempfile::tempdir().unwrap();
+        fs::write(folder.path().join("recorded-1.notitia"), V1_BY_KOTLIN).unwrap();
+        let sealed = Store::open(folder.path().into(), Some(key(1))).unwrap();
+        sealed.write(&meeting("recorded-2")).unwrap();
+        let app = Arc::new(App { folder: folder.path().into(), ..App::default() });
+        let keyless = Library::open_at(folder.path().into(), None, app.clone(), Box::new(|| NOW)).unwrap();
+        let listed: Vec<MeetingId> = app.list.lock().unwrap().iter().map(|meeting| meeting.id.clone()).collect();
+        assert_eq!(listed, [id("recorded-1")]);
+        let renamed = Change::Edit { meeting: id("recorded-1"), edit: Edit::Rename { title: "Point produit".into() } };
+        keyless.apply(renamed);
+        assert_eq!(*app.unsaved.lock().unwrap(), [id("recorded-1")]);
+        assert_eq!(keyless.meeting(&id("recorded-1")).unwrap().title.as_deref(), Some("Point produit"));
+        assert_eq!(fs::read_to_string(folder.path().join("recorded-1.notitia")).unwrap(), V1_BY_KOTLIN);
+        assert!(!folder.path().join("index").exists());
+        // Deleting writes no word: done without the key.
+        keyless.apply(Change::Delete { meetings: vec![id("recorded-1")] });
+        assert!(!folder.path().join("recorded-1.notitia").exists());
+        assert_eq!(*app.unsaved.lock().unwrap(), []);
+        assert!(folder.path().join("recorded-2.notitia").exists());
     }
 
     #[test]
@@ -1184,9 +1240,10 @@ mod tests {
     #[test]
     fn a_change_whose_listener_panics_is_written_with_the_next_one() {
         let folder = tempfile::tempdir().unwrap();
-        let store = Store::open(folder.path().into()).unwrap();
+        let store = Store::open(folder.path().into(), Some(key(1))).unwrap();
         [meeting("recorded-1"), meeting("recorded-2")].iter().for_each(|meeting| store.write(meeting).unwrap());
-        let library = Library::open_at(folder.path().into(), None, Arc::new(Failing), Box::new(|| NOW)).unwrap();
+        let library =
+            Library::open_at(folder.path().into(), Some(key(1)), Arc::new(Failing), Box::new(|| NOW)).unwrap();
         let rename = Change::Edit { meeting: id("recorded-1"), edit: Edit::Rename { title: "Point produit".into() } };
         assert!(panic::catch_unwind(AssertUnwindSafe(|| library.apply(rename))).is_err());
         assert_eq!(on_disk(folder.path(), &id("recorded-1")), Some(meeting("recorded-1")));

@@ -1,5 +1,6 @@
-// How long the meetings of a folder take to open, without and with their index (T-75), then with their audio and their
-// minutes owed, as on a phone with no model yet (T-95). Through the same calls as an app, and optimised as an app is:
+// How long the meetings of a folder take to open, without and with their index (T-75), sealed (T-96), then with their
+// audio and their minutes owed, as on a phone with no model yet (T-95), and how long the files written in clear before
+// the seal take to be sealed at the first launch. Through the same calls as an app, and optimised as an app is:
 // cargo run --release --example opening
 // A folder given after `--` keeps the meetings, to push them to a phone and time its launch there.
 #![expect(clippy::print_stdout, clippy::disallowed_methods, reason = "a measure reads the clock and prints")]
@@ -11,6 +12,7 @@ use std::time::{Duration, Instant};
 use std::{fs, thread};
 
 use notitia::audio::{FRAME_MS, FRAME_SAMPLES};
+use notitia::format;
 use notitia::library::{Event, Library, Listener};
 use notitia::meeting::{
     ActionDraft, ActionSource, Change, Edit, Extra, InvalidId, MeetingId, MinutesDraft, TranscriptLine,
@@ -125,9 +127,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     let temporary = tempfile::tempdir()?;
     let kept = std::env::args_os().nth(1).map(PathBuf::from);
     let folder = kept.as_deref().unwrap_or(temporary.path());
-    let library = Library::open(folder, None, Arc::new(Screen::default()))?;
+    let library = Library::open(folder, Some(key()?), Arc::new(Screen::default()))?;
     for meeting in 0..MEETINGS {
         hour(meeting)?.into_iter().for_each(|change| library.apply(change));
+    }
+    // The same meetings as the app wrote them before the seal, in clear.
+    let clear = tempfile::tempdir()?;
+    for meeting in 0..MEETINGS {
+        let whole = library.meeting(&id(meeting)?)?;
+        fs::write(clear.path().join(format!("{}.notitia", whole.id.as_str())), format::encode(&whole)?)?;
     }
     drop(library);
     let mut size = 0;
@@ -137,13 +145,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("{MEETINGS} meetings of one hour, {} MB, their files still in the memory of the system", size / 1_000_000);
     // A file as recent as the index is read again: the meetings are left to age past that.
     thread::sleep(Duration::from_secs(3));
-    drop(open("without the index", folder, None)?);
-    let library = open("with the index", folder, None)?;
+    drop(open("without the index", folder, Some(key()?))?);
+    let library = open("with the index", folder, Some(key()?))?;
     for meeting in 0..CHANGED {
         library.apply(Change::Edit { meeting: id(meeting)?, edit: Edit::Rename { title: "Point produit".into() } });
     }
     drop(library);
-    drop(open(&format!("with the index, {CHANGED} meetings changed since"), folder, None)?);
+    drop(open(&format!("with the index, {CHANGED} meetings changed since"), folder, Some(key()?))?);
+    drop(open("written in clear, sealed at this launch", clear.path(), Some(key()?))?);
+    thread::sleep(Duration::from_secs(3));
+    drop(open("sealed at the launch before, without the index", clear.path(), Some(key()?))?);
 
     let owed = tempfile::tempdir()?;
     let library = Library::open(owed.path(), Some(key()?), Arc::new(Screen::default()))?;

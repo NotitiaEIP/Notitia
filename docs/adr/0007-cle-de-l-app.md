@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Statut | Proposée le 19 novembre 2026, acceptée à la fusion de sa PR |
+| Statut | Proposée le 19 novembre 2026, acceptée à la fusion de sa PR. Point 6 remplacé en partie par l'[ADR 0014](0014-reunions-scellees.md) le 26 novembre 2026 : les réunions sont scellées depuis, et une clé perdue les rend illisibles avec les audios |
 | Proposée par | Clément |
 | Relue par | Alexandre pour le cœur, Nathan pour Android |
 | Tâche d'origine | T-58 (#189), avec la moitié Android de US-81 (#37) |
