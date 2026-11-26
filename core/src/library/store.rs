@@ -7,8 +7,10 @@ use time::UtcDateTime;
 use uuid::Uuid;
 
 use super::index::{Index, Stat};
+use super::sealed::{self, Kind};
 use crate::format;
 use crate::meeting::{Meeting, MeetingId};
+use crate::secret::Key;
 
 // The names the Kotlin app gave: the core takes over the folder of a phone as it stands.
 const EXTENSION: &str = ".notitia";
@@ -18,21 +20,36 @@ const DEVICE: &str = "device";
 const INDEX: &str = "index";
 
 // The one place that touches the disk, one file per meeting: a damaged file loses one meeting and not all of them.
-// Every byte of a meeting goes through read_file and write_file: US-81 seals them there. Its audio is sealed
-// already, by src/audio, which is handed the file.
+// A meeting and the index are sealed here (src/library/sealed.rs), its audio by src/audio, which is handed the file.
 pub(super) struct Store {
     directory: PathBuf,
+    // The key of the app. Without one nothing that holds a meeting is written: none ever reaches the disk in clear.
+    key: Option<Key>,
+}
+
+// What the folder holds, as a launch finds it.
+pub(super) struct Loaded {
+    // Without their lines.
+    pub meetings: Vec<Meeting>,
+    // The index to keep, when the folder no longer says what the last one did.
+    pub index: Option<Index>,
+    // Read from a file written in clear, before the files were sealed: to be written again, sealed.
+    pub clear: Vec<MeetingId>,
 }
 
 impl Store {
-    pub fn open(directory: PathBuf) -> io::Result<Self> {
+    pub fn open(directory: PathBuf, key: Option<Key>) -> io::Result<Self> {
         let mut folder = DirBuilder::new();
         folder.recursive(true);
         // A computer has no sandbox around the app as a phone has: the meetings are for their owner alone.
         #[cfg(unix)]
         std::os::unix::fs::DirBuilderExt::mode(&mut folder, 0o700);
         folder.create(&directory)?;
-        Ok(Self { directory })
+        Ok(Self { directory, key })
+    }
+
+    pub fn key(&self) -> Option<&Key> {
+        self.key.as_ref()
     }
 
     // Drawn once per install, never derived from the device, so it says nothing about its owner. Drawn again when
@@ -53,14 +70,19 @@ impl Store {
         }
     }
 
-    // Every meeting without its lines, so the transcripts are never all in memory at once, and the index to keep
-    // when the folder no longer says what the last one did. A file this app cannot read stays on disk: a newer app
-    // may read it after an update. A draft goes: it is the words of a meeting the user may have deleted since, and
-    // nothing writes while the folder is read.
-    pub fn load(&self, now: UtcDateTime) -> io::Result<(Vec<Meeting>, Option<Index>)> {
-        let known = self.read_file(INDEX).ok().and_then(|bytes| Index::decode(&bytes)).unwrap_or_default();
+    // Every meeting without its lines, so the transcripts are never all in memory at once. A file this app cannot read
+    // stays on disk: a newer app, or the key it was sealed with, may read it later. A draft goes: it is the words of a
+    // meeting the user may have deleted since, and nothing writes while the folder is read.
+    pub fn load(&self, now: UtcDateTime) -> io::Result<Loaded> {
+        // Only an index sealed by this key: one in clear was written before the seal, and trusts files in clear.
+        let file = self.read_file(INDEX).ok();
+        let known = file.as_ref().and_then(|file| self.unsealed(Kind::Index, file).ok());
+        let known = known.and_then(|bytes| Index::decode(&bytes));
+        // Replaced at once, even by an empty one: the index in clear of before the seal holds titles and minutes.
+        let unusable = file.is_some() && known.is_none();
+        let known = known.unwrap_or_default();
         let mut index = Index::read_at(now);
-        let mut meetings = Vec::new();
+        let (mut meetings, mut clear) = (Vec::new(), Vec::new());
         let mut trusted = 0;
         let (mut audios, mut files) = (Vec::new(), HashSet::new());
         for entry in fs::read_dir(&self.directory)? {
@@ -77,19 +99,22 @@ impl Store {
                 // Its size and date before its words: a file that changes in between is kept newer than its date
                 // says, and the next launch reads it again. The other way round would hide the change.
                 let file = fs::metadata(self.directory.join(name)).ok().as_ref().and_then(Stat::of);
-                let meeting = match file.and_then(|file| known.trusted(&id, file)) {
+                let (meeting, sealed) = match file.and_then(|file| known.trusted(&id, file)) {
                     Some(kept) => {
                         trusted += 1;
-                        kept.clone()
+                        (kept.clone(), true)
                     }
-                    None => match self.decode(name) {
+                    None => match self.decode(&id) {
                         // Under another name, deleting the meeting would miss its file and bring it back at each
                         // launch.
-                        Ok(read) if read.id == id => Meeting { transcript: Vec::new(), ..read },
+                        Ok((read, sealed)) if read.id == id => (Meeting { transcript: Vec::new(), ..read }, sealed),
                         _ => continue,
                     },
                 };
-                if let Some(file) = file {
+                // Never in the index while in clear: an index that trusted it would keep it so for ever.
+                if !sealed {
+                    clear.push(id);
+                } else if let Some(file) = file {
                     index.keep(file, meeting.clone());
                 }
                 meetings.push(meeting);
@@ -100,23 +125,28 @@ impl Store {
         {
             let _ = fs::remove_file(self.directory.join(audio));
         }
-        let unchanged = trusted == known.len() && trusted == index.len();
-        Ok((meetings, (!unchanged).then_some(index)))
+        let unchanged = !unusable && trusted == known.len() && trusted == index.len();
+        Ok(Loaded { meetings, index: (!unchanged).then_some(index), clear })
     }
 
-    // A cache: when it cannot be written, the next launch reads the files again.
+    // A cache: when it cannot be written, or without a key, the next launch reads the files again.
     pub fn keep(&self, index: Index) {
-        if let Some(bytes) = index.encode() {
+        let sealed =
+            self.key.as_ref().zip(index.encode()).and_then(|(key, json)| sealed::seal(key, Kind::Index, &json).ok());
+        if let Some(bytes) = sealed {
             let _ = self.write_file(INDEX, &bytes);
         }
     }
 
     pub fn read(&self, id: &MeetingId) -> io::Result<Meeting> {
-        self.decode(&file_of(id))
+        self.decode(id).map(|(meeting, _)| meeting)
     }
 
+    // Sealed, or not at all.
     pub fn write(&self, meeting: &Meeting) -> io::Result<()> {
-        let bytes = format::encode(meeting).map_err(|_| io::ErrorKind::InvalidData)?;
+        let key = self.key.as_ref().ok_or(io::ErrorKind::PermissionDenied)?;
+        let json = format::encode(meeting).map_err(|_| io::ErrorKind::InvalidData)?;
+        let bytes = sealed::seal(key, Kind::Meeting(&meeting.id), &json).map_err(|_| io::ErrorKind::Other)?;
         self.write_file(&file_of(&meeting.id), &bytes)
     }
 
@@ -144,8 +174,19 @@ impl Store {
         Ok(())
     }
 
-    fn decode(&self, name: &str) -> io::Result<Meeting> {
-        format::decode(&self.read_file(name)?).map_err(|_| io::ErrorKind::InvalidData.into())
+    // And whether its file was sealed. A file in clear was written before the seal, and is still read: without a key,
+    // it is all a launch can show.
+    fn decode(&self, id: &MeetingId) -> io::Result<(Meeting, bool)> {
+        let file = self.read_file(&file_of(id))?;
+        let sealed = !sealed::is_clear(&file);
+        let json = if sealed { self.unsealed(Kind::Meeting(id), &file)? } else { file };
+        let meeting = format::decode(&json).map_err(|_| io::ErrorKind::InvalidData)?;
+        Ok((meeting, sealed))
+    }
+
+    fn unsealed(&self, kind: Kind, file: &[u8]) -> io::Result<Vec<u8>> {
+        let key = self.key.as_ref().ok_or(io::ErrorKind::PermissionDenied)?;
+        sealed::open(key, kind, file).map_err(|_| io::ErrorKind::InvalidData.into())
     }
 
     fn read_file(&self, name: &str) -> io::Result<Vec<u8>> {
@@ -209,6 +250,7 @@ mod tests {
 
     use super::*;
     use crate::meeting::testing::{heard, id, meeting, written};
+    use crate::secret::testing::key;
 
     const V1_BY_KOTLIN: &str = include_str!("../../tests/fixtures/meeting-v1.notitia");
     const FILE: &str = "recorded-1.notitia";
@@ -228,13 +270,13 @@ mod tests {
 
     fn store() -> (TempDir, Store) {
         let folder = tempfile::tempdir().unwrap();
-        let store = Store::open(folder.path().join("meetings")).unwrap();
+        let store = Store::open(folder.path().join("meetings"), Some(key(1))).unwrap();
         (folder, store)
     }
 
     // What a launch lists, by identifier, its index kept as a launch keeps it.
     fn opened(store: &Store, now: UtcDateTime) -> Vec<Meeting> {
-        let (mut meetings, index) = store.load(now).unwrap();
+        let Loaded { mut meetings, index, .. } = store.load(now).unwrap();
         index.into_iter().for_each(|index| store.keep(index));
         meetings.sort_by(|a, b| a.id.cmp(&b.id));
         meetings
@@ -246,6 +288,16 @@ mod tests {
 
     fn titled(title: &str) -> Meeting {
         Meeting { title: Some(title.into()), ..meeting("recorded-1") }
+    }
+
+    // The index as the last launch sealed it, opened.
+    fn index_json(store: &Store) -> String {
+        let file = fs::read(store.directory.join(INDEX)).unwrap();
+        String::from_utf8(sealed::open(&key(1), Kind::Index, &file).unwrap()).unwrap()
+    }
+
+    fn holds(path: PathBuf, words: &str) -> bool {
+        fs::read(path).unwrap().windows(words.len()).any(|window| window == words.as_bytes())
     }
 
     // A meeting listed at OPENED, then replaced outside the app by one of the same size, its date left as it was.
@@ -265,7 +317,10 @@ mod tests {
         assert_eq!(opened(&store, OPENED), []);
         store.write(&heard("recorded-1")).unwrap();
         assert_eq!(store.read(&id("recorded-1")).unwrap(), heard("recorded-1"));
-        assert_eq!(opened(&Store::open(store.directory.clone()).unwrap(), OPENED), [meeting("recorded-1")]);
+        assert_eq!(
+            opened(&Store::open(store.directory.clone(), Some(key(1))).unwrap(), OPENED),
+            [meeting("recorded-1")]
+        );
     }
 
     #[test]
@@ -294,13 +349,59 @@ mod tests {
         store.write(&meeting("recorded-1")).unwrap();
         fs::copy(store.directory.join("recorded-1.notitia"), store.directory.join("recorded-2.notitia")).unwrap();
         assert_eq!(ids(&store), ["recorded-1"]);
+        // Its seal names the meeting: its lines are not read as those of another either.
+        assert!(store.read(&id("recorded-2")).is_err());
+    }
+
+    #[test]
+    fn a_file_sealed_by_another_key_is_hidden_and_stays_on_disk() {
+        let (_folder, store) = store();
+        store.write(&heard("recorded-1")).unwrap();
+        let sealed = fs::read(store.directory.join(FILE)).unwrap();
+        let other = Store::open(store.directory.clone(), Some(key(2))).unwrap();
+        assert_eq!(opened(&other, OPENED), []);
+        assert!(other.read(&id("recorded-1")).is_err());
+        assert_eq!(fs::read(store.directory.join(FILE)).unwrap(), sealed);
+        assert_eq!(ids(&store), ["recorded-1"]);
+    }
+
+    #[test]
+    fn a_meeting_and_the_index_are_sealed_on_the_disk() {
+        let (_folder, store) = store();
+        store.write(&Meeting { title: Some("Revue confidentielle".into()), ..heard("recorded-1") }).unwrap();
+        assert_eq!(opened(&store, OPENED).len(), 1);
+        for name in [FILE, INDEX] {
+            let file = store.directory.join(name);
+            assert!(!holds(file.clone(), "confidentielle") && !holds(file.clone(), "Bonjour"), "{name}");
+            assert!(!sealed::is_clear(&fs::read(file).unwrap()));
+        }
+        assert!(index_json(&store).contains("Revue confidentielle"));
+    }
+
+    #[test]
+    fn without_a_key_files_in_clear_are_read_and_nothing_is_written() {
+        let (_folder, store) = store();
+        store.write(&heard("recorded-2")).unwrap();
+        fs::write(store.directory.join(FILE), V1_BY_KOTLIN).unwrap();
+        let keyless = Store::open(store.directory.clone(), None).unwrap();
+        let Loaded { meetings, index, clear } = keyless.load(OPENED).unwrap();
+        let listed: Vec<String> = meetings.into_iter().map(|meeting| meeting.id.into()).collect();
+        assert_eq!((listed, clear), (vec!["recorded-1".to_owned()], vec![id("recorded-1")]));
+        index.into_iter().for_each(|index| keyless.keep(index));
+        assert!(!store.directory.join(INDEX).exists());
+        assert_eq!(keyless.write(&meeting("recorded-3")).unwrap_err().kind(), io::ErrorKind::PermissionDenied);
+        assert!(!store.directory.join("recorded-3.notitia").exists());
+        assert!(!store.directory.join("recorded-3.notitia.tmp").exists());
+        assert!(keyless.read(&id("recorded-2")).is_err());
+        assert_eq!(keyless.read(&id("recorded-1")).unwrap().transcript.len(), 2);
     }
 
     #[test]
     fn the_device_keeps_the_same_identifier() {
         let (_folder, store) = store();
         let device = store.device().unwrap();
-        assert_eq!(Store::open(store.directory.clone()).unwrap().device().unwrap(), device);
+        // Drawn by chance, it says nothing of a meeting: kept without a key.
+        assert_eq!(Store::open(store.directory.clone(), None).unwrap().device().unwrap(), device);
         fs::write(store.directory.join(DEVICE), "").unwrap();
         let drawn_again = store.device().unwrap();
         assert!(!drawn_again.is_empty());
@@ -395,17 +496,47 @@ mod tests {
     #[test]
     fn the_index_keeps_every_meeting_without_its_lines() {
         let (_folder, store) = store();
-        fs::write(store.directory.join(FILE), V1_BY_KOTLIN).unwrap();
+        store.write(&Meeting { title: Some("Revue de sprint".into()), ..heard("recorded-1") }).unwrap();
         store.write(&heard("recorded-2")).unwrap();
         ["recorded-1", "recorded-2"].iter().for_each(|meeting| store.date(&id(meeting), BEFORE));
         let read_from_the_files = opened(&store, OPENED);
         assert_eq!(read_from_the_files.len(), 2);
-        let index = fs::read_to_string(store.directory.join(INDEX)).unwrap();
+        let index = index_json(&store);
         assert!(index.contains("Revue de sprint") && !index.contains("transcript"));
-        let (mut kept, to_write) = store.load(LATER).unwrap();
+        let Loaded { meetings: mut kept, index: to_write, clear } = store.load(LATER).unwrap();
         kept.sort_by(|a, b| a.id.cmp(&b.id));
         assert_eq!(kept, read_from_the_files);
-        assert!(to_write.is_none());
+        assert!(to_write.is_none() && clear.is_empty());
+    }
+
+    // As a launch before the seal left it: every file in clear, and the index in clear, titles and minutes in it.
+    #[test]
+    fn an_index_in_clear_is_sealed_at_the_first_launch_even_with_every_file_in_clear() {
+        let (_folder, store) = store();
+        fs::write(store.directory.join(FILE), V1_BY_KOTLIN).unwrap();
+        let mut before = Index::read_at(BEFORE);
+        let file = Stat::of(&fs::metadata(store.directory.join(FILE)).unwrap()).unwrap();
+        before.keep(file, store.read(&id("recorded-1")).unwrap());
+        fs::write(store.directory.join(INDEX), before.encode().unwrap()).unwrap();
+        assert!(holds(store.directory.join(INDEX), "Revue de sprint"));
+        assert_eq!(ids(&store), ["recorded-1"]);
+        assert!(!holds(store.directory.join(INDEX), "Revue de sprint"));
+        assert!(!sealed::is_clear(&fs::read(store.directory.join(INDEX)).unwrap()));
+    }
+
+    // The store reads it; the library writes it again, sealed. Until then, each launch reads it from its file.
+    #[test]
+    fn a_file_in_clear_is_read_but_never_kept_in_the_index() {
+        let (_folder, store) = store();
+        fs::write(store.directory.join(FILE), V1_BY_KOTLIN).unwrap();
+        store.write(&heard("recorded-2")).unwrap();
+        ["recorded-1", "recorded-2"].iter().for_each(|meeting| store.date(&id(meeting), BEFORE));
+        for launch in [OPENED, LATER] {
+            let Loaded { meetings, index, clear } = store.load(launch).unwrap();
+            index.into_iter().for_each(|index| store.keep(index));
+            assert_eq!((meetings.len(), clear), (2, vec![id("recorded-1")]));
+        }
+        assert!(!index_json(&store).contains("Revue de sprint"));
         assert_eq!(fs::read_to_string(store.directory.join(FILE)).unwrap(), V1_BY_KOTLIN);
     }
 
@@ -422,31 +553,39 @@ mod tests {
             let (_folder, store) = replaced_unseen(written);
             assert_eq!(opened(&store, LATER), [titled("Point B")]);
             // Older than the index it is now kept in: trusted from here on.
-            assert!(store.load(LATER + Duration::hours(2)).unwrap().1.is_none());
+            assert!(store.load(LATER + Duration::hours(2)).unwrap().index.is_none());
         }
     }
 
     #[test]
-    fn an_index_missing_damaged_or_of_another_version_is_built_again() {
-        let damages: [fn(&str) -> Option<String>; 5] = [
-            |_| None,
-            |_| Some(String::new()),
-            |index| Some(index[..20].into()),
-            |index| Some(index.replace("\"version\":1,", "\"version\":2,")),
-            |index| Some(index.replace("\"format\":2,", "\"format\":1,")),
+    fn an_index_missing_damaged_in_clear_of_another_version_or_key_is_built_again() {
+        fn resealed(key: Key, json: String) -> Option<Vec<u8>> {
+            Some(sealed::seal(&key, Kind::Index, json.as_bytes()).unwrap())
+        }
+        // Given the index as sealed, then opened.
+        type Damage = fn(&[u8], String) -> Option<Vec<u8>>;
+        let damages: [Damage; 7] = [
+            |_, _| None,
+            |_, _| Some(Vec::new()),
+            |file, _| Some(file[..20].into()),
+            // As the app wrote it before the seal: it trusted files in clear.
+            |_, json| Some(json.into_bytes()),
+            |_, json| resealed(key(1), json.replace("\"version\":1,", "\"version\":2,")),
+            |_, json| resealed(key(1), json.replace("\"format\":2,", "\"format\":1,")),
+            |_, json| resealed(key(2), json),
         ];
         for damage in damages {
             let (_folder, store) = replaced_unseen(BEFORE);
             let index = store.directory.join(INDEX);
-            let kept = fs::read_to_string(&index).unwrap();
-            let damaged = damage(&kept);
-            assert_ne!(damaged.as_deref(), Some(kept.as_str()));
+            let kept = fs::read(&index).unwrap();
+            let damaged = damage(&kept, index_json(&store));
+            assert_ne!(damaged.as_deref(), Some(kept.as_slice()));
             match damaged {
                 Some(damaged) => fs::write(&index, damaged).unwrap(),
                 None => fs::remove_file(&index).unwrap(),
             }
             assert_eq!(opened(&store, LATER), [titled("Point B")]);
-            assert!(store.load(LATER).unwrap().1.is_none());
+            assert!(store.load(LATER).unwrap().index.is_none());
         }
     }
 
@@ -466,7 +605,7 @@ mod tests {
         fs::remove_file(store.directory.join("recorded-3.notitia")).unwrap();
         dated(&meeting("recorded-4"), BEFORE);
         assert_eq!(opened(&store, LATER), [of_another_size, of_another_date, meeting("recorded-4")]);
-        assert!(store.load(LATER).unwrap().1.is_none());
+        assert!(store.load(LATER).unwrap().index.is_none());
     }
 
     #[test]

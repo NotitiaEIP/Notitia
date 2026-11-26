@@ -3,6 +3,7 @@
 | | |
 | --- | --- |
 | Statut | Proposée le 16 novembre 2026, acceptée à la fusion de sa PR. Règle 6 remplacée par l'[ADR 0008](0008-identifiants.md) le 20 novembre 2026 |
+| Modifiée | Le 26 novembre 2026 par T-96 (#265) : sur le disque, le fichier est scellé ([ADR 0014](0014-reunions-scellees.md)) |
 | Proposée par | Clément |
 | Relue par | Alexandre |
 | Tâche d'origine | T-73 (#225), première étape de T-57 (#188) |
@@ -89,4 +90,4 @@ Le fichier `core/tests/fixtures/meeting-v2.notitia` est la référence : le cœu
 
 **Ce qu'on paie.** Le cœur garde un lecteur de la version 1, avec les durées de Kotlin. Une app d'avant le cœur ne lit pas les fichiers de la version 2 : elle les laisse sur le disque sans les afficher.
 
-**Ce qui reste ouvert.** Les nouvelles réunions gardent un identifiant `recorded-<millisecondes>` jusqu'à T-58, où le cœur crée la réunion et lui tire un UUID. Le chiffrement du fichier (US-81) et la fusion de deux versions d'une même réunion (E10) auront leur propre fiche.
+**Ce qui reste ouvert.** Les nouvelles réunions gardent un identifiant `recorded-<millisecondes>` jusqu'à T-58, où le cœur crée la réunion et lui tire un UUID. Le chiffrement du fichier (US-81) et la fusion de deux versions d'une même réunion (E10) auront leur propre fiche. Le chiffrement est fait par T-96 (#265), [ADR 0014](0014-reunions-scellees.md) : sur le disque, ce JSON est scellé en entier, et il reste le format lisible, celui de l'échange.

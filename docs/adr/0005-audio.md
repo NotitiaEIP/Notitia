@@ -3,6 +3,7 @@
 | | |
 | --- | --- |
 | Statut | Proposée le 17 novembre 2026, acceptée à la fusion de sa PR |
+| Modifiée | Le 26 novembre 2026 par T-96 (#265) : la durée d'une réunion est scellée dans son `.notitia` |
 | Proposée par | Clément |
 | Relue par | Alexandre pour le cœur, Amine pour l'ordinateur |
 | Tâche d'origine | T-79 (#239), première étape de T-58 (#189) |
@@ -92,7 +93,7 @@ Le fichier scellé, mesuré le 17 novembre 2026 avec T-80 (#240), sur le même p
 
 **Ce qui nous protège.** L'Opus gardé est standard : libopus le relira toujours, et prendre sa place tient dans un fichier.
 
-**Ce qu'on ne voit pas.** Un fichier raccourci juste entre deux secondes ressemble à un enregistrement arrêté là. Le distinguer demande de sceller la durée ailleurs : US-81 (#37) le pourra en scellant le fichier `.notitia`.
+**Ce qu'on ne voit pas.** Un fichier raccourci juste entre deux secondes ressemble à un enregistrement arrêté là. Le distinguer demande de sceller la durée ailleurs : US-81 (#37) le pourra en scellant le fichier `.notitia`. Depuis T-96 (#265, [ADR 0014](0014-reunions-scellees.md)), la durée y est scellée : reste à la comparer à celle de l'audio.
 
 **Ce qui reste ouvert.**
 
