@@ -2,6 +2,7 @@ package com.example.notitia.bridge
 
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MinutesState
+import java.io.File
 import kotlin.io.path.createTempDirectory
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -87,6 +88,21 @@ class CoreSelfCheckTest {
             override fun apply(request: String) = core.apply(request).takeUnless { it == CoreFailure.Invalid }
         }
         assertEquals("core bridge: failed at refused request", check(lenient))
+    }
+
+    // The core tells a change before it writes it: the check may end while the core still writes its last file in the
+    // folder, which then cannot be removed. Saying how the check went must not throw, here nor in the iPhone app.
+    @Test
+    fun aFolderThatCannotBeClearedStillSaysHowTheCheckWent() {
+        val core = RustCore()
+        val writing = object : NotitiaCore by core {
+            override fun open(directory: String, key: ByteArray?, listener: CoreListener): CoreFailure? {
+                val opened = core.open(directory, key, listener)
+                File(directory, "left/behind").mkdirs()
+                return opened
+            }
+        }
+        assertEquals("core bridge: ok", check(writing))
     }
 
     // The core tells from several threads: the minutes may be told before the recorder says it has stopped.
