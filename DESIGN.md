@@ -41,6 +41,7 @@ Leur navigation est banale, et c'est voulu : personne ne redessine un panneau st
 | Netflix | Le fond sombre qui met le contenu en avant |
 | Uber Eats | L'action principale collée en bas, pleine largeur : « Partager le compte rendu » |
 | Spotify | Le mini-lecteur visible partout : notre mini-barre d'enregistrement |
+| Messages d'Apple | « Conserver les messages » : une liste de choix, une coche, rien à enregistrer, et une question seulement avant d'effacer. Notre « Conserver l'audio » |
 | L'app Mac de Lucas | Consentement avant d'enregistrer, transcription horodatée, vouvoiement, pas d'emoji, l'échelle d'espacement |
 
 ## Couleurs
@@ -163,6 +164,7 @@ Ce qui se touche est rond, ce qui se lit a des coins :
 | Partager | `share` sur Android, `ios_share` sur iPhone |
 | Relancer | `chat_bubble` |
 | Sur l'appareil | `lock` |
+| Une note des réglages | `info` |
 | Réglages | `settings` |
 
 ## Composants
@@ -238,6 +240,7 @@ Niveau 3   Un détail : une action, un locuteur à renommer, un passage à réé
 
 - **Le retour du système marche partout** : retour prédictif sur Android, glisser depuis le bord gauche sur iPhone. On ne le bloque jamais, sauf pour confirmer l'arrêt d'un enregistrement.
 - **Un titre par écran**, qui dit où l'on est (« Réunions », le nom de la réunion). Sur iPhone, le bouton retour reprend le nom de l'écran précédent.
+- **Réglages** : des cartes groupées comme dans les Réglages de l'iPhone. Un choix parmi plusieurs ouvre un écran à lui, comme « Conserver les messages » dans Messages : les choix dans une carte, la coche `accentContent` sur celui qui vaut. Ce qu'il faut savoir tient en une phrase grise sous la carte, précédée d'un petit `info` comme dans les Réglages d'Android, et jamais dans une bulle cachée derrière un toucher, que peu de gens ouvrent et que les lecteurs d'écran trouvent mal. Toucher suffit, sans bouton « Enregistrer ». Un choix qui efface demande d'abord, à la façon du système, et la coche ne bouge qu'une fois le choix appliqué. Une valeur reste au bout de sa ligne tant qu'elle tient à côté du libellé, et passe dessous sinon, comme dans les cellules d'iOS.
 - **Compte rendu** : son titre se modifie sur place, comme dans Notes et Granola : on le touche, le curseur s'y pose, sans cadre ni fenêtre. Il est gardé quand on le quitte (OK du clavier, toucher à côté, clavier fermé, retour) ; vidé, il reprend l'ancien. Le menu « … » de la barre du haut propose « Renommer », qui sélectionne tout le titre, puis « Supprimer » en rouge, en dernier. Après une suppression, on revient à l'écran d'avant, où la carte de la réunion s'efface et la liste se resserre. Le résumé vient d'abord, replié à trois lignes comme la description d'une app dans l'App Store : « plus » en `accentContent`, du corps et de la graisse du texte, au bout de la dernière ligne, que le texte rejoint en fondu, sans points de suspension ni ligne en plus. Le toucher n'importe où le déplie, sans retour au repli. Puis les décisions, puis les actions, visibles sans défiler quelle que soit la longueur du résumé.
 - **L'en-tête d'un onglet** : le grand titre à 8 dp sous la zone sûre du système (barre d'état, encoche, Dynamic Island), à la même hauteur sur les trois onglets. Ses boutons (réglages) sont sur sa ligne, à droite, centrés sur elle, comme la barre du haut de WhatsApp ; leur cible de 48 dp déborde de la ligne sans pousser le contenu.
 - **Historique de la recherche** : un panneau qui glisse depuis la gauche par-dessus l'écran (glisser vers la droite, ou l'horloge du titre), comme dans Claude. L'écran et la barre d'onglets restent en place sous un voile. Le retour du système le referme, avec l'animation du retour prédictif sur Android 14+. Un appui long sur une recherche ouvre un menu à côté d'elle (Épingler, Renommer, Supprimer) ; les épinglées restent en tête, même après « Effacer l'historique ». La dernière recherche reste affichée, même après un changement d'onglet ; après 10 minutes hors de l'app, ou au relancement, la recherche repart vierge et la précédente se retrouve dans l'historique.
