@@ -227,6 +227,7 @@ fun App(
                             SettingsRoute(
                                 theme = theme,
                                 onThemeChange = { theme = it },
+                                audioKeeping = notitia.audioKeeping,
                                 onBack = { settingsOpen = false },
                                 modifier = screenModifier,
                             )
