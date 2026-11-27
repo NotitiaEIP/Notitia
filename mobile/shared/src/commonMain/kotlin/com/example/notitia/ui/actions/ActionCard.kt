@@ -19,7 +19,7 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
-import com.example.notitia.meeting.MinutesAction
+import com.example.notitia.meeting.DueGroup
 import com.example.notitia.reminder.hasReminder
 import com.example.notitia.ui.components.ActionCheck
 import com.example.notitia.ui.components.ContextMenu
@@ -136,17 +136,15 @@ internal fun CheckButton(done: Boolean, onToggle: () -> Unit) {
     }
 }
 
-// "demain" or "avant le 3 nov.", or, while it is not done and past its date, only late: "2 j de retard".
+// "demain" or "avant le 3 nov.", or, while it is not done and past its date, only late: "2 j de retard". The day is
+// the board's: the core placed the action.
 internal data class DueWords(val due: String?, val late: String?)
 
 @Composable
-internal fun dueWords(action: MinutesAction, today: LocalDate): DueWords {
-    val group = action.due?.let { dueGroup(it, today) }
-    val late = action.due
-        ?.takeIf { !action.done && group == DueGroup.Late }
-        ?.let { stringResource(Res.string.action_late_by, daysLate(it, today)) }
-    val due = action.due?.takeIf { late == null }?.let { due ->
-        when (group) {
+internal fun dueWords(tracked: TrackedAction): DueWords {
+    val late = tracked.daysLate?.let { stringResource(Res.string.action_late_by, it) }
+    val due = tracked.action.due?.takeIf { late == null }?.let { due ->
+        when (tracked.group) {
             DueGroup.Today -> stringResource(Res.string.action_due_today)
             DueGroup.Tomorrow -> stringResource(Res.string.action_due_tomorrow)
             else -> stringResource(Res.string.action_due, shortDateLabel(due))
@@ -160,7 +158,7 @@ internal fun dueWords(action: MinutesAction, today: LocalDate): DueWords {
 @Composable
 private fun OwnerAndDue(tracked: TrackedAction, today: LocalDate) {
     val action = tracked.action
-    val (due, late) = dueWords(action, today)
+    val (due, late) = dueWords(tracked)
     Row(
         horizontalArrangement = Arrangement.spacedBy(NotitiaTheme.spacing.s),
         verticalAlignment = Alignment.CenterVertically,

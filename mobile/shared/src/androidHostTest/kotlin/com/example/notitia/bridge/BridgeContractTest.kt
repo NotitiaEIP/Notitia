@@ -5,15 +5,21 @@ import com.example.notitia.ai.EngineRequest
 import com.example.notitia.ai.OfferedEngine
 import com.example.notitia.ai.Said
 import com.example.notitia.bridge.CoreEvent.Recorder.Phase
+import com.example.notitia.meeting.ActionId
 import com.example.notitia.meeting.ActionSource
+import com.example.notitia.meeting.DueGroup
+import com.example.notitia.meeting.Grouped
 import com.example.notitia.meeting.KeepAudio
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MinutesAction
 import com.example.notitia.meeting.MinutesState
+import com.example.notitia.meeting.Placed
+import com.example.notitia.meeting.PlacedPerson
 import com.example.notitia.meeting.RecordingProblem
 import com.example.notitia.meeting.TranscriptLine
 import com.example.notitia.meeting.WrittenMinutes
 import com.example.notitia.meeting.meeting
+import com.example.notitia.ui.actions.personKey
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -24,7 +30,9 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 // The text of the bridge has one shape and two sides that write and read it, the Rust core and this app: both test
 // themselves against the same examples, so neither can drift alone. On the host, because only there can a test read
@@ -171,6 +179,27 @@ class BridgeContractTest {
         assertEquals(fixture.getValue("requests"), CoreJson.encodeToJsonElement(ListSerializer(CoreRequest.serializer()), requests))
         val events = choices.map { CoreEvent.Settings(it) }
         assertEquals(events, CoreJson.decodeFromJsonElement(ListSerializer(CoreEvent.serializer()), fixture.getValue("events")))
+    }
+
+    // Written back, the boards read are the text the core wrote: no field is lost or misnamed. The keys of the people
+    // are those the core gives, so their colours follow the board.
+    @Test
+    fun theBoardIsAskedAndReadAsTheCoreReadsAndWritesIt() {
+        val fixture = CoreJson.parseToJsonElement(examples.resolve("board.json").readText()).jsonObject
+        val day = LocalDate(2026, 10, 26)
+        val requests = listOf(BoardAsk(day), BoardAsk(day, listOf(ActionId("recorded-1", "3"))), BoardAsk(LocalDate(2026, 10, 27)))
+        assertEquals(fixture.getValue("requests"), CoreJson.encodeToJsonElement(ListSerializer(CoreRequest.serializer()), requests))
+        val events = CoreJson.decodeFromJsonElement(ListSerializer(CoreEvent.serializer()), fixture.getValue("events"))
+        assertEquals(fixture.getValue("events"), CoreJson.encodeToJsonElement(ListSerializer(CoreEvent.serializer()), events))
+        val board = events.first() as CoreEvent.Board
+        val late = Placed("recorded-1", "0", DueGroup.Late, daysLate = 2)
+        assertEquals(Grouped(DueGroup.Late, listOf(late)), board.groups.first())
+        assertEquals(PlacedPerson(open = listOf(Placed("recorded-1", "1")), late = 0, done = 0, total = 1), board.people.last())
+        assertEquals(mapOf("recorded-1" to 1), board.lateByMeeting)
+        for (pair in fixture.getValue("keys").jsonArray.map { it.jsonObject }) {
+            val name = pair.getValue("name").jsonPrimitive.content
+            assertEquals(pair.getValue("key").jsonPrimitive.content, personKey(name), name)
+        }
     }
 
     // The reference of the format (ADR 0003), which the core writes to the byte: a whole meeting crosses in that shape.

@@ -44,8 +44,9 @@ object Milliseconds : KSerializer<Duration> {
     override fun deserialize(decoder: Decoder): Duration = decoder.decodeLong().milliseconds
 }
 
-// An action is known by its identifier in the minutes of its meeting.
-data class ActionId(val meetingId: String, val actionId: String) {
+// An action is known by its identifier in the minutes of its meeting, and crosses to the core under those names.
+@Serializable
+data class ActionId(@SerialName("meeting") val meetingId: String, @SerialName("action") val actionId: String) {
     // Lazy lists keep their keys in an Android Bundle, which takes a string but not this class. A reminder already
     // scheduled on a phone opens its action by this key: its shape cannot change.
     val key: String get() = "$meetingId/$actionId"

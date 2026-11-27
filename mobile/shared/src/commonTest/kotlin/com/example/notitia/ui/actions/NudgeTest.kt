@@ -18,9 +18,6 @@ class NudgeTest {
 
     private val paris = TimeZone.of("Europe/Paris")
 
-    // Monday 26 October 2026.
-    private val today = LocalDate(2026, 10, 26)
-
     private fun meeting(title: String, day: Int, hour: Int = 10) = MeetingListItem(
         id = title,
         title = title,
@@ -50,7 +47,11 @@ class NudgeTest {
         date = { "${it.day}/${it.month.ordinal + 1}" },
     )
 
-    private fun person(vararg actions: TrackedAction): PersonActions = actionsByPerson(actions.toList(), today).first()
+    // As the core gives someone: their open actions in its order, the ones just ticked still among them.
+    private fun person(vararg open: TrackedAction): PersonActions {
+        val name = open.first().action.owner
+        return PersonActions(name?.let(::personKey), name, open.toList(), late = 0, done = 0, total = open.size)
+    }
 
     @Test
     fun nobodyIsNudgedAboutAnActionWithoutOwnerOrAlreadyDone() {
@@ -65,10 +66,7 @@ class NudgeTest {
 
     @Test
     fun aJustTickedActionIsLeftOutAndNothingLeftMeansNoNudge() {
-        val ticked = tracked("Relire le devis", done = true)
-        val people = actionsByPerson(listOf(ticked), today, lingering = setOf(ticked.id))
-        assertEquals(listOf(ticked), people.first().open)
-        assertNull(nudgeFor(people.first(), paris))
+        assertNull(nudgeFor(person(tracked("Relire le devis", done = true)), paris))
     }
 
     @Test

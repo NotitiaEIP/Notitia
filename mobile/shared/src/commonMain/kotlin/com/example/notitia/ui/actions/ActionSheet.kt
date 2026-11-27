@@ -83,7 +83,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
+import com.example.notitia.meeting.ActionId
 import com.example.notitia.meeting.ActionSource
+import com.example.notitia.meeting.DueGroup
 import com.example.notitia.meeting.MinutesAction
 import com.example.notitia.reminder.reminderAt
 import com.example.notitia.ui.components.CardChevron
@@ -98,6 +100,7 @@ import com.example.notitia.ui.meetings.clockTime
 import com.example.notitia.ui.meetings.meetingWhenLabel
 import com.example.notitia.ui.meetings.sampleMinutes
 import com.example.notitia.ui.meetings.shortDateLabel
+import com.example.notitia.ui.minutes.sampleLists
 import com.example.notitia.ui.theme.MotionStyle
 import com.example.notitia.ui.theme.NotitiaColors
 import com.example.notitia.ui.theme.NotitiaMotion
@@ -408,7 +411,7 @@ private fun OwnerRow(
 private fun DueRow(tracked: TrackedAction, today: LocalDate, onSetDue: (LocalDate?) -> Unit, onPickDate: () -> Unit) {
     val action = tracked.action
     val due = action.due
-    val late = due != null && !action.done && dueGroup(due, today) == DueGroup.Late
+    val late = tracked.daysLate != null
     var menu by remember { mutableStateOf(false) }
     fun choose(then: () -> Unit) {
         menu = false
@@ -425,7 +428,7 @@ private fun DueRow(tracked: TrackedAction, today: LocalDate, onSetDue: (LocalDat
         onClick = { menu = true },
         value = {
             Text(
-                text = due?.let { dueLabel(it, today) } ?: stringResource(Res.string.action_due_none),
+                text = due?.let { dueLabel(it, tracked.group) } ?: stringResource(Res.string.action_due_none),
                 style = NotitiaTheme.typography.body,
                 color = when {
                     late -> NotitiaTheme.colors.red
@@ -515,7 +518,7 @@ private fun ReminderRow(action: MinutesAction, onSetReminder: (Boolean) -> Unit)
 }
 
 @Composable
-private fun dueLabel(due: LocalDate, today: LocalDate): String = when (dueGroup(due, today)) {
+private fun dueLabel(due: LocalDate, group: DueGroup?): String = when (group) {
     DueGroup.Today -> stringResource(Res.string.group_today)
     DueGroup.Tomorrow -> stringResource(Res.string.group_tomorrow)
     else -> shortDateLabel(due)
@@ -760,14 +763,13 @@ private fun utcDate(millis: Long): LocalDate = Instant.fromEpochMilliseconds(mil
 @Composable
 private fun ActionSheetPreview(index: Int) = NotitiaTheme {
     val now = Clock.System.now()
-    val today = now.toLocalDateTime(TimeZone.currentSystemDefault()).date
-    val minutes = sampleMinutes(now).first()
-    val tracked = trackedActions(listOf(minutes))[index]
+    val lists = sampleLists(now)
+    val tracked = lists.all.first { it.id == ActionId("sample-1", "$index") }
     Box(Modifier.background(NotitiaTheme.colors.surfaceRaised)) {
         ActionSheetContent(
             tracked = tracked,
-            owners = ownerChoices(minutes),
-            today = today,
+            owners = ownerChoices(sampleMinutes(now).first()),
+            today = lists.today,
             onSetOwner = {},
             onSetDue = {},
             onSetReminder = {},
