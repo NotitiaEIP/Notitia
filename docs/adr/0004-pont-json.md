@@ -6,6 +6,7 @@
 | Modifiée | Le 19 novembre 2026 par T-58 (#189) : l'enregistreur, le son et la clé passent par le pont |
 | Modifiée | Le 25 novembre 2026 par T-59 (#190) : les moteurs de l'app traversent en JSON, `transcribed` part |
 | Modifiée | Le 27 novembre 2026 par T-103 (#276) : une troisième sorte de demande, les réglages (ADR 0016) |
+| Modifiée | Le 27 novembre 2026 par T-84 (#249) : une quatrième sorte de demande, le tableau des actions (ADR 0017) |
 | Proposée par | Clément |
 | Relue par | Alexandre pour le cœur, Lucas pour l'iPhone |
 | Tâche d'origine | T-57 (#188) |
@@ -32,8 +33,8 @@ fun interface CoreListener { fun onEvent(event: String) }                       
 ```
 
 1. **Une demande entre, un événement ressort.** `apply` ne rend rien d'autre qu'un refus de lire : ce qui a changé, et un fichier qui n'a pas pu être écrit, arrivent par l'écouteur. L'app ne garde aucune copie qu'elle modifierait elle-même.
-2. **Le JSON est celui des types du cœur**, `Request` (`Change` et `Command`) et `Event` dans `core/src/`, sans type intermédiaire. Une réunion y a la forme du fichier `.notitia` version 2 (ADR 0003). L'app Tauri prendra ces mêmes types sans passer par UniFFI.
-3. **Les exemples font foi.** `core/tests/fixtures/bridge/changes.json`, `events.json`, `recorder.json`, `engines.json` et `settings.json` portent un exemple de chaque sorte. Les tests Rust et les tests Kotlin (`BridgeContractTest`) lisent les mêmes fichiers : un champ renommé d'un seul côté casse un test. `RustCoreTest` et `RustRecordingTest` font passer une réunion inventée par le vrai cœur, compilé pour la machine qui lance les tests, de son premier son à sa suppression : le pont d'Android est prouvé à chaque PR, sans téléphone.
+2. **Le JSON est celui des types du cœur**, `Request` (`Change`, `Command`, `Choice` et `Ask`) et `Event` dans `core/src/`, sans type intermédiaire. Une réunion y a la forme du fichier `.notitia` version 2 (ADR 0003). L'app Tauri prendra ces mêmes types sans passer par UniFFI.
+3. **Les exemples font foi.** `core/tests/fixtures/bridge/changes.json`, `events.json`, `recorder.json`, `engines.json`, `settings.json` et `board.json` portent un exemple de chaque sorte. Les tests Rust et les tests Kotlin (`BridgeContractTest`) lisent les mêmes fichiers : un champ renommé d'un seul côté casse un test. `RustCoreTest` et `RustRecordingTest` font passer une réunion inventée par le vrai cœur, compilé pour la machine qui lance les tests, de son premier son à sa suppression : le pont d'Android est prouvé à chaque PR, sans téléphone.
 4. **L'événement arrive avant l'écriture**, sur le fil qui a demandé la modification, ou sur le fil de l'enregistreur pour ses états et pour la réunion qu'il crée puis prolonge. Le cœur dit les événements des réunions un à un. L'écouteur peut relire une réunion. Il ne demande jamais rien au cœur, qui s'attendrait lui-même, et il ne lève jamais d'erreur.
 5. **Un appel à la fois.** L'app envoie ses appels dans l'ordre, sur un seul fil d'exécution hors de l'écran (`CoreSession`). Seule exception : `hear`, que le micro appelle depuis son propre fil, sans jamais attendre une écriture.
 6. **Une erreur ne porte aucun texte de réunion** : `NotFound` (pas de réunion, ou pas d'audio), `Unreadable`, `Invalid` (le texte n'est pas une demande, ou la clé ne fait pas 32 octets), et `Broken` côté app pour une panne du pont lui-même.
@@ -51,6 +52,10 @@ fun interface CoreListener { fun onEvent(event: String) }                       
 | --- | --- |
 | `settings` | `keepAudio` : `untilHeard`, `day`, `week` ou `month`. Un champ absent ne change rien (ADR 0016) |
 
+| Question (`type`) | Champs |
+| --- | --- |
+| `board` | `today` : le jour de l'app, obligatoire. `lingering` : les actions qu'on vient de cocher, qui gardent leur place. Elle ne change rien, et l'événement `board` y répond (ADR 0017) |
+
 | Commande (`type`) | Champs |
 | --- | --- |
 | `start` | `tracks` (1 sur un téléphone), `offsetMinutes` : l'avance du fuseau de l'appareil sur UTC |
@@ -66,8 +71,9 @@ fun interface CoreListener { fun onEvent(event: String) }                       
 | `recorder` | `state` et ses champs (ADR 0006). Il nomme la réunion avant que `changed` ne la montre |
 | `engines` | `speech`, `text`, `embedding` : les moteurs que le cœur connaît, le choisi d'abord (ADR 0010) |
 | `settings` | `keepAudio` : tous les réglages, dits juste après `listed`, puis à chaque changement (ADR 0016) |
+| `board` | `today`, `toComplete`, `groups`, `done`, `open`, `late`, `people`, `lateByMeeting` : le tableau des actions de ce jour, par référence. Dit à celui qui a demandé, jamais de lui-même (ADR 0017) |
 
-Ajouter une demande : une variante dans `Change` ou `Command`, ou un champ de `Choice` pour un réglage, une classe ou un champ `@Serializable` dans `CoreWire.kt`, une ligne dans `changes.json`, `recorder.json` ou `settings.json`. `RustCore.kt` et `RustCore.swift` ne changent pas.
+Ajouter une demande : une variante dans `Change` ou `Command`, ou un champ de `Choice` pour un réglage, une classe ou un champ `@Serializable` dans `CoreWire.kt`, une ligne dans `changes.json`, `recorder.json`, `settings.json` ou `board.json`. `RustCore.kt` et `RustCore.swift` ne changent pas.
 
 ## Options écartées
 

@@ -247,6 +247,14 @@ impl Library {
         audio::Writer::open(self.store.audio(id, true)?, key, tracks)
     }
 
+    // What `read` makes of every meeting, samples included, in the order of the list. The meetings are held for the
+    // length of the call alone: what is made of them is told after.
+    pub(crate) fn view<T>(&self, read: impl FnOnce(&[&Meeting]) -> T) -> T {
+        let meetings = lock(&self.meetings);
+        let all: Vec<&Meeting> = meetings.entries.iter().map(|entry| &entry.meeting).collect();
+        read(&all)
+    }
+
     // What `which` makes of the meetings kept in a file, in the order of the list: the latest first.
     pub(crate) fn kept<T>(&self, which: impl Fn(&Meeting) -> Option<T>) -> Vec<T> {
         let meetings = lock(&self.meetings);
