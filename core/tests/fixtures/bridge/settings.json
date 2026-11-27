@@ -1,0 +1,15 @@
+{
+  "requests": [
+    {"type":"settings","keepAudio":"untilHeard"},
+    {"type":"settings","keepAudio":"day"},
+    {"type":"settings","keepAudio":"week"},
+    {"type":"settings","keepAudio":"month"},
+    {"type":"settings"}
+  ],
+  "events": [
+    {"type":"settings","keepAudio":"untilHeard"},
+    {"type":"settings","keepAudio":"day"},
+    {"type":"settings","keepAudio":"week"},
+    {"type":"settings","keepAudio":"month"}
+  ]
+}

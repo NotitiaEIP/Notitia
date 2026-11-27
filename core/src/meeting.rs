@@ -8,7 +8,8 @@ use time::{Date, UtcDateTime};
 pub(crate) use change::Stamp;
 pub use change::{ActionDraft, Change, Edit, MinutesDraft};
 pub use id::{ActionId, InvalidId, MeetingId};
-pub(crate) use retention::expired;
+pub use retention::KeepAudio;
+pub(crate) use retention::{Due, due};
 
 // What a newer app wrote and this one does not know: kept, so rewriting a file loses nothing of it.
 pub type Extra = serde_json::Map<String, serde_json::Value>;

@@ -6,6 +6,7 @@ import com.example.notitia.ai.OfferedEngine
 import com.example.notitia.ai.Said
 import com.example.notitia.bridge.CoreEvent.Recorder.Phase
 import com.example.notitia.meeting.ActionSource
+import com.example.notitia.meeting.KeepAudio
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MinutesAction
 import com.example.notitia.meeting.MinutesState
@@ -159,6 +160,16 @@ class BridgeContractTest {
             heard.copy(state = Phase.Interrupted, level = 0f),
             CoreEvent.Removed(setOf("recorded-1")),
         )
+        assertEquals(events, CoreJson.decodeFromJsonElement(ListSerializer(CoreEvent.serializer()), fixture.getValue("events")))
+    }
+
+    @Test
+    fun theChoicesThisAppSendsAndFollowsAreTheOnesTheCoreReadsAndWrites() {
+        val fixture = CoreJson.parseToJsonElement(examples.resolve("settings.json").readText()).jsonObject
+        val choices = listOf(KeepAudio.UntilHeard, KeepAudio.Day, KeepAudio.Week, KeepAudio.Month)
+        val requests = choices.map { Choice(it) } + Choice()
+        assertEquals(fixture.getValue("requests"), CoreJson.encodeToJsonElement(ListSerializer(CoreRequest.serializer()), requests))
+        val events = choices.map { CoreEvent.Settings(it) }
         assertEquals(events, CoreJson.decodeFromJsonElement(ListSerializer(CoreEvent.serializer()), fixture.getValue("events")))
     }
 

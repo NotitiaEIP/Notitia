@@ -36,7 +36,7 @@ Une fiche se lit en deux minutes et ne change plus, sauf pour recevoir ce que la
 | --- | --- | --- |
 | [0002](adr/0002-coeur-rust.md) | Un cœur Rust pour toutes les apps, une interface par famille d'appareils | Acceptée le 15 novembre 2026 |
 | [0003](adr/0003-format-notitia-v2.md) | Le format `.notitia` version 2 : un identifiant par action, le temps en millisecondes, les champs inconnus gardés | Proposée le 16 novembre 2026, sa règle 6 remplacée par 0008 le 20 novembre, modifiée le 26 novembre |
-| [0004](adr/0004-pont-json.md) | Le pont entre le cœur et les apps : cinq fonctions, un écouteur, du JSON, le son et la clé en octets | Proposée le 17 novembre 2026, modifiée le 19 novembre |
+| [0004](adr/0004-pont-json.md) | Le pont entre le cœur et les apps : cinq fonctions, un écouteur, du JSON, le son et la clé en octets | Proposée le 17 novembre 2026, modifiée le 19, le 25 et le 27 novembre |
 | [0005](adr/0005-audio.md) | L'audio d'une réunion : Opus à débit constant, dans un fichier scellé seconde par seconde | Proposée le 17 novembre 2026, modifiée le 26 et le 27 novembre |
 | [0006](adr/0006-enregistreur.md) | L'enregistrement tenu par le cœur, sur un fil à lui : une file bornée, la réunion au premier son | Proposée le 18 novembre 2026, modifiée le 20 novembre |
 | [0007](adr/0007-cle-de-l-app.md) | La clé de l'app, gardée par le Keystore, jamais écrasée, durable avant d'être utilisée | Proposée le 19 novembre 2026, son point 6 remplacé en partie par 0014 le 26 novembre |
@@ -46,8 +46,9 @@ Une fiche se lit en deux minutes et ne change plus, sauf pour recevoir ce que la
 | [0011](adr/0011-fenetres.md) | Les fenêtres d'audio : la parole tirée du bruit de la salle, 30 s au plus, un bord qui suffit à reprendre | Proposée le 23 novembre 2026, modifiée le 24 novembre |
 | [0012](adr/0012-traitement.md) | Le traitement d'une réunion : un fil du cœur qui reprend où la réunion en est, sans file sur le disque | Proposée le 24 novembre 2026, modifiée le 25 et le 27 novembre |
 | [0013](adr/0013-compte-rendu.md) | Le compte rendu écrit par le cœur : dû tant qu'il n'est pas écrit, par tranches pour une heure, chaque décision citée | Proposée le 25 novembre 2026 |
-| [0014](adr/0014-reunions-scellees.md) | Les réunions et l'index scellés sur le disque : une clé par fichier, les fichiers d'avant scellés au lancement, rien d'écrit sans clé | Proposée le 26 novembre 2026 |
-| [0015](adr/0015-audio-30-jours.md) | L'audio effacé après 30 jours, son texte gardé : demandé par l'app chaque jour, marqué puis effacé, jamais la réunion qu'on enregistre | Proposée le 27 novembre 2026 |
+| [0014](adr/0014-reunions-scellees.md) | Les réunions et l'index scellés sur le disque : une clé par fichier, les fichiers d'avant scellés au lancement, rien d'écrit sans clé | Proposée le 26 novembre 2026, modifiée le 27 novembre |
+| [0015](adr/0015-audio-30-jours.md) | L'audio effacé après 30 jours, son texte gardé : demandé par l'app chaque jour, marqué puis effacé, jamais la réunion qu'on enregistre | Proposée le 27 novembre 2026, ses points 1 à 3 remplacés en partie par 0016 le 27 novembre |
+| [0016](adr/0016-reglages-du-coeur.md) | Les réglages tenus par le cœur : la durée de l'audio choisie par l'utilisateur, 30 jours au plus, appliquée dès la fin d'une transcription | Proposée le 27 novembre 2026 |
 
 ## Ailleurs dans le repo
 

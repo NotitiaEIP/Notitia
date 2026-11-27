@@ -1,6 +1,7 @@
 // How long the meetings of a folder take to open, without and with their index (T-75), sealed (T-96), then with their
 // audio and their minutes owed, as on a phone with no model yet (T-95), how long the files written in clear before the
-// seal take to be sealed at the first launch, and how long their audio takes to be erased once kept 30 days (T-97).
+// seal take to be sealed at the first launch, how long their audio takes to be erased once kept 30 days (T-97), and
+// what a tidy-up costs once nothing is left to erase, as every hour finds it (T-103).
 // Through the same calls as an app, and optimised as an app is:
 // cargo run --release --example opening
 // A folder given after `--` keeps the meetings, to push them to a phone and time its launch there.
@@ -193,5 +194,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         left += usize::from(file?.file_name().to_string_lossy().ends_with(".audio"));
     }
     println!("{:<42} erased after {:>7.1} ms, {left} left", format!("{MEETINGS} audios kept 30 days"), millis(tidied));
+    // Nothing left to erase: a pass over the meetings in memory, and a look for the file of each one past its days.
+    // Nothing is read, written or told.
+    let (mut best, mut worst) = (Duration::MAX, Duration::ZERO);
+    for _ in 0..20 {
+        let asked = Instant::now();
+        session.apply(Request::read("{\"type\":\"tidy\"}").ok_or("not a request")?);
+        let took = asked.elapsed();
+        (best, worst) = (best.min(took), worst.max(took));
+    }
+    let empty = format!("{MEETINGS} meetings, nothing left to erase");
+    println!("{empty:<42} tidied after {:>7.2} ms at best, {:.2} ms at worst of 20", millis(best), millis(worst));
     Ok(())
 }

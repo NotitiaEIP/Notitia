@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use super::index::{Index, Stat};
 use super::sealed::{self, Kind};
+use super::settings::{self, Settings};
 use crate::format;
 use crate::meeting::{Meeting, MeetingId};
 use crate::secret::Key;
@@ -18,6 +19,7 @@ const DRAFT: &str = ".tmp";
 const AUDIO: &str = ".audio";
 const DEVICE: &str = "device";
 const INDEX: &str = "index";
+const SETTINGS: &str = "settings";
 
 // The one place that touches the disk, one file per meeting: a damaged file loses one meeting and not all of them.
 // A meeting and the index are sealed here (src/library/sealed.rs), its audio by src/audio, which is handed the file.
@@ -68,6 +70,17 @@ impl Store {
                 Ok(device)
             }
         }
+    }
+
+    // None when there is no file, or none this app can read: a newer app may have written it, so it stays as it is.
+    pub fn settings(&self) -> Option<Settings> {
+        settings::decode(&self.read_file(SETTINGS).ok()?)
+    }
+
+    // In clear, as the device is: a choice holds no word of a meeting, so it is kept without a key too.
+    pub fn keep_settings(&self, settings: &Settings) -> io::Result<()> {
+        let bytes = settings::encode(settings).ok_or(io::ErrorKind::InvalidData)?;
+        self.write_file(SETTINGS, &bytes)
     }
 
     // Every meeting without its lines, so the transcripts are never all in memory at once. A file this app cannot read
@@ -264,6 +277,7 @@ mod tests {
 
     use super::*;
     use crate::meeting::testing::{heard, id, meeting, written};
+    use crate::meeting::{Extra, KeepAudio};
     use crate::secret::testing::key;
 
     const V1_BY_KOTLIN: &str = include_str!("../../tests/fixtures/meeting-v1.notitia");
@@ -422,6 +436,41 @@ mod tests {
         assert_eq!(store.device().unwrap(), drawn_again);
     }
 
+    fn chosen(keep_audio: KeepAudio) -> Settings {
+        Settings { keep_audio, extra: Extra::new() }
+    }
+
+    #[test]
+    fn the_settings_are_kept_in_clear_without_a_key_and_read_back() {
+        let (_folder, store) = store();
+        assert_eq!(store.settings(), None);
+        let keyless = Store::open(store.directory.clone(), None).unwrap();
+        keyless.keep_settings(&chosen(KeepAudio::Week)).unwrap();
+        assert_eq!(fs::read(store.directory.join(SETTINGS)).unwrap(), br#"{"version":1,"keepAudio":"week"}"#);
+        assert_eq!(store.settings(), Some(chosen(KeepAudio::Week)));
+        assert!(!store.directory.join("settings.tmp").exists());
+    }
+
+    #[test]
+    fn settings_that_cannot_be_written_leave_the_previous_ones() {
+        let (_folder, store) = store();
+        store.keep_settings(&chosen(KeepAudio::Day)).unwrap();
+        fs::create_dir(store.directory.join("settings.tmp")).unwrap();
+        assert!(store.keep_settings(&chosen(KeepAudio::UntilHeard)).is_err());
+        assert_eq!(store.settings(), Some(chosen(KeepAudio::Day)));
+    }
+
+    #[test]
+    fn settings_damaged_or_of_a_newer_app_are_not_read_and_stay_as_they_are() {
+        let (_folder, store) = store();
+        for unread in [&b"{\"version\":2,\"keepAudio\":\"day\"}"[..], b"{\"version\":1,", b""] {
+            fs::write(store.directory.join(SETTINGS), unread).unwrap();
+            assert_eq!(store.settings(), None);
+            opened(&store, OPENED);
+            assert_eq!(fs::read(store.directory.join(SETTINGS)).unwrap(), unread);
+        }
+    }
+
     #[test]
     fn a_removed_meeting_is_not_read_back_and_its_draft_goes_with_it() {
         let (_folder, store) = store();
@@ -505,6 +554,8 @@ mod tests {
         // The index holds titles and minutes: it is written as a meeting is.
         assert_eq!(mode(store.directory.join(INDEX)), 0o600);
         assert!(!store.directory.join("index.tmp").exists());
+        store.keep_settings(&chosen(KeepAudio::Day)).unwrap();
+        assert_eq!(mode(store.directory.join(SETTINGS)), 0o600);
     }
 
     #[test]

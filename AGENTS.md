@@ -66,6 +66,7 @@ Le cœur se branche de la même façon : `NotitiaCore`, dans `commonMain` (`brid
 ## Conventions
 
 - Code, noms, commentaires et messages de commit en anglais. Textes de l'interface en français, toujours dans les ressources Compose (`composeResources`), jamais en dur : l'anglais viendra après le Greenlight.
+- Tu parles au développeur en français, tout le temps : tes réponses, les messages entre deux actions, tes questions et tes plans. Seuls le code et ce qui part dans Git restent en anglais.
 - L'interface de l'app Android et iPhone suit `DESIGN.md` : couleurs, police, tailles et espacements viennent du thème `NotitiaTheme`, jamais en dur. S'en écarter se dit en une phrase dans la description de la PR.
 - Un commentaire seulement pour dire pourquoi, quand le code ne peut pas le dire : une raison, une contrainte, un piège. Une ou deux lignes au-dessus du passage. Jamais ce que fait le code : si un commentaire le raconte, renomme plutôt. Pas de documentation paramètre par paramètre, pas de code mis en commentaire, pas d'historique des changements (Git le garde).
 

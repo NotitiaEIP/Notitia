@@ -28,8 +28,8 @@ pub enum Change {
     Lend {
         meetings: Vec<Meeting>,
     },
-    // The audio of the meetings past the days it is kept erased, their lines and minutes kept: sent by the app once it
-    // opens, then every day. The session's, which spares the meeting being recorded: it reaches the meetings as one
+    // The audio of the meetings past what the user keeps erased, their lines and minutes kept: sent by the app once it
+    // opens, then every hour. The session's, which spares the meeting being recorded: it reaches the meetings as one
     // Erased each.
     Tidy,
     // The recorder's own, at its first sound and then as the audio grows: never read from an app.

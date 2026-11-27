@@ -1,11 +1,14 @@
 package com.example.notitia
 
 import com.example.notitia.ai.Engine
+import com.example.notitia.bridge.CoreAudioKeeping
 import com.example.notitia.bridge.CoreMeetings
 import com.example.notitia.bridge.CoreRecording
 import com.example.notitia.bridge.CoreSession
 import com.example.notitia.bridge.NotitiaCore
+import com.example.notitia.meeting.AudioKeeping
 import com.example.notitia.meeting.Meetings
+import com.example.notitia.meeting.PreviewAudioKeeping
 import com.example.notitia.meeting.PreviewMeetings
 import com.example.notitia.meeting.PreviewRecording
 import com.example.notitia.meeting.Recording
@@ -60,6 +63,9 @@ class Notitia(
 
     val recording: Recording =
         session?.let { CoreRecording(it, microphone, clock) } ?: PreviewRecording
+
+    // How long the audio stays, chosen by the user and kept by the core for every app.
+    val audioKeeping: AudioKeeping = session?.let(::CoreAudioKeeping) ?: PreviewAudioKeeping()
 
     // The reminders follow the meetings: ticking, moving or removing an action moves its notification too. A new line
     // of a transcription changes no reminder, so it schedules nothing.

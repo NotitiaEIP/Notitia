@@ -381,9 +381,15 @@ impl Worker {
             }
             return;
         }
-        if let Some(edge) = until_ms {
-            held.edge = edge;
-            self.windows = Some(held);
+        match until_ms {
+            Some(edge) => {
+                held.edge = edge;
+                self.windows = Some(held);
+            }
+            // Heard whole, its reader closed above: an audio the user keeps until then goes now.
+            None => {
+                self.library.erase_heard(id);
+            }
         }
     }
 
