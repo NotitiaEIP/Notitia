@@ -28,6 +28,10 @@ pub enum Change {
     Lend {
         meetings: Vec<Meeting>,
     },
+    // The audio of the meetings past the days it is kept erased, their lines and minutes kept: sent by the app once it
+    // opens, then every day. The session's, which spares the meeting being recorded: it reaches the meetings as one
+    // Erased each.
+    Tidy,
     // The recorder's own, at its first sound and then as the audio grows: never read from an app.
     #[serde(skip)]
     Begin {
@@ -58,9 +62,16 @@ pub enum Change {
         minutes: MinutesDraft,
     },
     // Minutes owed of a meeting never heard, left so by an app before the core's or by one without an engine: heard
-    // from its start first, never written from no line at all. Made nothing of unless they are still owed.
+    // from its start first, never written from no line at all. Made nothing of unless they are still owed and its audio
+    // is still there.
     #[serde(skip)]
     Rehear {
+        meeting: MeetingId,
+    },
+    // Its audio erased, never read from an app: what was heard of it is all its transcript will hold, and its minutes
+    // are owed only if a line says something. Made nothing of for a meeting already erased, or a sample.
+    #[serde(skip)]
+    Erased {
         meeting: MeetingId,
     },
 }
@@ -224,6 +235,7 @@ impl Meeting {
             offset_minutes,
             duration_ms: 0,
             transcribed_ms: Some(0),
+            audio_erased_at: None,
             modified_at: stamp.at,
             device: String::new(),
             title: None,
@@ -418,6 +430,7 @@ mod tests {
             Change::Delete { meetings: vec![id("recorded-1"), id("recorded-3")] },
             Change::Rewrite { meeting: id("recorded-1") },
             Change::Lend { meetings: vec![heard("sample-1")] },
+            Change::Tidy,
         ];
         assert_eq!(serde_json::from_str::<Vec<Change>>(BY_THE_APPS).unwrap(), expected);
     }
@@ -446,6 +459,7 @@ mod tests {
             "{\"type\":\"heard\",\"meeting\":\"recorded-1\",\"lines\":[],\"fromMs\":0,\"untilMs\":null}".into(),
             "{\"type\":\"drafted\",\"meeting\":\"recorded-1\",\"minutes\":{\"type\":\"failed\"}}".into(),
             "{\"type\":\"rewrite\"}".into(),
+            "{\"type\":\"erased\",\"meeting\":\"recorded-1\"}".into(),
             // An identifier names a file: one that would leave the folder never reaches the meetings.
             "{\"type\":\"delete\",\"meetings\":[\"../recorded-1\"]}".into(),
             edit("{\"type\":\"rename\"}"),

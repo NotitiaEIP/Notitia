@@ -1,6 +1,7 @@
 // How long the meetings of a folder take to open, without and with their index (T-75), sealed (T-96), then with their
-// audio and their minutes owed, as on a phone with no model yet (T-95), and how long the files written in clear before
-// the seal take to be sealed at the first launch. Through the same calls as an app, and optimised as an app is:
+// audio and their minutes owed, as on a phone with no model yet (T-95), how long the files written in clear before the
+// seal take to be sealed at the first launch, and how long their audio takes to be erased once kept 30 days (T-97).
+// Through the same calls as an app, and optimised as an app is:
 // cargo run --release --example opening
 // A folder given after `--` keeps the meetings, to push them to a phone and time its launch there.
 #![expect(clippy::print_stdout, clippy::disallowed_methods, reason = "a measure reads the clock and prints")]
@@ -18,6 +19,7 @@ use notitia::meeting::{
     ActionDraft, ActionSource, Change, Edit, Extra, InvalidId, MeetingId, MinutesDraft, TranscriptLine,
 };
 use notitia::secret::Key;
+use notitia::{Request, Session};
 use time::macros::utc_datetime;
 
 const MEETINGS: u32 = 300;
@@ -49,6 +51,13 @@ impl Listener for Screen {
             let _ = self.listed.set(Instant::now());
         }
     }
+}
+
+// The app of a tidy-up, which is told nothing it waits for.
+struct Away;
+
+impl notitia::Listener for Away {
+    fn on_event(&self, _: &notitia::Event) {}
 }
 
 fn id(meeting: u32) -> Result<MeetingId, InvalidId> {
@@ -173,5 +182,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         best = best.min(asked.elapsed());
     }
     println!("{:<42} opened after {:>7.1} ms", "with their audio, the best of five", millis(best));
+    // Begun in January: past their 30 days, as the first tidy-up of a phone of the team finds them. Each audio goes, and
+    // each meeting, its transcript closed, is written again.
+    let session = Session::open(owed.path(), Some(key()?), Arc::new(Away))?;
+    let asked = Instant::now();
+    session.apply(Request::read("{\"type\":\"tidy\"}").ok_or("not a request")?);
+    let tidied = asked.elapsed();
+    let mut left = 0;
+    for file in fs::read_dir(owed.path())? {
+        left += usize::from(file?.file_name().to_string_lossy().ends_with(".audio"));
+    }
+    println!("{:<42} erased after {:>7.1} ms, {left} left", format!("{MEETINGS} audios kept 30 days"), millis(tidied));
     Ok(())
 }

@@ -17,7 +17,8 @@ impl Worker {
         }
         // Never heard: an app before the core's, or one without an engine, left it so. Heard from its start first:
         // minutes of no line at all would say nothing of the audio. A meeting heard whole has a line, or no minutes owed.
-        if meeting.transcript.is_empty() && meeting.duration_ms > 0 {
+        // Its audio erased, nothing is left to hear: its minutes are written from no line, and so say nothing.
+        if meeting.transcript.is_empty() && meeting.duration_ms > 0 && meeting.audio_erased_at.is_none() {
             if !self.library.change(Change::Rehear { meeting: id.clone() }) {
                 self.set_aside(id);
             }
@@ -59,7 +60,7 @@ mod tests {
     use std::fs;
     use std::sync::{Arc, Mutex, mpsc};
 
-    use super::super::tests::{Ear, NOW, begin, open, recorded, recording, sentences, settles, transcript};
+    use super::super::tests::{Answer, Ear, NOW, begin, open, recorded, recording, sentences, settles, transcript};
     use super::super::{Able, Job, Pipeline, next};
     use crate::engine::{About, Catalogue, Engine, EngineError, Engines, Stop, TextEngine, Window};
     use crate::format;
@@ -480,6 +481,49 @@ mod tests {
         assert!(summary(&library, &meeting).is_some());
         let written = library.meeting(&meeting).unwrap();
         assert_eq!(written.modified_at, NOW);
+    }
+
+    #[test]
+    fn a_window_heard_while_its_audio_is_erased_leaves_its_minutes_to_be_written() {
+        let folder = tempfile::tempdir().unwrap();
+        let (_, library) = open(&folder);
+        // Begun 31 days before: its audio is past the days it is kept, and it was never heard.
+        let meeting = recorded(&library, "recorded-1", -31 * 24 * 60, &sentences(&[3_000, 3_000]));
+        let log = Log::default();
+        let ((called, calling), (go, going)) = (mpsc::channel(), mpsc::channel());
+        let ear = Ear::new(5_000, vec![Answer::Heard, Answer::Hold { called, go: going }]);
+        let scribe = Scribe::new(vec![], &log);
+        let pipeline = Arc::new(Pipeline::spawn(library.clone(), engines(&ear, &scribe, &log)).unwrap());
+        calling.recv_timeout(std::time::Duration::from_secs(10)).expect("a second window is heard");
+        // As the session tidies up.
+        assert!(library.erase_audio(None, || pipeline.let_go()));
+        pipeline.changed();
+        go.send(()).unwrap();
+        settles(&pipeline);
+        let erased = library.meeting(&meeting).unwrap();
+        assert_eq!((erased.transcribed_ms, erased.transcript.len()), (None, 1), "what was heard before it");
+        assert_eq!(summary(&library, &meeting).as_deref(), Some("Point de 00:00."));
+        assert_eq!(*log.lock().unwrap(), ["hear", "hear", "write"]);
+    }
+
+    #[test]
+    fn minutes_asked_again_of_a_meeting_whose_audio_is_erased_are_written_from_no_line_without_a_call() {
+        let folder = tempfile::tempdir().unwrap();
+        // Left with no line by an app before the core's, its audio erased since.
+        let meeting = unheard(&folder, "recorded-1", MinutesState::Failed);
+        let path = folder.path().join("recorded-1.notitia");
+        let kept = format::decode(&fs::read(&path).unwrap()).unwrap();
+        fs::write(&path, format::encode(&Meeting { audio_erased_at: Some(NOW), ..kept }).unwrap()).unwrap();
+        fs::remove_file(folder.path().join("recorded-1.audio")).unwrap();
+        let (_, library) = open(&folder);
+        let log = Log::default();
+        let (ear, scribe) = (Ear::new(30_000, vec![]), Scribe::new(vec![], &log));
+        let pipeline = Arc::new(Pipeline::spawn(library.clone(), engines(&ear, &scribe, &log)).unwrap());
+        assert!(library.change(Change::Rewrite { meeting: meeting.clone() }));
+        pipeline.changed();
+        settles(&pipeline);
+        assert_eq!(summary(&library, &meeting).as_deref(), Some(""));
+        assert!(log.lock().unwrap().is_empty(), "nothing left to hear, and nothing said to write");
     }
 
     #[test]

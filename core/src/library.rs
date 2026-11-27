@@ -12,7 +12,7 @@ use serde::Serialize;
 use time::UtcDateTime;
 
 use crate::audio::{self, AudioError};
-use crate::meeting::{Change, Meeting, MeetingId, MinutesDraft, MinutesState, Stamp, TranscriptLine};
+use crate::meeting::{self, Change, Meeting, MeetingId, MinutesDraft, MinutesState, Stamp, TranscriptLine};
 use crate::secret::Key;
 use store::{Loaded, Store};
 
@@ -81,7 +81,7 @@ struct Meetings {
     deleted: HashSet<MeetingId>,
 }
 
-type Clock = Box<dyn Fn() -> UtcDateTime + Send + Sync>;
+pub(crate) type Clock = Box<dyn Fn() -> UtcDateTime + Send + Sync>;
 
 // The meetings of a folder: the one place that holds them, changes them and writes them.
 pub struct Library {
@@ -127,7 +127,7 @@ impl Library {
         };
         let lasted: Vec<Change> = stored
             .iter()
-            .filter(|meeting| meeting.minutes == MinutesState::Writing)
+            .filter(|meeting| meeting.minutes == MinutesState::Writing && meeting.audio_erased_at.is_none())
             .filter(cut)
             .filter_map(|meeting| {
                 let duration_ms = open_audio(&store, &meeting.id).ok()?.duration_ms();
@@ -175,8 +175,9 @@ impl Library {
     pub(crate) fn change(&self, change: Change) -> bool {
         let mut behind = lock(&self.behind);
         let were_behind = behind.clone();
-        if let Change::Heard { meeting, from_ms, .. } = &change {
-            self.hold_lines(meeting, *from_ms);
+        let reads = lock(&self.meetings).reads_lines(&change).cloned();
+        if let Some(meeting) = reads {
+            self.hold_lines(&meeting);
         }
         let stamp = Stamp { at: (self.clock)(), device: &self.device };
         let changed = lock(&self.meetings).apply(change, stamp);
@@ -193,10 +194,7 @@ impl Library {
     // Heard lines are added to those of the file, never to a copy the pipeline read before: a line corrected meanwhile
     // stays corrected. They are brought into memory under `behind`, so no change comes between the read and the
     // adding, and only for a change that will take them. A file that cannot be read keeps them: nothing is added.
-    fn hold_lines(&self, id: &MeetingId, from_ms: u64) {
-        if !lock(&self.meetings).hears_from_file(id, from_ms) {
-            return;
-        }
+    fn hold_lines(&self, id: &MeetingId) {
         if let Ok(file) = self.store.read(id) {
             lock(&self.meetings).hold(id, file.transcript);
         }
@@ -215,9 +213,9 @@ impl Library {
     // has none, nor a meeting the library does not keep.
     pub fn record(&self, id: &MeetingId, tracks: usize) -> Result<audio::Writer, AudioError> {
         let key = self.store.key().ok_or(AudioError::Locked)?;
-        // Held as a change holds it: a meeting deleted meanwhile does not get an audio back.
+        // Held as a change holds it: a meeting deleted or erased meanwhile does not get an audio back.
         let _changes = lock(&self.behind);
-        if !lock(&self.meetings).has_file(id) {
+        if !lock(&self.meetings).records(id) {
             return Err(AudioError::Absent);
         }
         audio::Writer::open(self.store.audio(id, true)?, key, tracks)
@@ -230,8 +228,43 @@ impl Library {
         kept.filter_map(|entry| which(&entry.meeting)).collect()
     }
 
+    // Gone once marked erased, though its file may wait to be deleted: nothing reads it again.
     pub fn audio(&self, id: &MeetingId) -> Result<audio::Reader, AudioError> {
+        if lock(&self.meetings).erased(id) {
+            return Err(AudioError::Absent);
+        }
         open_audio(&self.store, id)
+    }
+
+    // The audio of the meetings kept as long as the rule says but that of `spared`, the one being recorded: each meeting
+    // is marked first, then its file deleted once `let_go` returns, when nothing reads it any more. Killed in between,
+    // the next call finds it marked, its audio still there, and deletes it. A file that cannot be deleted stays marked,
+    // and the next call tries again. Without the key, nothing: the mark could not be written, and the next launch would
+    // find a meeting without its audio nor the day it went. Whether a meeting changed.
+    pub(crate) fn erase_audio(&self, spared: Option<&MeetingId>, let_go: impl FnOnce()) -> bool {
+        if !self.has_key() {
+            return false;
+        }
+        let now = self.now();
+        let expired = self.kept(|kept| {
+            let due = Some(&kept.id) != spared && meeting::expired(kept.started_at, now);
+            due.then(|| kept.id.clone())
+        });
+        // Never marked without an audio to erase: the meetings of the Kotlin app never had one.
+        let erasing: Vec<MeetingId> = expired.into_iter().filter(|id| self.store.has_audio(id)).collect();
+        if erasing.is_empty() {
+            return false;
+        }
+        // Each one marked, none skipped once one has changed.
+        let mut changed = false;
+        for id in &erasing {
+            changed |= self.change(Change::Erased { meeting: id.clone() });
+        }
+        let_go();
+        // Held as a change holds it: no audio is made again in between.
+        let _changes = lock(&self.behind);
+        self.store.erase_audio(&erasing);
+        changed
     }
 
     // Without it nothing is recorded: no audio reaches the disk in clear.
@@ -351,7 +384,7 @@ impl Meetings {
             }
             Change::Rehear { meeting } => {
                 let (at, entry) = self.find(&meeting)?;
-                if !entry.owes_minutes() {
+                if !entry.owes_minutes() || entry.meeting.audio_erased_at.is_some() {
                     return None;
                 }
                 entry.meeting.transcribed_ms = Some(0);
@@ -370,6 +403,26 @@ impl Meetings {
                 stamp.mark(&mut entry.meeting);
                 Some(entry.told(at))
             }
+            Change::Erased { meeting } => {
+                let (at, entry) = self.find(&meeting)?;
+                if entry.meeting.audio_erased_at.is_some() || entry.file().is_none() {
+                    return None;
+                }
+                entry.meeting.audio_erased_at = Some(stamp.at);
+                if entry.meeting.transcribed_ms.take().is_some() {
+                    // Closed on what was heard, as the end of its audio would close it. Lines that could not be read
+                    // leave its minutes owed, settled by the writer once they can.
+                    let owed = match &entry.transcript {
+                        Transcript::Unwritten(lines) => MinutesDraft::owed(lines),
+                        Transcript::Written | Transcript::Lent(_) => MinutesDraft::Writing,
+                    };
+                    owed.settle(&mut entry.meeting);
+                }
+                stamp.mark(&mut entry.meeting);
+                Some(entry.told(at))
+            }
+            // The session's: it reaches the meetings as one Erased each, the meeting being recorded spared.
+            Change::Tidy => None,
             Change::Lend { meetings } => {
                 let known = self.entries.len();
                 for mut meeting in meetings {
@@ -417,13 +470,18 @@ impl Meetings {
         Some((entry.meeting.clone(), lines))
     }
 
-    // Heard lines from `from_ms` would be added to lines that are only in the file.
-    fn hears_from_file(&self, id: &MeetingId, from_ms: u64) -> bool {
-        self.entries.iter().any(|entry| {
-            &entry.meeting.id == id
-                && entry.meeting.transcribed_ms == Some(from_ms)
-                && matches!(entry.transcript, Transcript::Written)
-        })
+    // The meeting whose lines, only in its file, the change would add to or settle its minutes from: heard lines
+    // at the edge it reached, or an erased audio that closes a transcript still heard.
+    fn reads_lines<'a>(&self, change: &'a Change) -> Option<&'a MeetingId> {
+        let (id, edge) = match change {
+            Change::Heard { meeting, from_ms, .. } => (meeting, Some(*from_ms)),
+            Change::Erased { meeting } => (meeting, None),
+            _ => return None,
+        };
+        let entry = self.entries.iter().find(|entry| &entry.meeting.id == id)?;
+        let heard = entry.meeting.transcribed_ms?;
+        let takes = edge.is_none_or(|edge| edge == heard) && entry.meeting.audio_erased_at.is_none();
+        (takes && matches!(entry.transcript, Transcript::Written)).then_some(id)
     }
 
     // The lines of its file, held until they are written again with those added.
@@ -434,8 +492,14 @@ impl Meetings {
         }
     }
 
-    fn has_file(&self, id: &MeetingId) -> bool {
-        self.entries.iter().any(|entry| &entry.meeting.id == id && entry.file().is_some())
+    // Kept in a file, its audio not erased.
+    fn records(&self, id: &MeetingId) -> bool {
+        let entry = self.entries.iter().find(|entry| &entry.meeting.id == id);
+        entry.is_some_and(|entry| entry.file().is_some() && entry.meeting.audio_erased_at.is_none())
+    }
+
+    fn erased(&self, id: &MeetingId) -> bool {
+        self.entries.iter().any(|entry| &entry.meeting.id == id && entry.meeting.audio_erased_at.is_some())
     }
 
     // Its lines are in the file now: they leave the memory.
@@ -1133,6 +1197,163 @@ mod tests {
         assert_eq!(phone.file("recorded-9").unwrap().transcript.len(), 1);
     }
 
+    // Begun 30 days before the launch to the minute: the audio of `aged` has been kept as long as the rule says.
+    const AGED: UtcDateTime = utc_datetime!(2026-10-12 8:00);
+
+    fn aged(name: &str) -> Meeting {
+        Meeting { started_at: AGED, ..heard(name) }
+    }
+
+    fn with_audio(phone: &Phone, meeting: &str) {
+        let mut writer = phone.library.record(&id(meeting), 1).unwrap();
+        chord(70).iter().for_each(|frame| writer.write(&[*frame]).unwrap());
+        writer.finish().unwrap();
+    }
+
+    fn has_audio(phone: &Phone, meeting: &str) -> bool {
+        phone.path(&format!("{meeting}.audio")).exists()
+    }
+
+    fn tidy(phone: &Phone, spared: Option<&str>) -> bool {
+        phone.library.erase_audio(spared.map(id).as_ref(), || {})
+    }
+
+    #[test]
+    fn the_audio_kept_30_days_is_erased_and_the_rest_of_the_meeting_stays() {
+        let titled = Meeting { title: Some("Point produit".into()), ..aged("recorded-1") };
+        let younger = Meeting { started_at: AGED + time::Duration::minutes(1), ..heard("recorded-2") };
+        let phone = phone(&[titled.clone(), younger, aged("recorded-3")]);
+        ["recorded-1", "recorded-2"].iter().for_each(|meeting| with_audio(&phone, meeting));
+        let told = phone.told();
+        assert!(tidy(&phone, None));
+        assert!(!has_audio(&phone, "recorded-1") && has_audio(&phone, "recorded-2"));
+        let erased = Meeting { audio_erased_at: Some(NOW), modified_at: NOW, device: phone.device(), ..titled };
+        assert_eq!(phone.file("recorded-1"), Some(erased.clone()));
+        let shown = phone.list().into_iter().find(|meeting| meeting.id == erased.id);
+        assert_eq!(shown, Some(Meeting { transcript: Vec::new(), ..erased }));
+        // The meeting begun a minute later keeps its audio; one that never had any is not said to have lost it.
+        assert_eq!(phone.file("recorded-2").unwrap().audio_erased_at, None);
+        assert_eq!(phone.file("recorded-3"), Some(aged("recorded-3")));
+        assert_eq!(phone.told(), told + 1);
+        // Done once: the next tidy-up has nothing left to erase.
+        assert!(!tidy(&phone, None));
+        assert_eq!(phone.told(), told + 1);
+        assert_eq!(phone.relaunched().file("recorded-1").unwrap().audio_erased_at, Some(NOW));
+    }
+
+    #[test]
+    fn neither_the_meeting_being_recorded_nor_a_sample_loses_its_audio() {
+        let phone = phone(&[aged("recorded-1")]);
+        with_audio(&phone, "recorded-1");
+        phone.library.apply(Change::Lend { meetings: vec![aged("sample-1")] });
+        assert!(!tidy(&phone, Some("recorded-1")));
+        assert!(has_audio(&phone, "recorded-1"));
+        assert_eq!(phone.library.meeting(&id("sample-1")).unwrap().audio_erased_at, None);
+    }
+
+    #[test]
+    fn a_meeting_still_heard_closes_its_transcript_on_what_was_heard() {
+        let heard_on = |name: &str, lines: Vec<TranscriptLine>| Meeting {
+            transcribed_ms: Some(30_000),
+            minutes: MinutesState::Writing,
+            transcript: lines,
+            ..aged(name)
+        };
+        let silent = TranscriptLine { at_ms: 0, text: None, speaker: None, extra: Extra::new() };
+        // Its lines only in its file, as a launch finds them.
+        let phone = phone(&[
+            heard_on("recorded-1", vec![line(0, "Bonjour à tous.")]),
+            heard_on("recorded-2", vec![silent]),
+            Meeting { minutes: aged("recorded-3").minutes, ..heard_on("recorded-3", vec![]) },
+        ]);
+        ["recorded-1", "recorded-2", "recorded-3"].iter().for_each(|meeting| with_audio(&phone, meeting));
+        assert!(tidy(&phone, None));
+        let closed = |meeting: &str| {
+            let file = phone.file(meeting).unwrap();
+            (file.transcribed_ms, file.minutes, file.transcript.len())
+        };
+        assert_eq!(closed("recorded-1"), (None, MinutesState::Writing, 1));
+        let nothing_said = Minutes { summary: String::new(), decisions: vec![], actions: vec![], extra: Extra::new() };
+        assert_eq!(closed("recorded-2"), (None, MinutesState::Written { minutes: nothing_said }, 1));
+        // Minutes already written stay as they were.
+        assert_eq!(closed("recorded-3"), (None, aged("recorded-3").minutes, 0));
+        // Nothing is left to hear, so nothing to hear again either.
+        assert!(!phone.library.change(Change::Rehear { meeting: id("recorded-1") }));
+        assert!(!phone.heard("recorded-1", &["Plus tard."], 30_000, None));
+    }
+
+    #[test]
+    fn an_audio_marked_erased_is_neither_read_nor_made_again() {
+        let phone = phone(&[Meeting { minutes: MinutesState::Writing, ..aged("recorded-1") }]);
+        with_audio(&phone, "recorded-1");
+        let sealed = fs::read(phone.path("recorded-1.audio")).unwrap();
+        // Killed between the mark and the deletion.
+        assert!(phone.library.change(Change::Erased { meeting: id("recorded-1") }));
+        assert_eq!(phone.library.audio(&id("recorded-1")).err(), Some(AudioError::Absent));
+        assert_eq!(phone.library.record(&id("recorded-1"), 1).err(), Some(AudioError::Absent));
+        assert_eq!(fs::read(phone.path("recorded-1.audio")).unwrap(), sealed);
+        // The launch does not open it to tell its length.
+        phone.lasted("recorded-1", 9_000);
+        let phone = phone.relaunched();
+        assert_eq!(phone.file("recorded-1").unwrap().duration_ms, 9_000);
+        let told = phone.told();
+        assert!(!tidy(&phone, None), "marked already");
+        assert!(!has_audio(&phone, "recorded-1"));
+        assert_eq!(phone.told(), told);
+    }
+
+    #[test]
+    fn an_audio_is_let_go_after_its_meeting_is_marked_and_before_it_is_deleted() {
+        let phone = phone(&[aged("recorded-1")]);
+        with_audio(&phone, "recorded-1");
+        let mut let_go = Vec::new();
+        phone.library.erase_audio(None, || {
+            let marked = phone.library.audio(&id("recorded-1")).err() == Some(AudioError::Absent);
+            let_go.push((marked, has_audio(&phone, "recorded-1")));
+        });
+        assert_eq!(let_go, [(true, true)]);
+        assert!(!has_audio(&phone, "recorded-1"));
+    }
+
+    #[test]
+    fn an_audio_that_cannot_be_deleted_is_tried_again_at_the_next_tidy_up() {
+        let phone = phone(&[aged("recorded-1")]);
+        // In its place, what no system deletes as a file, whoever runs the tests.
+        fs::create_dir(phone.path("recorded-1.audio")).unwrap();
+        assert!(tidy(&phone, None));
+        assert!(phone.path("recorded-1.audio").is_dir());
+        fs::remove_dir(phone.path("recorded-1.audio")).unwrap();
+        fs::write(phone.path("recorded-1.audio"), b"sealed").unwrap();
+        assert!(!tidy(&phone, None));
+        assert!(!has_audio(&phone, "recorded-1"));
+    }
+
+    // The mark could not be written: the next launch would find a meeting without its audio nor the day it went.
+    #[test]
+    fn without_the_key_no_audio_is_erased() {
+        // Written in clear before the seal, so listed without the key, its audio beside it.
+        let folder = tempfile::tempdir().unwrap();
+        fs::write(folder.path().join("recorded-1.notitia"), crate::format::encode(&aged("recorded-1")).unwrap())
+            .unwrap();
+        fs::write(folder.path().join("recorded-1.audio"), b"sealed").unwrap();
+        let app = Arc::new(App::default());
+        let keyless = Library::open_at(folder.path().into(), None, app.clone(), Box::new(|| NOW)).unwrap();
+        assert_eq!(app.list.lock().unwrap().len(), 1);
+        assert!(!keyless.erase_audio(None, || {}));
+        assert!(folder.path().join("recorded-1.audio").exists());
+        assert!(app.unsaved.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn the_first_and_the_last_years_are_tidied_up_without_a_panic() {
+        let first = Meeting { started_at: utc_datetime!(0000-01-01 0:00), ..heard("recorded-1") };
+        let last = Meeting { started_at: utc_datetime!(9999-12-31 23:59), ..heard("recorded-2") };
+        let phone = phone(&[first, last]);
+        ["recorded-1", "recorded-2"].iter().for_each(|meeting| with_audio(&phone, meeting));
+        assert!(tidy(&phone, None));
+        assert!(!has_audio(&phone, "recorded-1") && has_audio(&phone, "recorded-2"));
+    }
+
     #[test]
     fn a_delete_that_fails_is_done_again_with_the_next_change() {
         let phone = phone(&[meeting("recorded-1"), meeting("recorded-2")]);
@@ -1300,7 +1521,11 @@ mod tests {
                 meetings: vec![
                     // Heard ten minutes in.
                     Meeting { transcribed_ms: Some(600_000), ..with("recorded-2", MinutesState::Writing) },
-                    with("recorded-3", MinutesState::Failed),
+                    // Its audio erased past the days it was kept.
+                    Meeting {
+                        audio_erased_at: Some(utc_datetime!(2026-12-10 8:00)),
+                        ..with("recorded-3", MinutesState::Failed)
+                    },
                     with("recorded-4", MinutesState::Unavailable),
                 ],
             },

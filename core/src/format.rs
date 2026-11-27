@@ -103,6 +103,7 @@ mod tests {
             offset_minutes: None,
             duration_ms: 42 * 60_000,
             transcribed_ms: None,
+            audio_erased_at: None,
             modified_at: utc_datetime!(2026-11-10 10:15),
             device: "phone-1".into(),
             title: Some("Revue de sprint".into()),
@@ -245,6 +246,28 @@ mod tests {
         assert_eq!(read(&text), meeting);
         assert!(!VERSION_2.contains("transcribedMs"));
         assert_eq!(read(VERSION_2).transcribed_ms, None);
+    }
+
+    // Added to version 2 as well: an older app keeps it among the fields it does not know.
+    #[test]
+    fn when_the_audio_was_erased_is_written_after_how_far_it_was_heard() {
+        let meeting = Meeting {
+            transcribed_ms: Some(61_040),
+            audio_erased_at: Some(utc_datetime!(2026-12-10 8:00)),
+            ..sprint_review()
+        };
+        let text = written(&meeting);
+        assert!(text.contains("\"transcribedMs\":61040,\"audioErasedAt\":\"2026-12-10T08:00:00Z\","));
+        assert_eq!(read(&text), meeting);
+        let elsewhere = text.replace("2026-12-10T08:00:00Z", "2026-12-10T09:00:00+01:00");
+        assert_eq!(read(&elsewhere), meeting);
+        assert_eq!(read(VERSION_2).audio_erased_at, None);
+        for unwritable in ["\"2026-12-10\"", "\"9999-12-31T23:59:59-01:00\"", "42"] {
+            let damaged = text.replace("\"2026-12-10T08:00:00Z\"", unwritable);
+            assert_eq!(decode(damaged.as_bytes()).err(), Some(DecodeError::NotAMeeting), "{unwritable}");
+        }
+        let null = text.replace("\"2026-12-10T08:00:00Z\"", "null");
+        assert_eq!(read(&null), Meeting { audio_erased_at: None, ..meeting });
     }
 
     #[test]

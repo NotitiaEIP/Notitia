@@ -21,7 +21,9 @@ private val active = setOf(Phase.Recording, Phase.Paused, Phase.Interrupted)
 // in Rust, where they live. Like the core, it must never be called by its own listener, where the real one would
 // wait for itself: here the test fails.
 internal open class FakeCore(vararg stored: Meeting, private val opens: Boolean = true) : NotitiaCore {
+    // What the screens asked. The session's own tidy-ups are counted apart.
     val applied = mutableListOf<CoreRequest>()
+    val tidyUps = mutableListOf<Change.Tidy>()
 
     // Each offer as it crossed, the callback through which this core would run the engines.
     val offers = mutableListOf<Pair<List<OfferedEngine>, CoreEngines>>()
@@ -56,7 +58,7 @@ internal open class FakeCore(vararg stored: Meeting, private val opens: Boolean 
         } catch (_: IllegalArgumentException) {
             return CoreFailure.Invalid
         }
-        applied += asked
+        if (asked is Change.Tidy) tidyUps += asked else applied += asked
         when (asked) {
             is Change.Edit -> kept[asked.meeting]?.let { keep(it.edited(asked.edit)) }
             is Change.Delete -> {
@@ -73,6 +75,8 @@ internal open class FakeCore(vararg stored: Meeting, private val opens: Boolean 
                 asked.meetings.forEach { kept.getOrPut(it.id) { it } }
                 tell(CoreEvent.Listed(listed()))
             }
+            // Erasing audio is the core's rule, tested in Rust.
+            is Change.Tidy -> Unit
             is Command -> command(asked)
         }
         return null

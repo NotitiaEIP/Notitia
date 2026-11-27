@@ -21,6 +21,8 @@ data class Meeting(
     @SerialName("durationMs") @Serializable(Milliseconds::class) val duration: Duration,
     // How far the core has heard it, while it does: null once the transcript is whole.
     @SerialName("transcribedMs") @Serializable(Milliseconds::class) val transcribed: Duration? = null,
+    // When its audio was erased, past the days it is kept: its lines and minutes stay. null while it is kept.
+    val audioErasedAt: Instant? = null,
     // When and where it last changed, so two devices can be reconciled later (E10).
     val modifiedAt: Instant,
     val device: String,

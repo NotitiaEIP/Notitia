@@ -7,6 +7,7 @@ import com.example.notitia.meeting.MinutesState
 import com.example.notitia.ui.meetings.MeetingListItem
 import com.example.notitia.ui.theme.NotitiaTheme
 import com.example.notitia.ui.theme.PersonColors
+import kotlin.time.Instant
 
 // What the minutes screen shows, not the stored minutes: those live in Meeting.
 data class Minutes(
@@ -16,6 +17,8 @@ data class Minutes(
     val decisions: List<String>,
     val actions: List<MinutesAction>,
     val summary: String,
+    // Past the days the audio is kept: the screen says when it went.
+    val audioErasedAt: Instant? = null,
 )
 
 // The colours of this meeting: an owner who did not speak keeps their own.
@@ -31,5 +34,6 @@ fun Meeting.toMinutes(item: MeetingListItem): Minutes {
         decisions = written?.decisions.orEmpty(),
         actions = written?.actions.orEmpty(),
         summary = written?.summary.orEmpty(),
+        audioErasedAt = audioErasedAt,
     )
 }

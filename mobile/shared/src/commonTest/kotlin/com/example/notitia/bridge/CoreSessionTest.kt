@@ -142,6 +142,32 @@ class CoreSessionTest {
     }
 
     @Test
+    fun theAudioIsTidiedUpOnceTheCoreIsOpenThenEachDayWithTheDaysOfTheCore() {
+        val dispatcher = ManualDispatcher()
+        val core = FakeCore()
+        val day = Channel<Unit>()
+        CoreSession(core, "meetings", calls = dispatcher, beforeTidy = { day.receive() })
+        dispatcher.runAll()
+        assertEquals(listOf(Change.Tidy), core.tidyUps)
+        assertEquals("""{"type":"tidy"}""", CoreJson.encodeToString(CoreRequest.serializer(), core.tidyUps[0]))
+        repeat(2) {
+            assertTrue(day.trySend(Unit).isSuccess)
+            dispatcher.runAll()
+        }
+        assertEquals(3, core.tidyUps.size)
+        assertTrue(core.applied.isEmpty(), "nothing the screens did not ask")
+    }
+
+    @Test
+    fun aCoreThatCouldNotOpenIsNotTidiedUp() {
+        val dispatcher = ManualDispatcher()
+        val core = FakeCore(opens = false)
+        CoreSession(core, "meetings", calls = dispatcher)
+        dispatcher.runAll()
+        assertTrue(core.tidyUps.isEmpty())
+    }
+
+    @Test
     fun theEnginesAreOfferedOnceTheCoreIsOpenThenAtEachEmissionAndWhatTheyCanDoIsTold() {
         val offering = Offering()
         assertEquals(emptyList(), offering.offered())

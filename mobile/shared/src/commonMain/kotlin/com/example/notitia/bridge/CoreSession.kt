@@ -6,6 +6,7 @@ import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.RecorderState
 import com.example.notitia.meeting.RecordingProblem
 import kotlin.concurrent.Volatile
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -21,12 +22,17 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 // An engine that said it was not available is offered again after this: the core waits for the next offer, and has
 // no clock (ADR 0009). Out of reach, a gateway fails at once, so this costs two calls a minute.
 private val RETRY_AFTER = 30.seconds
+
+// The core erases an audio past its days only when asked, never on its own (ADR 0015): asked once it is open, then each
+// day the app lives.
+private val TIDY_EVERY = 24.hours
 
 // The core as this app holds it: opened once, its calls made one at a time and in order, its events read once into
 // the state they tell, and the engines of this app lent to it. The screens reach it through facades that keep no state
@@ -48,6 +54,8 @@ internal class CoreSession(
     private val calls: CoroutineDispatcher = Dispatchers.IO.limitedParallelism(1),
     // Before engines that said they were not available are offered again.
     private val beforeRetry: suspend () -> Unit = { delay(RETRY_AFTER) },
+    // Between two tidy-ups of the audio.
+    private val beforeTidy: suspend () -> Unit = { delay(TIDY_EVERY) },
 ) {
     private val scope = CoroutineScope(SupervisorJob() + calls)
     private val shown = MutableStateFlow<List<Meeting>?>(null)
@@ -103,7 +111,10 @@ internal class CoreSession(
             // read must not hold the app on its splash screen: it then starts with no meeting.
             listed = true
             shown.update { told.value }
-            if (opened) engines.collect(::lend)
+            if (opened) {
+                scope.launch { tidyEveryDay() }
+                engines.collect(::lend)
+            }
         }
     }
 
@@ -135,6 +146,14 @@ internal class CoreSession(
 
     private fun apply(request: CoreRequest) {
         core.apply(CoreJson.encodeToString(CoreRequest.serializer(), request))
+    }
+
+    // After the list is shown, the first tidy-up of a phone may take seconds.
+    private suspend fun tidyEveryDay() {
+        while (scope.isActive) {
+            apply(Change.Tidy)
+            beforeTidy()
+        }
     }
 
     // In place of those offered before.
