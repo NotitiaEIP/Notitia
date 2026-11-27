@@ -5,6 +5,7 @@
 | Statut | Proposée le 24 novembre 2026, acceptée à la fusion de sa PR |
 | Modifiée | Le 25 novembre 2026 par T-95 (#262) : le compte rendu s'écrit sur le fil, `unavailable` et `interrupted` partent |
 | Modifiée | Le 25 novembre 2026 par T-59 (#190) : les apps offrent leurs moteurs et lisent `transcribedMs`, `transcribed` part |
+| Modifiée | Le 27 novembre 2026 par T-97 (#266) : l'audio effacé ferme la transcription, et un `heard` refusé d'une réunion passée à autre chose n'est pas mis de côté ([ADR 0015](0015-audio-30-jours.md)) |
 | Proposée par | Clément |
 | Relue par | Alexandre pour le cœur |
 | Tâche d'origine | T-94 (#260), moitié cœur de T-38 (#141) |
@@ -48,8 +49,9 @@ Le traitement vit dans le cœur (`core/src/pipeline.rs`), sur un fil à lui, `no
    | Le moteur dit `stopped` sans qu'on l'ait arrêté | Comme `failed` : redemander demanderait sans fin |
    | Le moteur n'est pas disponible (`unavailable`) | Rien n'est marqué. Il attend la prochaine offre de l'app, pas chaque seconde enregistrée : ce serait un appel par seconde à une gateway hors d'atteinte |
    | La réunion est enregistrée, mais son audio n'existe pas encore ou ne se lit pas | Au repos, relu à la seconde suivante |
-   | L'enregistrement est fini, et l'audio n'existe pas (premier son jamais écrit, audio effacé par D) | La transcription est entière, sans ligne |
-   | Un autre défaut de lecture, une panique, ou un `heard` refusé | La réunion attend le prochain lancement. Rien n'est marqué, car le défaut peut passer, et le moteur n'est jamais rappelé en boucle sur la même fenêtre |
+   | L'enregistrement est fini, et l'audio n'existe pas (premier son jamais écrit) | La transcription est entière, sans ligne |
+   | L'audio est effacé après ses jours gardés (ADR 0015) | La transcription est fermée par l'effacement lui-même, sans attendre le fil. Une fenêtre entendue entre-temps est refusée sans mettre la réunion de côté, et son compte rendu s'écrit |
+   | Un autre défaut de lecture, une panique, ou un `heard` refusé alors que la réunion attend encore à ce bord | La réunion attend le prochain lancement. Rien n'est marqué, car le défaut peut passer, et le moteur n'est jamais rappelé en boucle sur la même fenêtre |
 
 7. **Une transcription finie passe le compte rendu de `writing` à `unavailable`**, l'état qui dit « pas de rédacteur dans ce build ». C'est vrai tant que G n'existe pas, et l'écran sait déjà l'afficher. G remplacera ce pas par la rédaction.
 8. **`interrupted` ne touche plus que les réunions que le cœur n'entend pas.** Au lancement, un compte rendu `writing` passait en `failed`. C'est maintenant le cas seulement si la réunion n'a pas `transcribedMs` : une réunion de Kotlin tuée en cours, que rien ne reprendra. Une réunion que le cœur entend reprend.

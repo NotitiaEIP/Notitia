@@ -54,6 +54,12 @@ internal sealed interface Change : CoreRequest {
     @Serializable
     @SerialName("lend")
     data class Lend(val meetings: List<Meeting>) : Change
+
+    // The audio of the meetings past the days it is kept erased, their text kept (product rule 5): the core alone knows
+    // how many.
+    @Serializable
+    @SerialName("tidy")
+    data object Tidy : Change
 }
 
 @Serializable

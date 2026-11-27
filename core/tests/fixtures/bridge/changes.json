@@ -8,5 +8,6 @@
   {"type":"edit","meeting":"recorded-1","edit":{"type":"setReminder","action":"0","on":true}},
   {"type":"delete","meetings":["recorded-1","recorded-3"]},
   {"type":"rewrite","meeting":"recorded-1"},
-  {"type":"lend","meetings":[{"id":"sample-1","startedAt":"2026-11-10T09:30:00Z","durationMs":1800000,"modifiedAt":"2026-11-10T10:00:00Z","device":"phone-1","minutes":{"type":"written","minutes":{"summary":"","decisions":[],"actions":[{"id":"0","text":"Préparer la démo","done":false}]}},"transcript":[{"atMs":0,"text":"Bonjour à tous."}]}]}
+  {"type":"lend","meetings":[{"id":"sample-1","startedAt":"2026-11-10T09:30:00Z","durationMs":1800000,"modifiedAt":"2026-11-10T10:00:00Z","device":"phone-1","minutes":{"type":"written","minutes":{"summary":"","decisions":[],"actions":[{"id":"0","text":"Préparer la démo","done":false}]}},"transcript":[{"atMs":0,"text":"Bonjour à tous."}]}]},
+  {"type":"tidy"}
 ]

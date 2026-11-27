@@ -75,6 +75,7 @@ import com.example.notitia.ui.meetings.sampleMinutes
 import com.example.notitia.ui.meetings.lengthLabel
 import com.example.notitia.ui.meetings.meetingDeletion
 import com.example.notitia.ui.meetings.meetingWhenLabel
+import com.example.notitia.ui.meetings.shortDateLabel
 import com.example.notitia.ui.recording.timerText
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
@@ -83,6 +84,7 @@ import com.example.notitia.ui.theme.shareIcon
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import notitia.shared.generated.resources.Res
 import notitia.shared.generated.resources.delete
 import notitia.shared.generated.resources.edit
@@ -90,6 +92,7 @@ import notitia.shared.generated.resources.meeting_delete
 import notitia.shared.generated.resources.meeting_rename
 import notitia.shared.generated.resources.meetings_title
 import notitia.shared.generated.resources.minutes_actions
+import notitia.shared.generated.resources.minutes_audio_erased
 import notitia.shared.generated.resources.minutes_back_description
 import notitia.shared.generated.resources.minutes_decisions
 import notitia.shared.generated.resources.minutes_more
@@ -235,6 +238,13 @@ fun MinutesScreen(
                         ),
                         modifier = Modifier.padding(top = spacing.xs),
                     )
+                    minutes.audioErasedAt?.let { erased ->
+                        val day = erased.toLocalDateTime(TimeZone.currentSystemDefault()).date
+                        DetailsLine(
+                            parts = listOf(stringResource(Res.string.minutes_audio_erased, shortDateLabel(day))),
+                            modifier = Modifier.padding(top = spacing.xs),
+                        )
+                    }
                     if (minutes.speakers.isNotEmpty()) {
                         FlowRow(
                             modifier = Modifier.padding(top = spacing.l),

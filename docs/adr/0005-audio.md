@@ -4,6 +4,7 @@
 | --- | --- |
 | Statut | Proposée le 17 novembre 2026, acceptée à la fusion de sa PR |
 | Modifiée | Le 26 novembre 2026 par T-96 (#265) : la durée d'une réunion est scellée dans son `.notitia` |
+| Modifiée | Le 27 novembre 2026 par T-97 (#266) : l'audio est effacé après les jours gardés ([ADR 0015](0015-audio-30-jours.md)) |
 | Proposée par | Clément |
 | Relue par | Alexandre pour le cœur, Amine pour l'ordinateur |
 | Tâche d'origine | T-79 (#239), première étape de T-58 (#189) |
@@ -92,6 +93,8 @@ Le fichier scellé, mesuré le 17 novembre 2026 avec T-80 (#240), sur le même p
 **Ce qu'on paie.** Un silence pèse autant qu'une phrase. La bibliothèque n'a pas un an et n'est pas en version 1.0 : sa version est fixée, et la monter demande de refaire ces mesures.
 
 **Ce qui nous protège.** L'Opus gardé est standard : libopus le relira toujours, et prendre sa place tient dans un fichier.
+
+**Combien de temps il vit.** 30 jours par défaut, puis il est effacé, et la réunion garde sa transcription, son compte rendu et la date de l'effacement : [ADR 0015](0015-audio-30-jours.md).
 
 **Ce qu'on ne voit pas.** Un fichier raccourci juste entre deux secondes ressemble à un enregistrement arrêté là. Le distinguer demande de sceller la durée ailleurs : US-81 (#37) le pourra en scellant le fichier `.notitia`. Depuis T-96 (#265, [ADR 0014](0014-reunions-scellees.md)), la durée y est scellée : reste à la comparer à celle de l'audio.
 

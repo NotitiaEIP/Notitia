@@ -104,6 +104,8 @@ enum Message {
     Lost,
     // Answered once the recorder holds none of these meetings.
     Forget { meetings: Vec<MeetingId>, done: Sender<()> },
+    // Answered with the meeting it holds, once every command before is done.
+    Holding { done: Sender<Option<MeetingId>> },
 }
 
 // The sound waiting for the recorder, counted by the microphone's thread without a lock.
@@ -184,6 +186,15 @@ impl Recorder {
         let _ = answered.recv();
     }
 
+    // The meeting being recorded, paused or interrupted: its audio is never erased. A meeting it does not hold now it
+    // never holds again, since each recording draws a new one.
+    pub fn holding(&self) -> Option<MeetingId> {
+        let (done, answered) = mpsc::channel();
+        self.send(Message::Holding { done });
+        // An error: the thread is gone, and holds nothing.
+        answered.recv().ok().flatten()
+    }
+
     fn send(&self, message: Message) {
         if let Some(sender) = &self.sender {
             let _ = sender.send(message);
@@ -252,14 +263,20 @@ impl Actor {
                 self.interrupt();
             }
             Message::Forget { meetings, done } => {
-                let held = self.state.progress().and_then(|progress| progress.meeting.as_ref());
-                if held.is_some_and(|meeting| meetings.contains(meeting)) {
+                if self.held().is_some_and(|meeting| meetings.contains(meeting)) {
                     self.take = None;
                     self.set(State::Idle);
                 }
                 let _ = done.send(());
             }
+            Message::Holding { done } => {
+                let _ = done.send(self.held().cloned());
+            }
         }
+    }
+
+    fn held(&self) -> Option<&MeetingId> {
+        self.state.progress().and_then(|progress| progress.meeting.as_ref())
     }
 
     fn command(&mut self, command: Command) {
@@ -667,6 +684,22 @@ mod tests {
         assert!(desk.files().is_empty());
         desk.order(Command::Dismiss);
         assert_eq!(desk.settled(), State::Idle);
+    }
+
+    #[test]
+    fn the_meeting_held_is_the_one_recorded_paused_or_interrupted_until_it_stops() {
+        let desk = desk();
+        assert_eq!(desk.recorder.holding(), None);
+        desk.order(start());
+        assert_eq!(desk.recorder.holding(), None, "no meeting before the first sound");
+        desk.hear(1_000);
+        let meeting = desk.meeting();
+        for command in [Command::Pause, Command::Cut { problem: Problem::Busy }, Command::Resume] {
+            desk.order(command);
+            assert_eq!(desk.recorder.holding().as_ref(), Some(&meeting));
+        }
+        desk.order(Command::Stop);
+        assert_eq!(desk.recorder.holding(), None, "answered after the stop sent before");
     }
 
     #[test]

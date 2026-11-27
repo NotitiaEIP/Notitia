@@ -1,5 +1,6 @@
 mod change;
 mod id;
+mod retention;
 
 use serde::{Deserialize, Serialize};
 use time::{Date, UtcDateTime};
@@ -7,6 +8,7 @@ use time::{Date, UtcDateTime};
 pub(crate) use change::Stamp;
 pub use change::{ActionDraft, Change, Edit, MinutesDraft};
 pub use id::{ActionId, InvalidId, MeetingId};
+pub(crate) use retention::expired;
 
 // What a newer app wrote and this one does not know: kept, so rewriting a file loses nothing of it.
 pub type Extra = serde_json::Map<String, serde_json::Value>;
@@ -38,7 +40,6 @@ pub(crate) mod civil_date {
 
 // Always written in UTC, whatever offset it was read with: every app then writes the same text for an instant.
 pub(crate) mod instant {
-    use serde::de::Error as _;
     use serde::ser::Error as _;
     use serde::{Deserialize, Deserializer, Serializer};
     use time::format_description::well_known::Rfc3339;
@@ -51,9 +52,30 @@ pub(crate) mod instant {
     // Brought to UTC here: UtcDateTime::parse panics on an instant that leaves the years of time once in UTC. Only
     // the years RFC 3339 writes, 0 to 9999, are kept, so what is read can always be written back.
     pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<UtcDateTime, D::Error> {
-        let read = OffsetDateTime::parse(&String::deserialize(deserializer)?, &Rfc3339).map_err(D::Error::custom)?;
+        parse(&String::deserialize(deserializer)?)
+    }
+
+    fn parse<E: serde::de::Error>(text: &str) -> Result<UtcDateTime, E> {
+        let read = OffsetDateTime::parse(text, &Rfc3339).map_err(E::custom)?;
         let utc = read.checked_to_utc().filter(|utc| (0..=9999).contains(&utc.year()));
-        utc.ok_or_else(|| D::Error::custom("the instant cannot be written in RFC 3339"))
+        utc.ok_or_else(|| E::custom("the instant cannot be written in RFC 3339"))
+    }
+
+    // An instant that may not have come yet, read and written as the others.
+    pub(crate) mod option {
+        use serde::{Deserialize, Deserializer, Serializer};
+        use time::UtcDateTime;
+
+        pub fn serialize<S: Serializer>(instant: &Option<UtcDateTime>, serializer: S) -> Result<S::Ok, S::Error> {
+            match instant {
+                Some(instant) => super::serialize(instant, serializer),
+                None => serializer.serialize_none(),
+            }
+        }
+
+        pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<UtcDateTime>, D::Error> {
+            Option::<String>::deserialize(deserializer)?.map(|text| super::parse(&text)).transpose()
+        }
     }
 }
 
@@ -88,6 +110,10 @@ pub struct Meeting {
     // once the transcript is whole, as for every meeting from before the core heard them.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transcribed_ms: Option<u64>,
+    // When its audio was erased, past the days the user keeps it (product rule 5): its lines and minutes stay. None
+    // while the audio is kept, and for a meeting that never had one.
+    #[serde(default, with = "instant::option", skip_serializing_if = "Option::is_none")]
+    pub audio_erased_at: Option<UtcDateTime>,
     // When and where it last changed, so two devices can be reconciled later (E10).
     #[serde(with = "instant")]
     pub modified_at: UtcDateTime,
@@ -210,6 +236,7 @@ pub(crate) mod testing {
             offset_minutes: None,
             duration_ms: 30 * 60_000,
             transcribed_ms: None,
+            audio_erased_at: None,
             modified_at: utc_datetime!(2026-11-10 10:00),
             device: "phone-1".into(),
             title: None,

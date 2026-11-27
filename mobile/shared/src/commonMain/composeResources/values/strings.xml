@@ -97,6 +97,7 @@
     <string name="meeting_delete_message">Sa transcription, son compte rendu et ses actions seront effacés de ce téléphone.</string>
     <string name="meeting_delete_confirm">Supprimer la réunion</string>
     <string name="minutes_when">%1$s, %2$s</string>
+    <string name="minutes_audio_erased">Audio effacé le %1$s</string>
     <string name="minutes_tab_minutes">Compte rendu</string>
     <string name="minutes_tab_transcript">Transcription</string>
     <string name="transcript_empty">Aucune parole transcrite pour l’instant.</string>

@@ -108,6 +108,7 @@ impl From<Meeting> for meeting::Meeting {
             offset_minutes: None,
             duration_ms: file.duration.0,
             transcribed_ms: None,
+            audio_erased_at: None,
             modified_at: file.modified_at,
             device: file.device,
             title: file.title,

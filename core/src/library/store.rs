@@ -160,6 +160,20 @@ impl Store {
         Ok(file)
     }
 
+    // Whether an audio is there, of any kind: what cannot be told is taken as none.
+    pub fn has_audio(&self, id: &MeetingId) -> bool {
+        self.directory.join(audio_of(id)).try_exists().unwrap_or(false)
+    }
+
+    // An audio already gone is no failure. One that cannot be deleted stays: its meeting is marked erased, and the
+    // next tidy-up tries again.
+    pub fn erase_audio(&self, ids: &[MeetingId]) {
+        let erased = ids.iter().filter(|id| fs::remove_file(self.directory.join(audio_of(id))).is_ok()).count();
+        if erased > 0 {
+            self.flush_folder();
+        }
+    }
+
     // The draft too: an app killed mid-write leaves one, and it holds the meeting as well. The audio last: killed
     // before it, the app finds an audio without a meeting at its next launch, never a deleted meeting back.
     pub fn remove(&self, id: &MeetingId) -> io::Result<()> {

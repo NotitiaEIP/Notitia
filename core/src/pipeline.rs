@@ -183,6 +183,12 @@ impl Pipeline {
         }
     }
 
+    // Returns once the thread holds no audio open: it opens one only under this lock, and none whose meeting is marked
+    // erased, so whoever erases one after marking it deletes a file nobody reads.
+    pub fn let_go(&self) {
+        drop(lock(&self.shared.forgotten));
+    }
+
     // Once the thread has done all it can for now.
     #[cfg(any(test, feature = "testing"))]
     pub fn settled(&self) {
@@ -366,10 +372,14 @@ impl Worker {
             }
         };
         let heard = Change::Heard { meeting: id.clone(), lines, from_ms, until_ms };
-        // Refused only if the meeting changed under the step: deleted, or its file unreadable.
-        // Trying again could call the engine on the same window for ever.
         if !self.library.change(heard) {
-            return self.set_aside(id);
+            // Its audio erased meanwhile, its transcript closed: what it owes now is found at the next turn. Still at
+            // this edge, deleted, or its file unreadable, trying again could call the engine on the same window for ever.
+            let edge = self.library.kept(|kept| (kept.id == *id).then_some(kept.transcribed_ms));
+            if edge.first().is_none_or(|edge| *edge == Some(from_ms)) {
+                self.set_aside(id);
+            }
+            return;
         }
         if let Some(edge) = until_ms {
             held.edge = edge;
@@ -833,10 +843,13 @@ mod tests {
         let folder = tempfile::tempdir().unwrap();
         let (_, library) = open(&folder);
         let failed = begin(&library, "recorded-1", 0);
-        let starting = begin(&library, "recorded-2", 30);
         let ear = Ear::new(30_000, vec![]);
         let pipeline = Pipeline::spawn(library.clone(), engines(&ear)).unwrap();
-        pipeline.waker().recorded(&recording(&starting, 0));
+        // As the recorder does: the meeting it holds is told before it is begun, so the thread never takes it for one
+        // that ended, whenever its first turn comes.
+        pipeline.waker().recorded(&recording(&id("recorded-2"), 0));
+        let starting = begin(&library, "recorded-2", 30);
+        pipeline.changed();
         pipeline.settled();
         let whole = library.meeting(&failed).unwrap();
         assert_eq!(

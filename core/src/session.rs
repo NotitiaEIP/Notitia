@@ -88,7 +88,24 @@ impl Session {
         key: Option<Key>,
         listener: Arc<dyn Listener>,
     ) -> Result<Self, LibraryError> {
-        let library = Arc::new(Library::open(directory, key, Arc::new(Relay(listener.clone())))?);
+        let library = Library::open(directory, key, Arc::new(Relay(listener.clone())))?;
+        Self::around(library, listener)
+    }
+
+    // The days a test lives through, in a few lines.
+    #[cfg(test)]
+    fn open_at(
+        directory: &std::path::Path,
+        key: Key,
+        listener: Arc<dyn Listener>,
+        clock: library::Clock,
+    ) -> Result<Self, LibraryError> {
+        let library = Library::open_at(directory.into(), Some(key), Arc::new(Relay(listener.clone())), clock)?;
+        Self::around(library, listener)
+    }
+
+    fn around(library: Library, listener: Arc<dyn Listener>) -> Result<Self, LibraryError> {
+        let library = Arc::new(library);
         let engines = Engines::default();
         // A system that cannot give a thread cannot keep a meeting either.
         let pipeline = Pipeline::spawn(library.clone(), engines.clone()).map_err(|_| LibraryError::Unreadable)?;
@@ -128,6 +145,14 @@ impl Session {
                 self.recorder.forget(&meetings);
                 self.pipeline.forget(&meetings);
                 self.library.apply(Change::Delete { meetings });
+            }
+            Request::Meetings(Change::Tidy) => {
+                // Never the meeting being recorded. An audio the pipeline reads is closed before its file goes.
+                let spared = self.recorder.holding();
+                if self.library.erase_audio(spared.as_ref(), || self.pipeline.let_go()) {
+                    // A transcript closed short may owe its minutes now.
+                    self.pipeline.changed();
+                }
             }
             Request::Meetings(change) => {
                 // Minutes asked again, say: the pipeline looks at once, not at the next offer.
@@ -514,6 +539,64 @@ mod tests {
         assert_eq!(played.len(), 16_000);
         assert_eq!(played.iter().max(), Some(&i16::MAX));
         assert_eq!(session.sound(&id("recorded-1"), 0, 1_000), Err(AudioError::Absent));
+    }
+
+    // A session whose days the test turns.
+    fn dated(folder: &TempDir) -> (Arc<App>, Session, Arc<Mutex<time::UtcDateTime>>) {
+        let today = Arc::new(Mutex::new(utc_datetime!(2026-11-27 8:00)));
+        let clock = today.clone();
+        let app = Arc::new(App::default());
+        let session = Session::open_at(folder.path(), key(1), app.clone(), Box::new(move || *clock.lock().unwrap()));
+        (app, session.unwrap(), today)
+    }
+
+    fn days_later(today: &Mutex<time::UtcDateTime>, days: i64) {
+        *today.lock().unwrap() += time::Duration::days(days);
+    }
+
+    #[test]
+    fn the_audio_is_erased_once_kept_30_days_and_the_text_stays() {
+        let folder = tempfile::tempdir().unwrap();
+        let (app, session, today) = dated(&folder);
+        ask(&session, "{\"type\":\"start\",\"tracks\":1,\"offsetMinutes\":60}");
+        session.hear(0, sound(1_200, 5_000.0, 440.0));
+        ask(&session, "{\"type\":\"stop\"}");
+        session.settled();
+        let meeting = app.recorded();
+        days_later(&today, 29);
+        ask(&session, "{\"type\":\"tidy\"}");
+        assert_eq!(files(&folder).len(), 2);
+        days_later(&today, 2);
+        ask(&session, "{\"type\":\"tidy\"}");
+        session.settled();
+        assert_eq!(files(&folder), [format!("{}.notitia", meeting.as_str())]);
+        assert_eq!(session.sound(&meeting, 0, 1_000), Err(AudioError::Absent));
+        let kept = session.meeting(&meeting).unwrap();
+        assert_eq!((kept.duration_ms, kept.transcribed_ms), (1_200, None));
+        let erased = app.told().into_iter().rev().find(|event| event["type"] == "changed").unwrap();
+        assert_eq!(erased["meeting"]["audioErasedAt"], "2026-12-28T08:00:00Z");
+    }
+
+    #[test]
+    fn the_meeting_being_recorded_keeps_its_audio_whatever_the_days() {
+        let folder = tempfile::tempdir().unwrap();
+        let (app, session, today) = dated(&folder);
+        ask(&session, "{\"type\":\"start\",\"tracks\":1,\"offsetMinutes\":60}");
+        session.hear(0, sound(1_000, 5_000.0, 440.0));
+        session.settled();
+        let meeting = app.recorded();
+        days_later(&today, 40);
+        ask(&session, "{\"type\":\"pause\"}");
+        ask(&session, "{\"type\":\"tidy\"}");
+        ask(&session, "{\"type\":\"resume\"}");
+        session.hear(0, sound(1_000, 5_000.0, 440.0));
+        ask(&session, "{\"type\":\"stop\"}");
+        session.settled();
+        assert_eq!(files(&folder).len(), 2);
+        assert_eq!(session.meeting(&meeting).unwrap().audio_erased_at, None);
+        assert_eq!(session.sound(&meeting, 0, 2_000).unwrap().len(), 32_000, "recorded on after the tidy-up");
+        ask(&session, "{\"type\":\"tidy\"}");
+        assert_eq!(files(&folder).len(), 1);
     }
 
     #[test]

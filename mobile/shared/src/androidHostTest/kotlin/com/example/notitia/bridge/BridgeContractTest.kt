@@ -47,6 +47,7 @@ class BridgeContractTest {
             Change.Delete(setOf("recorded-1", "recorded-3")),
             Change.Rewrite("recorded-1"),
             Change.Lend(listOf(meeting("sample-1").copy(transcript = listOf(hello)))),
+            Change.Tidy,
         )
         assertEquals(
             CoreJson.parseToJsonElement(examples.resolve("changes.json").readText()),
@@ -82,7 +83,7 @@ class BridgeContractTest {
             CoreEvent.Listed(
                 listOf(
                     meeting("recorded-2", MinutesState.Writing).copy(transcribed = 10.minutes),
-                    meeting("recorded-3", MinutesState.Failed),
+                    meeting("recorded-3", MinutesState.Failed).copy(audioErasedAt = Instant.parse("2026-12-10T08:00:00Z")),
                     meeting("recorded-4", MinutesState.Unavailable),
                 ),
             ),
