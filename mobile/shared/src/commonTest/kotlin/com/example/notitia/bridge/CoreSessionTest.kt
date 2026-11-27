@@ -142,16 +142,16 @@ class CoreSessionTest {
     }
 
     @Test
-    fun theAudioIsTidiedUpOnceTheCoreIsOpenThenEachDayWithTheDaysOfTheCore() {
+    fun theAudioIsTidiedUpOnceTheCoreIsOpenThenAfterEachWaitByTheRuleOfTheCore() {
         val dispatcher = ManualDispatcher()
         val core = FakeCore()
-        val day = Channel<Unit>()
-        CoreSession(core, "meetings", calls = dispatcher, beforeTidy = { day.receive() })
+        val hour = Channel<Unit>()
+        CoreSession(core, "meetings", calls = dispatcher, beforeTidy = { hour.receive() })
         dispatcher.runAll()
         assertEquals(listOf(Change.Tidy), core.tidyUps)
         assertEquals("""{"type":"tidy"}""", CoreJson.encodeToString(CoreRequest.serializer(), core.tidyUps[0]))
         repeat(2) {
-            assertTrue(day.trySend(Unit).isSuccess)
+            assertTrue(hour.trySend(Unit).isSuccess)
             dispatcher.runAll()
         }
         assertEquals(3, core.tidyUps.size)

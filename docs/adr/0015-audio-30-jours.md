@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Statut | Proposée le 27 novembre 2026, acceptée à la fusion de sa PR |
+| Statut | Proposée le 27 novembre 2026, acceptée à la fusion de sa PR. Points 1 à 3 remplacés en partie par l'[ADR 0016](0016-reglages-du-coeur.md) le 27 novembre 2026 : l'utilisateur choisit combien de temps l'audio reste, 30 jours au plus, et le `tidy` passe toutes les heures |
 | Proposée par | Clément |
 | Relue par | Alexandre pour le cœur |
 | Tâche d'origine | T-97 (#266), la partie cœur de US-82 (#38) |

@@ -1,5 +1,6 @@
 package com.example.notitia.bridge
 
+import com.example.notitia.meeting.KeepAudio
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.Milliseconds
 import com.example.notitia.meeting.RecorderState
@@ -31,9 +32,14 @@ internal fun readEvent(event: String): CoreEvent? = try {
 @Serializable
 internal data class EngineAbout(val name: String, val remote: Boolean)
 
-// What the app asks of the core: a change of the meetings, or a command of the recorder.
+// What the app asks of the core: a change of the meetings, a command of the recorder, or a choice of the user.
 @Serializable
 internal sealed interface CoreRequest
+
+// A choice left out stays as it is.
+@Serializable
+@SerialName("settings")
+internal data class Choice(val keepAudio: KeepAudio? = null) : CoreRequest
 
 @Serializable
 internal sealed interface Change : CoreRequest {
@@ -55,8 +61,8 @@ internal sealed interface Change : CoreRequest {
     @SerialName("lend")
     data class Lend(val meetings: List<Meeting>) : Change
 
-    // The audio of the meetings past the days it is kept erased, their text kept (product rule 5): the core alone knows
-    // how many.
+    // The audio of the meetings past what the user keeps erased, their text kept (product rule 5): the core alone
+    // applies the choice.
     @Serializable
     @SerialName("tidy")
     data object Tidy : Change
@@ -137,6 +143,12 @@ internal sealed interface CoreEvent {
     @Serializable
     @SerialName("unsaved")
     data class Unsaved(val meetings: Set<String>) : CoreEvent
+
+    // Every choice of the user, as the core applies it: once the meetings are listed, then at each change. A choice
+    // this app does not know makes the event unreadable, so it is skipped.
+    @Serializable
+    @SerialName("settings")
+    data class Settings(val keepAudio: KeepAudio) : CoreEvent
 
     // The engines the core knows, by kind, the one it chose first: once the meetings are listed, then at each offer.
     @Serializable

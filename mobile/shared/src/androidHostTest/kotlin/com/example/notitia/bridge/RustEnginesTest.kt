@@ -6,6 +6,8 @@ import com.example.notitia.ai.EngineRequest
 import com.example.notitia.ai.OfferedEngine
 import com.example.notitia.ai.Said
 import com.example.notitia.meeting.Abilities
+import com.example.notitia.meeting.KeepAudio
+import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MinutesState
 import com.example.notitia.meeting.RecorderState
 import com.example.notitia.recording.audio
@@ -15,6 +17,7 @@ import kotlin.io.path.createTempDirectory
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
@@ -31,6 +34,24 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+
+// Engines of this app in its own types: an ear that hears the same sentence in every window, and a pen that writes it
+// up as a model does, the time copied from the line it read.
+private val ear = object : Engine {
+    override val offered = OfferedEngine.Speech("ear", remote = false, longest = 30.seconds)
+
+    override fun run(request: EngineRequest, sound: ByteArray) =
+        EngineReply.Heard(listOf(Said(Duration.ZERO, 900.milliseconds, "Lucas prépare la démo.")))
+}
+
+private val pen = object : Engine {
+    override val offered = OfferedEngine.Text("pen", remote = false, contextTokens = 4_096, replyTokens = 1_024)
+
+    override fun run(request: EngineRequest, sound: ByteArray): EngineReply {
+        val time = (request as EngineRequest.Complete).prompt.substringAfter("[").substringBefore("]")
+        return EngineReply.Written("SUMMARY: Point sur la démo.\nACTION: Préparer la démo | Lucas | - | $time")
+    }
+}
 
 // The engines of this app, offered to the real core through the bridge of the phone: what the fake core cannot prove,
 // that the core reads the offer this app writes and tells the engines it chose. Which one it chooses is tested in
@@ -147,33 +168,42 @@ class RustEnginesTest {
     // recorded that comes back heard and written up, its action pointing to the sentence heard.
     @Test
     fun aMeetingRecordedThroughTheSessionIsHeardAndWrittenUpByTheEnginesOfThisApp() = runBlocking {
-        val ear = object : Engine {
-            override val offered = OfferedEngine.Speech("ear", remote = false, longest = 30.seconds)
-
-            override fun run(request: EngineRequest, sound: ByteArray) =
-                EngineReply.Heard(listOf(Said(Duration.ZERO, 900.milliseconds, "Lucas prépare la démo.")))
-        }
-        val pen = object : Engine {
-            override val offered = OfferedEngine.Text("pen", remote = false, contextTokens = 4_096, replyTokens = 1_024)
-
-            // As a model does: the time copied from the line it read.
-            override fun run(request: EngineRequest, sound: ByteArray): EngineReply {
-                val time = (request as EngineRequest.Complete).prompt.substringAfter("[").substringBefore("]")
-                return EngineReply.Written("SUMMARY: Point sur la démo.\nACTION: Préparer la démo | Lucas | - | $time")
-            }
-        }
         val session = CoreSession(RustCore(), folder.path, key = { ByteArray(KEY_BYTES) { 7 } }, engines = flowOf(listOf(ear, pen)))
         withTimeout(20.seconds) {
-            session.abilities.first { it == Abilities(hear = true, write = true) }
-            session.send(Command.Start(tracks = 1, offsetMinutes = 60))
-            session.recorder.first { it is RecorderState.Recording }
-            session.hear(audio(1_000, level = 0) + audio(2_000) + audio(2_500, level = 0))
-            session.send(Command.Stop)
-            val meeting = session.meetings.map { it?.singleOrNull() }.first { it?.minutes is MinutesState.Written }
-            assertNull(checkNotNull(meeting).transcribed)
+            val meeting = recordedAndWrittenUp(session)
+            assertNull(meeting.transcribed)
             val action = (meeting.minutes as MinutesState.Written).minutes.actions.single()
             assertEquals(Triple("Préparer la démo", "Lucas", "Lucas prépare la démo."), Triple(action.text, action.owner, action.source?.quote))
+            assertNull(meeting.audioErasedAt, "kept a month by default")
         }
+    }
+
+    // The choice of the user crosses to the real core, which keeps it and erases the audio once the meeting is heard
+    // whole: its minutes are written all the same, from its lines.
+    @Test
+    fun untilTranscribedTheAudioGoesOnceTheMeetingIsHeardAndItsMinutesAreStillWritten() = runBlocking {
+        val session = CoreSession(RustCore(), folder.path, key = { ByteArray(KEY_BYTES) { 7 } }, engines = flowOf(listOf(ear, pen)))
+        val keeping = CoreAudioKeeping(session)
+        withTimeout(20.seconds) {
+            keeping.keepAudio.first { it == KeepAudio.Month }
+            keeping.keep(KeepAudio.UntilHeard)
+            keeping.keepAudio.first { it == KeepAudio.UntilHeard }
+            val meeting = recordedAndWrittenUp(session)
+            assertNotNull(meeting.audioErasedAt)
+            assertEquals("Point sur la démo.", (meeting.minutes as MinutesState.Written).minutes.summary)
+            val kept = folder.list().orEmpty().filter { it.endsWith(".notitia") || it.endsWith(".audio") }
+            assertEquals(listOf("${meeting.id}.notitia"), kept)
+        }
+    }
+
+    // Two seconds said between two silences, then stopped: the meeting once its minutes are written.
+    private suspend fun recordedAndWrittenUp(session: CoreSession): Meeting {
+        session.abilities.first { it == Abilities(hear = true, write = true) }
+        session.send(Command.Start(tracks = 1, offsetMinutes = 60))
+        session.recorder.first { it is RecorderState.Recording }
+        session.hear(audio(1_000, level = 0) + audio(2_000) + audio(2_500, level = 0))
+        session.send(Command.Stop)
+        return checkNotNull(session.meetings.map { it?.singleOrNull() }.first { it?.minutes is MinutesState.Written })
     }
 
     @Test

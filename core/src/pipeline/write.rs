@@ -15,10 +15,10 @@ impl Worker {
         if lock(&self.shared.forgotten).contains(id) {
             return self.set_aside(id);
         }
-        // Never heard: an app before the core's, or one without an engine, left it so. Heard from its start first:
-        // minutes of no line at all would say nothing of the audio. A meeting heard whole has a line, or no minutes owed.
-        // Its audio erased, nothing is left to hear: its minutes are written from no line, and so say nothing.
-        if meeting.transcript.is_empty() && meeting.duration_ms > 0 && meeting.audio_erased_at.is_none() {
+        // Heard from its start first: minutes of no line at all would say nothing of the audio. A meeting heard whole has
+        // a line, or no minutes owed. Its audio erased, nothing is left to hear: its minutes are written from no line,
+        // and so say nothing.
+        if meeting.never_heard() {
             if !self.library.change(Change::Rehear { meeting: id.clone() }) {
                 self.set_aside(id);
             }

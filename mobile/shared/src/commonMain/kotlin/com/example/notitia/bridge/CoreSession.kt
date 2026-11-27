@@ -2,6 +2,7 @@ package com.example.notitia.bridge
 
 import com.example.notitia.ai.Engine
 import com.example.notitia.meeting.Abilities
+import com.example.notitia.meeting.KeepAudio
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.RecorderState
 import com.example.notitia.meeting.RecordingProblem
@@ -30,9 +31,9 @@ import kotlinx.coroutines.withContext
 // no clock (ADR 0009). Out of reach, a gateway fails at once, so this costs two calls a minute.
 private val RETRY_AFTER = 30.seconds
 
-// The core erases an audio past its days only when asked, never on its own (ADR 0015): asked once it is open, then each
-// day the app lives.
-private val TIDY_EVERY = 24.hours
+// The core erases an audio past what the user keeps only when asked, never on its own (ADR 0015): asked once it is open,
+// then each hour the app lives, so a day kept is never two. With nothing to erase, a few milliseconds (ADR 0016).
+private val TIDY_EVERY = 1.hours
 
 // The core as this app holds it: opened once, its calls made one at a time and in order, its events read once into
 // the state they tell, and the engines of this app lent to it. The screens reach it through facades that keep no state
@@ -66,6 +67,7 @@ internal class CoreSession(
     private val told = MutableStateFlow(emptyList<Meeting>())
     private val recording = MutableStateFlow<RecorderState>(RecorderState.Idle)
     private val able = MutableStateFlow(Abilities.None)
+    private val keeping = MutableStateFlow<KeepAudio?>(null)
 
     // The engines offered last, touched by the calls alone, one at a time.
     private var lent: List<Engine> = emptyList()
@@ -94,6 +96,9 @@ internal class CoreSession(
     val recorderChanges: Flow<RecorderState> = recorderSteps.asSharedFlow()
 
     val abilities: StateFlow<Abilities> = able.asStateFlow()
+
+    // null until the core has said, and for good when it could not open.
+    val keepAudio: StateFlow<KeepAudio?> = keeping.asStateFlow()
 
     init {
         scope.launch {
@@ -190,6 +195,7 @@ internal class CoreSession(
             is CoreEvent.Unsaved -> behind.value = read.meetings
             is CoreEvent.Recorder -> read.toState()?.let(::tellRecorder)
             is CoreEvent.Engines -> able.value = Abilities(hear = read.speech.isNotEmpty(), write = read.text.isNotEmpty())
+            is CoreEvent.Settings -> keeping.value = read.keepAudio
         }
     }
 

@@ -252,10 +252,15 @@ mod tests {
             assert_eq!(bridge.meeting(nobody.into()), Err(BridgeError::NotFound));
             assert_eq!(bridge.sound(nobody.into(), 0, 1_000), Err(BridgeError::NotFound));
         }
-        for text in ["", "{\"type\":\"forget\"}", "{\"type\":\"delete\",\"meetings\":[\"../recorded-9\"]}"] {
+        for text in [
+            "",
+            "{\"type\":\"forget\"}",
+            "{\"type\":\"delete\",\"meetings\":[\"../recorded-9\"]}",
+            "{\"type\":\"settings\",\"keepAudio\":\"fortnight\"}",
+        ] {
             assert_eq!(bridge.apply(text.into()), Err(BridgeError::Invalid));
         }
-        assert_eq!(app.told(), ["listed", "engines"]);
+        assert_eq!(app.told(), ["listed", "settings", "engines"]);
         let meeting = recorded(&bridge, &app, sound(1_000, 5_000.0, 440.0));
         fs::write(folder.path().join(format!("{meeting}.notitia")), "{\"version\":").unwrap();
         assert_eq!(bridge.meeting(meeting), Err(BridgeError::Unreadable));
@@ -278,7 +283,7 @@ mod tests {
         bridge.hear(0, sound(1_000, 5_000.0, 440.0));
         bridge.session.settled();
         assert_eq!(app.last("recorder"), json!({"type": "recorder", "state": "failed", "problem": "storage"}));
-        assert_eq!(app.told(), ["listed", "engines", "recorder"]);
+        assert_eq!(app.told(), ["listed", "settings", "engines", "recorder"]);
     }
 
     // The side of an app that lends an engine: it hears every window as the same sentence.

@@ -160,13 +160,14 @@ fn value_at(file: &[u8], mut at: usize) -> Option<(usize, usize)> {
 // Every witness of a format, as an app first wrote it, and its SHA-256 (docs/adr/0009-garde-fous.md). A format is for
 // ever: a witness that changes is a file every device already holds, which the core no longer reads the same way. A
 // new version comes with a witness of its own and a line here; no line is ever changed.
-const WITNESSES: [(&str, &str); 6] = [
+const WITNESSES: [(&str, &str); 7] = [
     ("audio-v1.audio", "99b21bbd32f4febdf4aaad03b79a8f5390a973fa1e9b145c9f18800eefef95d4"),
     ("meeting-sealed-v1.notitia", "9688ec766785cce9f1bdeb44432b0b50165340530bf69673bcfc718ad731ee6f"),
     ("meeting-v1-recording.notitia", "e55012494920ac5e094fb08f047a6d3808f631760ccc44a092cc8ced5675d3ed"),
     ("meeting-v1-reminder.notitia", "5995e3cd73081b3f0ad060cdc5ec49a822b48a6716d563b3b004c559ebea878c"),
     ("meeting-v1.notitia", "8d96f57bfa1c76dc6b04822888d5726c29810ea2515b2a65f1075fcc38fadcc3"),
     ("meeting-v2.notitia", "122f1bc7ccbfe30552c1aed01e96eb7083bb5fa625a7d3633027822a81c8f15c"),
+    ("settings-v1.json", "68b9c191f1704ee2caeffd20a667ffd321c0d67882585539c123983c0fc73a21"),
 ];
 
 #[test]

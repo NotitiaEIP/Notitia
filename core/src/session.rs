@@ -1,12 +1,12 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::audio::{self, AudioError};
 use crate::engine::lent::{Lender, Offer};
 use crate::engine::{Catalogue, Engines};
-use crate::library::{self, Library, LibraryError, lock};
+use crate::library::{self, Choice, Library, LibraryError, lock};
 use crate::meeting::{Change, Meeting, MeetingId};
 use crate::pipeline::Pipeline;
 use crate::recorder::{Command, Recorder, State};
@@ -17,19 +17,29 @@ use crate::secret::Key;
 // A player asks for passages: a minute at most per call, so no call holds an hour of sound in memory.
 pub const SOUND_MS: u64 = 60_000;
 
-// What an app asks, of the recorder or of the meetings.
+// What an app asks, of the recorder, of the meetings, or of the choices of the user.
 #[cfg_attr(test, derive(Debug, PartialEq))]
 pub enum Request {
     Recorder(Command),
     Meetings(Change),
+    Settings(Choice),
+}
+
+// The settings, read apart from the commands and the changes: {"type":"settings"}, and the choices beside it.
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+enum Asked {
+    Settings(Choice),
 }
 
 impl Request {
-    // A command, then a change: no kind of one has the name of a kind of the other. None for a text that is
-    // neither, a fault of the app and never of its user.
+    // A command, a change, then the settings: no kind of one has the name of a kind of another. None for a text that
+    // is none of them, a fault of the app and never of its user.
     pub fn read(text: &str) -> Option<Self> {
         let command = serde_json::from_str(text).map(Request::Recorder);
-        command.or_else(|_| serde_json::from_str(text).map(Request::Meetings)).ok()
+        let change = || serde_json::from_str(text).map(Request::Meetings);
+        let settings = || serde_json::from_str(text).map(|Asked::Settings(choice)| Request::Settings(choice));
+        command.or_else(|_| change()).or_else(|_| settings()).ok()
     }
 }
 
@@ -147,12 +157,8 @@ impl Session {
                 self.library.apply(Change::Delete { meetings });
             }
             Request::Meetings(Change::Tidy) => {
-                // Never the meeting being recorded. An audio the pipeline reads is closed before its file goes.
-                let spared = self.recorder.holding();
-                if self.library.erase_audio(spared.as_ref(), || self.pipeline.let_go()) {
-                    // A transcript closed short may owe its minutes now.
-                    self.pipeline.changed();
-                }
+                self.library.keep_settings();
+                self.tidy();
             }
             Request::Meetings(change) => {
                 // Minutes asked again, say: the pipeline looks at once, not at the next offer.
@@ -160,6 +166,22 @@ impl Session {
                     self.pipeline.changed();
                 }
             }
+            // Kept less long: what passes the new choice goes at once. Kept longer: nothing goes.
+            Request::Settings(choice) => {
+                if self.library.choose(choice) {
+                    self.tidy();
+                }
+            }
+        }
+    }
+
+    // The audio past what the user keeps, never that of the meeting being recorded. An audio the pipeline reads is
+    // closed before its file goes.
+    fn tidy(&self) {
+        let spared = self.recorder.holding();
+        if self.library.erase_audio(spared.as_ref(), || self.pipeline.let_go()) {
+            // A transcript closed short may owe its minutes now.
+            self.pipeline.changed();
         }
     }
 
@@ -200,8 +222,8 @@ mod tests {
     use crate::audio::{FRAME_SAMPLES, FRAMES_PER_SECOND};
     use crate::engine::lent::testing::App as Lending;
     use crate::engine::{About, Engine, EngineError, Hint, Segment, SpeechEngine, Stop};
-    use crate::meeting::MinutesState;
     use crate::meeting::testing::id;
+    use crate::meeting::{KeepAudio, MinutesState};
     use crate::recorder::testing::sound;
     use crate::recorder::{Problem, Progress};
     use crate::secret::testing::key;
@@ -212,6 +234,7 @@ mod tests {
     const RECORDER: &str = include_str!("../tests/fixtures/bridge/recorder.json");
     const CHANGES: &str = include_str!("../tests/fixtures/bridge/changes.json");
     const ENGINES: &str = include_str!("../tests/fixtures/bridge/engines.json");
+    const SETTINGS: &str = include_str!("../tests/fixtures/bridge/settings.json");
 
     // The side of an app: each event as it crossed.
     #[derive(Default)]
@@ -286,8 +309,8 @@ mod tests {
         let folder = tempfile::tempdir().unwrap();
         let (app, session) = opened(&folder);
         let kinds: Vec<Value> = app.told().iter().map(|event| event["type"].clone()).collect();
-        assert_eq!(kinds, ["listed", "engines"]);
-        assert_eq!(app.told()[1], fixture["events"][0]);
+        assert_eq!(kinds, ["listed", "settings", "engines"]);
+        assert_eq!(app.told()[2], fixture["events"][0]);
         assert!(session.engines().speech().is_none());
 
         let offer = Offer::read(&fixture["offer"].to_string()).unwrap();
@@ -599,6 +622,91 @@ mod tests {
         assert_eq!(files(&folder).len(), 1);
     }
 
+    fn keep(session: &Session, keep_audio: &str) {
+        ask(session, &format!("{{\"type\":\"settings\",\"keepAudio\":\"{keep_audio}\"}}"));
+    }
+
+    fn record(session: &Session, app: &App, talks_ms: &[u64]) -> MeetingId {
+        ask(session, "{\"type\":\"start\",\"tracks\":1,\"offsetMinutes\":60}");
+        said(talks_ms).chunks(32_000).for_each(|second| session.hear(0, second.to_vec()));
+        session.settled();
+        app.recorded()
+    }
+
+    fn stop(session: &Session) {
+        ask(session, "{\"type\":\"stop\"}");
+        session.settled();
+    }
+
+    fn audios(folder: &TempDir) -> usize {
+        files(folder).iter().filter(|name| name.ends_with(".audio")).count()
+    }
+
+    #[test]
+    fn until_heard_the_audio_goes_once_the_meeting_is_heard_whole_and_its_minutes_come_from_its_lines() {
+        let folder = tempfile::tempdir().unwrap();
+        let (app, session) = opened(&folder);
+        keep(&session, "untilHeard");
+        let heard = "{\"type\":\"heard\",\"segments\":[{\"fromMs\":0,\"toMs\":900,\"text\":\"Bonjour à tous.\"}]}";
+        let lender = Lending::answering(&[heard, r#"{"type":"written","text":"SUMMARY: Un point rapide."}"#]);
+        let ear_and_pen = r#"[{"kind":"speech","name":"ear","remote":false,"longestMs":30000},
+            {"kind":"text","name":"pen","remote":false,"contextTokens":4096,"replyTokens":1024}]"#;
+        session.offer(Offer::read(ear_and_pen).unwrap(), lender.clone());
+        let meeting = record(&session, &app, &[3_000]);
+        // Heard as it is said, and kept while it is recorded.
+        assert_eq!((session.meeting(&meeting).unwrap().transcript.len(), audios(&folder)), (1, 1));
+        stop(&session);
+        assert_eq!(files(&folder), [format!("{}.notitia", meeting.as_str())]);
+        let whole = session.meeting(&meeting).unwrap();
+        assert!(whole.audio_erased_at.is_some() && whole.transcribed_ms.is_none());
+        let MinutesState::Written { minutes } = whole.minutes else { panic!("not written") };
+        assert_eq!(minutes.summary, "Un point rapide.");
+        // Heard once, then written: nothing asked to hear it again.
+        let asked: Vec<String> = lender.asked().into_iter().map(|(engine, _, _)| engine).collect();
+        assert_eq!(asked, ["ear", "pen"]);
+    }
+
+    #[test]
+    fn a_shorter_choice_erases_at_once_what_passes_it_but_the_meeting_being_recorded() {
+        let folder = tempfile::tempdir().unwrap();
+        let (app, session, today) = dated(&folder);
+        // Fails every window: each meeting is heard whole all the same.
+        session.offer(offered(&["ear"]), Lending::answering(&[]));
+        let first = record(&session, &app, &[3_000]);
+        stop(&session);
+        assert_eq!(session.meeting(&first).unwrap().transcribed_ms, None);
+        days_later(&today, 2);
+        let second = record(&session, &app, &[3_000]);
+        keep(&session, "week");
+        assert_eq!(audios(&folder), 2, "begun two days ago");
+        keep(&session, "day");
+        assert_eq!(audios(&folder), 1);
+        assert!(session.meeting(&first).unwrap().audio_erased_at.is_some());
+        days_later(&today, 31);
+        keep(&session, "untilHeard");
+        assert_eq!(session.meeting(&second).unwrap().audio_erased_at, None, "being recorded, past a month even");
+        stop(&session);
+        assert_eq!(audios(&folder), 0, "heard whole once stopped");
+    }
+
+    #[test]
+    fn a_meeting_never_heard_keeps_its_audio_30_days_and_a_longer_choice_erases_nothing() {
+        let folder = tempfile::tempdir().unwrap();
+        let (app, session, today) = dated(&folder);
+        keep(&session, "day");
+        let meeting = record(&session, &app, &[3_000]);
+        stop(&session);
+        days_later(&today, 29);
+        ask(&session, "{\"type\":\"tidy\"}");
+        assert_eq!(audios(&folder), 1, "no engine to hear it yet");
+        days_later(&today, 1);
+        keep(&session, "week");
+        assert_eq!(audios(&folder), 1);
+        ask(&session, "{\"type\":\"tidy\"}");
+        assert_eq!(audios(&folder), 0);
+        assert!(session.meeting(&meeting).unwrap().audio_erased_at.is_some());
+    }
+
     #[test]
     fn the_meeting_being_recorded_is_told_before_the_meetings_list_it() {
         let folder = tempfile::tempdir().unwrap();
@@ -678,6 +786,27 @@ mod tests {
     }
 
     #[test]
+    fn the_settings_cross_as_the_apps_write_and_read_them() {
+        let fixture: Value = serde_json::from_str(SETTINGS).unwrap();
+        let requests: Vec<Request> = fixture["requests"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|text| Request::read(&text.to_string()).unwrap())
+            .collect();
+        let choices =
+            [Some(KeepAudio::UntilHeard), Some(KeepAudio::Day), Some(KeepAudio::Week), Some(KeepAudio::Month), None];
+        let expected: Vec<Request> = choices.map(|keep_audio| Request::Settings(Choice { keep_audio })).into();
+        assert_eq!(requests, expected);
+        let events: Vec<Value> = choices
+            .into_iter()
+            .flatten()
+            .map(|keep_audio| as_text(&Event::Library(&library::Event::Settings { keep_audio })))
+            .collect();
+        assert_eq!(Value::Array(events), fixture["events"]);
+    }
+
+    #[test]
     fn every_change_the_apps_write_is_still_a_request() {
         let changes: Vec<Value> = serde_json::from_str(CHANGES).unwrap();
         for change in changes {
@@ -690,7 +819,9 @@ mod tests {
     fn a_damaged_request_is_refused_or_read() {
         let recorder: Value = serde_json::from_str(RECORDER).unwrap();
         let changes: Vec<Value> = serde_json::from_str(CHANGES).unwrap();
+        let settings: Value = serde_json::from_str(SETTINGS).unwrap();
         let requests = recorder["requests"].as_array().unwrap().iter().chain(&changes);
+        let requests = requests.chain(settings["requests"].as_array().unwrap());
         let texts: Vec<String> = requests.map(Value::to_string).collect();
         let good: Vec<&[u8]> = texts.iter().map(String::as_bytes).collect();
         each_damaged(&good, 2_000, |text| {
@@ -709,6 +840,9 @@ mod tests {
             "{\"type\":\"begin\",\"id\":\"recorded-1\",\"startedAt\":\"2026-11-11T07:00:00Z\",\"offsetMinutes\":60}",
             "{\"type\":\"forget\",\"meetings\":[]}",
             "{\"type\":\"heard\",\"meeting\":\"recorded-1\",\"lines\":[],\"fromMs\":0,\"untilMs\":null}",
+            "{\"type\":\"settings\",\"keepAudio\":\"fortnight\"}",
+            "{\"type\":\"settings\",\"keepAudio\":30}",
+            "{\"type\":\"setting\",\"keepAudio\":\"day\"}",
         ] {
             assert_eq!(Request::read(text), None, "{text}");
         }

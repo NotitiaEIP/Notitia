@@ -2,6 +2,7 @@ package com.example.notitia.bridge
 
 import com.example.notitia.bridge.CoreEvent.Recorder.Phase
 import com.example.notitia.ai.OfferedEngine
+import com.example.notitia.meeting.KeepAudio
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MinutesState
 import com.example.notitia.meeting.RecordingProblem
@@ -36,12 +37,14 @@ internal open class FakeCore(vararg stored: Meeting, private val opens: Boolean 
     private var listener: CoreListener? = null
     private var telling = false
     private var recorder = CoreEvent.Recorder(Phase.Idle)
+    private var keepAudio = KeepAudio.Month
 
     override fun open(directory: String, key: ByteArray?, listener: CoreListener): CoreFailure? {
         if (!opens) return CoreFailure.Unreadable
         this.key = key?.copyOf()
         this.listener = listener
         tell(CoreEvent.Listed(listed()))
+        tell(CoreEvent.Settings(keepAudio))
         tellEngines(emptyList())
         return null
     }
@@ -77,6 +80,10 @@ internal open class FakeCore(vararg stored: Meeting, private val opens: Boolean 
             }
             // Erasing audio is the core's rule, tested in Rust.
             is Change.Tidy -> Unit
+            is Choice -> asked.keepAudio?.takeIf { it != keepAudio }?.let {
+                keepAudio = it
+                tell(CoreEvent.Settings(it))
+            }
             is Command -> command(asked)
         }
         return null

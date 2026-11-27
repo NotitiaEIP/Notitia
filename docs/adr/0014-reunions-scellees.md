@@ -3,6 +3,7 @@
 | | |
 | --- | --- |
 | Statut | Proposée le 26 novembre 2026, acceptée à la fusion de sa PR |
+| Modifiée | Le 27 novembre 2026 par T-103 (#276) : le fichier `settings` reste en clair, comme `device` |
 | Proposée par | Clément |
 | Relue par | Alexandre pour le cœur |
 | Tâche d'origine | T-96 (#265), la partie cœur de US-84 (#49) |
@@ -33,7 +34,7 @@ Le cœur scelle l'audio de chaque réunion (ADR 0005), sous une clé tirée de l
    - L'index n'est pas écrit.
 
    Ce mode ne coûte rien à l'iPhone d'aujourd'hui : sans clé il n'enregistre rien (`failed(storage)`), et ses réunions d'exemple ne s'écrivent jamais.
-7. **`device` reste en clair** : c'est un identifiant tiré au hasard, qui ne dit rien d'une réunion.
+7. **`device` et `settings` restent en clair** : le premier est un identifiant tiré au hasard, le second les choix de l'utilisateur (ADR 0016). Ni l'un ni l'autre ne dit rien d'une réunion.
 8. **Un témoin du sceau, version 1** (`core/tests/fixtures/meeting-sealed-v1.notitia`), a été scellé une seule fois par la clé de test `key(1)`. Il contient `meeting-v2.notitia`, et son empreinte est épinglée dans `core/src/testing.rs` (ADR 0009).
 
 ### Les écarts avec la fiche du 17 novembre

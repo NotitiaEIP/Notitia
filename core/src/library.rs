@@ -1,5 +1,6 @@
 mod index;
 mod sealed;
+mod settings;
 mod store;
 
 use std::cmp::Ordering;
@@ -12,8 +13,12 @@ use serde::Serialize;
 use time::UtcDateTime;
 
 use crate::audio::{self, AudioError};
-use crate::meeting::{self, Change, Meeting, MeetingId, MinutesDraft, MinutesState, Stamp, TranscriptLine};
+use crate::meeting::{
+    self, Change, Due, KeepAudio, Meeting, MeetingId, MinutesDraft, MinutesState, Stamp, TranscriptLine,
+};
 use crate::secret::Key;
+pub use settings::Choice;
+use settings::Settings;
 use store::{Loaded, Store};
 
 // Called on the thread that asked for the change, once the meetings have changed and before their file is written:
@@ -28,7 +33,7 @@ pub trait Listener: Send + Sync {
 #[derive(Serialize)]
 #[cfg_attr(test, derive(Clone, Debug, PartialEq))]
 #[expect(clippy::large_enum_variant, reason = "an event lives for one call: a box would only add an allocation")]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[serde(tag = "type", rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum Event {
     // Every meeting, the latest first: once the folder is read, and again when samples are lent.
     Listed { meetings: Vec<Meeting> },
@@ -37,6 +42,8 @@ pub enum Event {
     Removed { meetings: Vec<MeetingId> },
     // The meetings whose file is behind what the app shows. Empty once every one is written.
     Unsaved { meetings: Vec<MeetingId> },
+    // Every choice of the user, as the core applies it: once the meetings are listed, and again at each change.
+    Settings { keep_audio: KeepAudio },
 }
 
 #[derive(Debug, PartialEq)]
@@ -83,6 +90,12 @@ struct Meetings {
 
 pub(crate) type Clock = Box<dyn Fn() -> UtcDateTime + Send + Sync>;
 
+// The choices of the user, and whether their file is behind them: a full disk, say.
+struct Chosen {
+    settings: Settings,
+    unwritten: bool,
+}
+
 // The meetings of a folder: the one place that holds them, changes them and writes them.
 pub struct Library {
     // With the key of the app: without one, no meeting nor audio is written, and no audio is read.
@@ -96,6 +109,9 @@ pub struct Library {
     // Held only to read or to change a meeting, never across the disk or the listener: opening a meeting does not
     // wait for a write.
     meetings: Mutex<Meetings>,
+    // Held from a choice to its file and its event, so two choices are written and told in the order they are made.
+    // Never with another lock.
+    settings: Mutex<Chosen>,
 }
 
 impl Library {
@@ -149,13 +165,23 @@ impl Library {
             behind.extend(clear);
         }
         listener.on_event(&Event::Listed { meetings: meetings.list() });
+        // A file this app cannot read is not rewritten until the user chooses: a newer app may have written it.
+        let settings = store.settings().unwrap_or_default();
+        listener.on_event(&Event::Settings { keep_audio: settings.keep_audio });
         // After the list: the first screen does not wait for a cache, nor for the meetings that lasted, to reach the
         // disk.
         if let Some(index) = index {
             store.keep(index);
         }
-        let library =
-            Self { store, device, listener, clock, behind: Mutex::new(behind), meetings: Mutex::new(meetings) };
+        let library = Self {
+            store,
+            device,
+            listener,
+            clock,
+            behind: Mutex::new(behind),
+            meetings: Mutex::new(meetings),
+            settings: Mutex::new(Chosen { settings, unwritten: false }),
+        };
         library.catch_up(&mut lock(&library.behind), &BTreeSet::new());
         Ok(library)
     }
@@ -236,22 +262,39 @@ impl Library {
         open_audio(&self.store, id)
     }
 
-    // The audio of the meetings kept as long as the rule says but that of `spared`, the one being recorded: each meeting
-    // is marked first, then its file deleted once `let_go` returns, when nothing reads it any more. Killed in between,
-    // the next call finds it marked, its audio still there, and deletes it. A file that cannot be deleted stays marked,
-    // and the next call tries again. Without the key, nothing: the mark could not be written, and the next launch would
-    // find a meeting without its audio nor the day it went. Whether a meeting changed.
+    // The audio of the meetings kept as long as the user chose but that of `spared`, the one being recorded. Whether a
+    // meeting changed.
     pub(crate) fn erase_audio(&self, spared: Option<&MeetingId>, let_go: impl FnOnce()) -> bool {
+        self.erase_where(|kept| Some(&kept.id) != spared, let_go)
+    }
+
+    // Once the pipeline has heard a meeting whole, on its own thread: it holds no audio open by then, and the recorder
+    // never holds a meeting heard whole. Until heard, its audio goes now, its minutes written from its lines.
+    pub(crate) fn erase_heard(&self, id: &MeetingId) -> bool {
+        self.erase_where(|kept| &kept.id == id, || {})
+    }
+
+    // Each meeting `among` those whose audio is due is marked first, then its file deleted once `let_go` returns, when
+    // nothing reads it any more. Killed in between, the next call finds it marked, its audio still there, and deletes
+    // it. A file that cannot be deleted stays marked, and the next call tries again. Without the key, nothing: the mark
+    // could not be written, and the next launch would find a meeting without its audio nor the day it went.
+    fn erase_where(&self, among: impl Fn(&Meeting) -> bool, let_go: impl FnOnce()) -> bool {
         if !self.has_key() {
             return false;
         }
-        let now = self.now();
-        let expired = self.kept(|kept| {
-            let due = Some(&kept.id) != spared && meeting::expired(kept.started_at, now);
-            due.then(|| kept.id.clone())
+        let (now, keep) = (self.now(), self.keep_audio());
+        let due = self.kept(|kept| {
+            let due = among(kept).then(|| meeting::due(kept, now, keep))??;
+            // Listed without its lines: one that may never have been heard is read whole, which tells.
+            Some((kept.id.clone(), due == Due::Heard && kept.never_heard()))
         });
+        let heard = |id: &MeetingId| self.whole(id).is_some_and(|whole| whole.is_ok_and(|whole| !whole.never_heard()));
         // Never marked without an audio to erase: the meetings of the Kotlin app never had one.
-        let erasing: Vec<MeetingId> = expired.into_iter().filter(|id| self.store.has_audio(id)).collect();
+        let erasing: Vec<MeetingId> = due
+            .into_iter()
+            .filter(|(id, unsure)| self.store.has_audio(id) && (!unsure || heard(id)))
+            .map(|(id, _)| id)
+            .collect();
         if erasing.is_empty() {
             return false;
         }
@@ -265,6 +308,31 @@ impl Library {
         let _changes = lock(&self.behind);
         self.store.erase_audio(&erasing);
         changed
+    }
+
+    // A choice the same as before changes nothing and tells nothing. Whether the audio is now kept less long: what
+    // passes the new choice is then due at once.
+    pub(crate) fn choose(&self, choice: Choice) -> bool {
+        let mut chosen = lock(&self.settings);
+        let before = chosen.settings.keep_audio;
+        let Some(keep_audio) = choice.keep_audio.filter(|keep_audio| *keep_audio != before) else { return false };
+        chosen.settings.keep_audio = keep_audio;
+        // Held for the session all the same, and written again at the next tidy-up.
+        chosen.unwritten = self.store.keep_settings(&chosen.settings).is_err();
+        self.listener.on_event(&Event::Settings { keep_audio });
+        keep_audio < before
+    }
+
+    // The file of the choices, if it could not be written when they were made.
+    pub(crate) fn keep_settings(&self) {
+        let mut chosen = lock(&self.settings);
+        if chosen.unwritten {
+            chosen.unwritten = self.store.keep_settings(&chosen.settings).is_err();
+        }
+    }
+
+    fn keep_audio(&self) -> KeepAudio {
+        lock(&self.settings).settings.keep_audio
     }
 
     // Without it nothing is recorded: no audio reaches the disk in clear.
@@ -554,6 +622,8 @@ mod tests {
     const V2_BY_THE_CORE: &str = include_str!("../tests/fixtures/meeting-v2.notitia");
     // One event of each kind, as the apps read them.
     const FOR_THE_APPS: &str = include_str!("../tests/fixtures/bridge/events.json");
+    // What a launch tells: the list, then the choices of the user.
+    const AT_LAUNCH: usize = 2;
 
     // The side of the app, in a few lines: its list is rebuilt from the events alone, and never sorted.
     #[derive(Default)]
@@ -566,6 +636,8 @@ mod tests {
         files_when_told: Mutex<Vec<Option<Meeting>>>,
         // Whether the folder had its index each time the list was told.
         index_when_listed: Mutex<Vec<bool>>,
+        // Each choice as it was told.
+        kept_audio: Mutex<Vec<KeepAudio>>,
     }
 
     impl Listener for App {
@@ -584,6 +656,7 @@ mod tests {
                 }
                 Event::Removed { meetings } => list.retain(|known| !meetings.contains(&known.id)),
                 Event::Unsaved { meetings } => self.unsaved.lock().unwrap().clone_from(meetings),
+                Event::Settings { keep_audio } => self.kept_audio.lock().unwrap().push(*keep_audio),
             }
         }
     }
@@ -649,6 +722,19 @@ mod tests {
 
         fn device(&self) -> String {
             fs::read_to_string(self.path("device")).unwrap()
+        }
+
+        fn kept_audio(&self) -> Vec<KeepAudio> {
+            self.app.kept_audio.lock().unwrap().clone()
+        }
+
+        // Whether the audio is now kept less long.
+        fn choose(&self, keep_audio: KeepAudio) -> bool {
+            self.library.choose(Choice { keep_audio: Some(keep_audio) })
+        }
+
+        fn settings_file(&self) -> Option<Vec<u8>> {
+            fs::read(self.path("settings")).ok()
         }
 
         fn edit(&self, meeting: &str, edit: Edit) {
@@ -773,7 +859,7 @@ mod tests {
         assert_eq!(phone.list(), std::slice::from_ref(&renamed));
         assert_eq!(*phone.app.files_when_told.lock().unwrap(), [Some(heard("recorded-1"))]);
         assert_eq!(phone.file("recorded-1"), Some(Meeting { transcript: heard("recorded-1").transcript, ..renamed }));
-        assert_eq!(phone.told(), 2);
+        assert_eq!(phone.told(), AT_LAUNCH + 1);
     }
 
     #[test]
@@ -785,7 +871,7 @@ mod tests {
         phone.edit("recorded-1", Edit::SetDone { action: first(), done: false });
         phone.delete(&["recorded-7"]);
         phone.library.apply(Change::Lend { meetings: vec![heard("recorded-1")] });
-        assert_eq!(phone.told(), 1);
+        assert_eq!(phone.told(), AT_LAUNCH);
         assert_eq!(fs::metadata(phone.path("recorded-1.notitia")).unwrap().modified().unwrap(), written);
     }
 
@@ -1339,7 +1425,11 @@ mod tests {
         let app = Arc::new(App::default());
         let keyless = Library::open_at(folder.path().into(), None, app.clone(), Box::new(|| NOW)).unwrap();
         assert_eq!(app.list.lock().unwrap().len(), 1);
+        // A choice holds no word of a meeting: kept without the key.
+        assert!(keyless.choose(Choice { keep_audio: Some(KeepAudio::UntilHeard) }));
+        assert_eq!(fs::read(folder.path().join("settings")).unwrap(), br#"{"version":1,"keepAudio":"untilHeard"}"#);
         assert!(!keyless.erase_audio(None, || {}));
+        assert!(!keyless.erase_heard(&id("recorded-1")));
         assert!(folder.path().join("recorded-1.audio").exists());
         assert!(app.unsaved.lock().unwrap().is_empty());
     }
@@ -1352,6 +1442,142 @@ mod tests {
         ["recorded-1", "recorded-2"].iter().for_each(|meeting| with_audio(&phone, meeting));
         assert!(tidy(&phone, None));
         assert!(!has_audio(&phone, "recorded-1") && has_audio(&phone, "recorded-2"));
+    }
+
+    #[test]
+    fn the_choice_of_the_user_is_told_once_the_meetings_are_listed_and_kept_from_one_launch_to_the_next() {
+        let phone = phone(&[]);
+        let kinds = |phone: &Phone| {
+            let events = phone.app.events.lock().unwrap();
+            events.iter().take(2).map(|event| matches!(event, Event::Settings { .. })).collect::<Vec<_>>()
+        };
+        assert_eq!((kinds(&phone), phone.kept_audio()), (vec![false, true], vec![KeepAudio::Month]));
+        assert!(phone.choose(KeepAudio::Day));
+        assert_eq!(phone.kept_audio(), [KeepAudio::Month, KeepAudio::Day]);
+        let phone = phone.relaunched();
+        assert_eq!((kinds(&phone), phone.kept_audio()), (vec![false, true], vec![KeepAudio::Day]));
+    }
+
+    #[test]
+    fn a_choice_says_whether_the_audio_is_now_kept_less_long() {
+        let phone = phone(&[]);
+        assert!(phone.choose(KeepAudio::Week));
+        assert!(!phone.choose(KeepAudio::Month));
+        assert!(phone.choose(KeepAudio::UntilHeard));
+        assert!(!phone.choose(KeepAudio::Day));
+    }
+
+    #[test]
+    fn the_same_choice_again_or_none_writes_and_tells_nothing() {
+        let phone = phone(&[]);
+        assert!(phone.choose(KeepAudio::Week));
+        let told = phone.told();
+        fs::remove_file(phone.path("settings")).unwrap();
+        assert!(!phone.choose(KeepAudio::Week));
+        assert!(!phone.library.choose(Choice { keep_audio: None }));
+        assert_eq!((phone.told(), phone.settings_file()), (told, None));
+    }
+
+    #[test]
+    fn settings_this_app_cannot_read_keep_the_audio_a_month_and_stay_as_they_are_until_the_user_chooses() {
+        for unread in [&br#"{"version":2,"keepAudio":"day"}"#[..], br#"{"version":1,"keepAudio":"#, b""] {
+            let folder = tempfile::tempdir().unwrap();
+            fs::write(folder.path().join("settings"), unread).unwrap();
+            let phone = launch(folder);
+            assert_eq!(phone.kept_audio(), [KeepAudio::Month]);
+            assert!(!tidy(&phone, None));
+            phone.library.keep_settings();
+            let phone = phone.relaunched();
+            assert_eq!(phone.settings_file().as_deref(), Some(unread));
+            assert!(!phone.choose(KeepAudio::Month), "the same as before");
+            assert_eq!(phone.settings_file().as_deref(), Some(unread));
+            assert!(phone.choose(KeepAudio::Day));
+            assert_eq!(phone.settings_file().unwrap(), br#"{"version":1,"keepAudio":"day"}"#);
+        }
+    }
+
+    #[test]
+    fn a_choice_that_cannot_be_written_holds_for_the_session_and_is_written_at_the_next_tidy_up() {
+        let phone = phone(&[]);
+        // A folder where the draft goes: the disk refuses the write, whoever runs the tests.
+        fs::create_dir(phone.path("settings.tmp")).unwrap();
+        assert!(phone.choose(KeepAudio::Day));
+        assert_eq!((phone.kept_audio().last(), phone.settings_file()), (Some(&KeepAudio::Day), None));
+        assert_eq!(phone.library.keep_audio(), KeepAudio::Day);
+        phone.library.keep_settings();
+        assert_eq!(phone.settings_file(), None);
+        fs::remove_dir(phone.path("settings.tmp")).unwrap();
+        phone.library.keep_settings();
+        assert_eq!(phone.settings_file().unwrap(), br#"{"version":1,"keepAudio":"day"}"#);
+        assert_eq!(phone.relaunched().kept_audio(), [KeepAudio::Day]);
+    }
+
+    #[test]
+    fn the_audio_of_a_meeting_heard_whole_goes_once_kept_as_long_as_the_user_chose() {
+        let two_days = |meeting: Meeting| Meeting { started_at: NOW - time::Duration::days(2), ..meeting };
+        let phone = phone(&[
+            two_days(heard("recorded-1")),
+            two_days(Meeting { transcribed_ms: Some(30_000), minutes: MinutesState::Writing, ..heard("recorded-2") }),
+            heard("recorded-3"),
+        ]);
+        ["recorded-1", "recorded-2", "recorded-3"].iter().for_each(|meeting| with_audio(&phone, meeting));
+        assert!(!tidy(&phone, None), "a month by default");
+        assert!(phone.choose(KeepAudio::Day));
+        assert!(tidy(&phone, None));
+        // Begun less than a day ago, and still to be heard: both keep their audio.
+        let kept: Vec<bool> =
+            ["recorded-1", "recorded-2", "recorded-3"].iter().map(|meeting| has_audio(&phone, meeting)).collect();
+        assert_eq!(kept, [false, true, true]);
+        assert_eq!(phone.file("recorded-1").unwrap().audio_erased_at, Some(NOW));
+        assert!(phone.choose(KeepAudio::UntilHeard));
+        assert!(tidy(&phone, None));
+        assert!(has_audio(&phone, "recorded-2") && !has_audio(&phone, "recorded-3"));
+    }
+
+    // Listed without their lines, the three look alike: only the first was never heard, which its file tells.
+    #[test]
+    fn a_meeting_never_heard_keeps_its_audio_30_days_whatever_the_choice() {
+        let owed = |name: &str| Meeting { minutes: MinutesState::Writing, ..meeting(name) };
+        let nothing_said = MinutesState::Written {
+            minutes: Minutes { summary: String::new(), decisions: vec![], actions: vec![], extra: Extra::new() },
+        };
+        let phone = phone(&[
+            owed("recorded-1"),
+            Meeting { transcript: vec![line(0, "Bonjour à tous.")], ..owed("recorded-2") },
+            Meeting { minutes: nothing_said, ..meeting("recorded-3") },
+            Meeting { started_at: AGED, ..owed("recorded-4") },
+        ]);
+        ["recorded-1", "recorded-2", "recorded-3", "recorded-4"].iter().for_each(|meeting| with_audio(&phone, meeting));
+        assert!(phone.choose(KeepAudio::UntilHeard));
+        assert!(tidy(&phone, None));
+        let kept: Vec<bool> = ["recorded-1", "recorded-2", "recorded-3", "recorded-4"]
+            .iter()
+            .map(|name| has_audio(&phone, name))
+            .collect();
+        assert_eq!(kept, [true, false, false, false], "never heard, but begun 30 days ago");
+        assert!(!phone.library.erase_heard(&id("recorded-1")));
+        assert!(!tidy(&phone, None), "still kept at the next tidy-up");
+        assert!(
+            phone.library.change(Change::Rehear { meeting: id("recorded-1") }),
+            "heard from its start, its audio there"
+        );
+    }
+
+    #[test]
+    fn the_audio_of_the_meeting_just_heard_whole_goes_alone() {
+        let phone = phone(&[heard("recorded-1"), heard("recorded-2"), aged("recorded-3")]);
+        phone.begin("recorded-9");
+        ["recorded-1", "recorded-2", "recorded-3", "recorded-9"].iter().for_each(|meeting| with_audio(&phone, meeting));
+        assert!(!phone.library.erase_heard(&id("recorded-1")), "a month by default");
+        assert!(phone.choose(KeepAudio::UntilHeard));
+        // Still heard: kept until it is whole.
+        assert!(!phone.library.erase_heard(&id("recorded-9")));
+        assert!(phone.heard("recorded-9", &["Bonjour à tous."], 0, None));
+        assert!(phone.library.erase_heard(&id("recorded-9")));
+        assert!(!has_audio(&phone, "recorded-9"));
+        // Due as well, they wait for the next tidy-up.
+        assert!(["recorded-1", "recorded-2", "recorded-3"].iter().all(|meeting| has_audio(&phone, meeting)));
+        assert_eq!(phone.library.meeting(&id("recorded-9")).unwrap().minutes, MinutesState::Writing);
     }
 
     #[test]
