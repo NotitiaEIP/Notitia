@@ -5,11 +5,8 @@ import com.example.notitia.meeting.Abilities
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MeetingStatus
 import com.example.notitia.meeting.MinutesState
-import com.example.notitia.ui.actions.DueGroup
-import com.example.notitia.ui.actions.dueGroup
 import kotlin.time.Duration
 import kotlin.time.Instant
-import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import notitia.shared.generated.resources.Res
@@ -30,14 +27,14 @@ data class MeetingListItem(
     val participants: Int get() = speakers.size.coerceAtLeast(1)
 }
 
-// From what the core holds of the meeting and what the engines of this device can do now. remaining is the time left
-// to hear it, once the pace of the core is seen.
-fun Meeting.status(today: LocalDate, abilities: Abilities, remaining: Duration? = null): MeetingStatus {
+// From what the core holds of the meeting and what the engines of this device can do now. late is what the core's
+// board counts late in it, remaining the time left to hear it, once the pace of the core is seen.
+fun Meeting.status(abilities: Abilities, late: Int = 0, remaining: Duration? = null): MeetingStatus {
     val heard = transcribed
     return when {
         heard != null -> if (abilities.hear) MeetingStatus.Transcribing(share(heard, duration), remaining) else MeetingStatus.Waiting
         minutes == MinutesState.Writing -> if (abilities.write) MeetingStatus.WritingMinutes else MeetingStatus.Waiting
-        else -> minutes.status(today)
+        else -> minutes.status(late)
     }
 }
 
@@ -45,14 +42,9 @@ fun Meeting.status(today: LocalDate, abilities: Abilities, remaining: Duration? 
 private fun share(heard: Duration, of: Duration): Float =
     if (of <= Duration.ZERO) 0f else (heard / of).toFloat().coerceIn(0f, 1f)
 
-fun MinutesState.status(today: LocalDate): MeetingStatus = when (this) {
+fun MinutesState.status(late: Int): MeetingStatus = when (this) {
     MinutesState.Writing -> MeetingStatus.WritingMinutes
-    is MinutesState.Written -> with(minutes.actions) {
-        MeetingStatus.Ready(
-            summary = minutes.summary.ifBlank { null },
-            late = count { !it.done && it.due?.let { due -> dueGroup(due, today) } == DueGroup.Late },
-        )
-    }
+    is MinutesState.Written -> MeetingStatus.Ready(summary = minutes.summary.ifBlank { null }, late = late)
     MinutesState.Failed, MinutesState.Unavailable -> MeetingStatus.Ready()
 }
 

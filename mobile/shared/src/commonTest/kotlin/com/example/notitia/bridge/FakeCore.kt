@@ -5,6 +5,7 @@ import com.example.notitia.ai.OfferedEngine
 import com.example.notitia.meeting.KeepAudio
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MinutesState
+import com.example.notitia.meeting.Placed
 import com.example.notitia.meeting.RecordingProblem
 import com.example.notitia.recording.BYTES_PER_MS
 import kotlin.time.Duration
@@ -85,6 +86,7 @@ internal open class FakeCore(vararg stored: Meeting, private val opens: Boolean 
                 tell(CoreEvent.Settings(it))
             }
             is Command -> command(asked)
+            is BoardAsk -> tell(board(asked))
         }
         return null
     }
@@ -180,6 +182,14 @@ internal open class FakeCore(vararg stored: Meeting, private val opens: Boolean 
     }
 
     private fun outsideTheListener() = check(!telling) { "the core was called by its own listener: the real one would wait for itself" }
+
+    // Where each action goes is the core's rule, tested in Rust: here, every one is to complete.
+    private fun board(asked: BoardAsk): CoreEvent.Board {
+        val placed = kept.values.flatMap { meeting ->
+            (meeting.minutes as? MinutesState.Written)?.minutes?.actions.orEmpty().map { Placed(meeting.id, it.id) }
+        }
+        return CoreEvent.Board(asked.today, placed, emptyList(), emptyList(), placed.size, 0, emptyList(), emptyMap())
+    }
 
     private fun listed() = kept.values.sortedByDescending { it.startedAt }.map { it.copy(transcript = emptyList()) }
 

@@ -18,6 +18,7 @@ import com.example.notitia.reminder.ReminderScheduler
 import com.example.notitia.reminder.ReminderSync
 import com.example.notitia.reminder.reminders
 import com.example.notitia.ui.meetings.sampleMeetings
+import com.example.notitia.ui.minutes.sampleBoard
 import com.example.notitia.ui.search.AnswerEngine
 import com.example.notitia.ui.search.SampleAnswerEngine
 import kotlin.time.Clock
@@ -59,7 +60,8 @@ class Notitia(
     private val session = core?.let { CoreSession(it, meetingsDirectory, meetingsKey, samples, engines) }
 
     // All the screens know of the meetings and of a recording: what holds them can change without touching a screen.
-    val meetings: Meetings = session?.let(::CoreMeetings) ?: PreviewMeetings(samples)
+    val meetings: Meetings =
+        session?.let(::CoreMeetings) ?: sampleBoard(clock.now()).let { PreviewMeetings(it.meetings, it) }
 
     val recording: Recording =
         session?.let { CoreRecording(it, microphone, clock) } ?: PreviewRecording

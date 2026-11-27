@@ -5,8 +5,11 @@ import com.example.notitia.ai.EngineReply
 import com.example.notitia.ai.EngineRequest
 import com.example.notitia.ai.OfferedEngine
 import com.example.notitia.ai.Said
+import com.example.notitia.meeting.DueGroup
+import com.example.notitia.meeting.Grouped
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MinutesState
+import com.example.notitia.meeting.Placed
 import com.example.notitia.recording.BYTES_PER_SAMPLE
 import com.example.notitia.recording.SAMPLE_RATE
 import com.example.notitia.recording.rms
@@ -69,9 +72,9 @@ private val note = tone(seconds = 1, loudness = 8_000.0)
 private val spoken = tone(seconds = 1, loudness = 0.0) + note + note + tone(seconds = 3, loudness = 0.0)
 
 // Proves the bridge where the app runs: engines of this app are lent, a made-up note is heard, transcribed and written
-// up by the core's thread through them, then corrected, read and played back, each step answered by its event, and
-// every kind of value crosses both ways, bytes included. On the iPhone it is the only proof there is: the CI runs it on
-// a simulator, since the Swift that holds the core is written on machines that cannot compile it.
+// up by the core's thread through them, then corrected, placed on a board, read and played back, each step answered
+// by its event, and every kind of value crosses both ways, bytes included. On the iPhone it is the only proof there
+// is: the CI runs it on a simulator, since the Swift that holds the core is written on machines that cannot compile it.
 class CoreSelfCheck(
     private val core: NotitiaCore,
     private val directory: Path = Path(SystemTemporaryDirectory, "core-self-check"),
@@ -124,6 +127,7 @@ class CoreSelfCheck(
         return when {
             action == null -> "minutes"
             send(Change.Edit(meeting, MeetingEdit.Rename(TITLE))) != null || told(meeting) { it.title == TITLE } == null -> "rename"
+            !placedOnItsDay(meeting, action) -> "board"
             send(Change.Edit(meeting, MeetingEdit.SetDone(action, done = true))) != null ||
                 told(meeting) { it.actions()?.singleOrNull()?.done == true } == null -> "tick"
             read(meeting)?.takeIf { it.title == TITLE }?.transcript?.singleOrNull()?.text != SAID -> "read"
@@ -143,6 +147,13 @@ class CoreSelfCheck(
         val done = read(meeting)?.takeIf { it.minutes is MinutesState.Written } ?: told(meeting) { it.minutes is MinutesState.Written }
         val action = done?.actions()?.singleOrNull()
         return action?.takeIf { it.id.isNotEmpty() && it.due == DUE && it.source?.quote == SAID }?.id
+    }
+
+    // Asked as a phone asks it, on the day the action is due: placed today, by its reference.
+    private fun placedOnItsDay(meeting: String, action: String): Boolean {
+        if (send(BoardAsk(DUE)) != null) return false
+        val board = next { it is CoreEvent.Board } as? CoreEvent.Board
+        return board?.groups == listOf(Grouped(DueGroup.Today, listOf(Placed(meeting, action, DueGroup.Today))))
     }
 
     private fun send(request: CoreRequest): CoreFailure? =

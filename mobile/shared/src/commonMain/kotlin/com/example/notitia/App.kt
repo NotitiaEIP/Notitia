@@ -36,8 +36,8 @@ import com.example.notitia.ui.actions.ActionsScreen
 import com.example.notitia.ui.actions.ActionsView
 import com.example.notitia.ui.actions.RecedesUnderSheet
 import com.example.notitia.ui.actions.SheetReveal
+import com.example.notitia.ui.actions.lists
 import com.example.notitia.ui.actions.ownerChoices
-import com.example.notitia.ui.actions.trackedActions
 import com.example.notitia.ui.components.CenteredContent
 import com.example.notitia.ui.components.NotitiaTabBar
 import com.example.notitia.ui.components.offerUndo
@@ -98,6 +98,11 @@ fun App(
     val recorder = meetingsModel.recording.collectAsStateWithLifecycle()
     val abilities by meetingsModel.abilities.collectAsStateWithLifecycle()
     val pace by meetingsModel.pace.collectAsStateWithLifecycle()
+    val board by meetingsModel.board.collectAsStateWithLifecycle()
+    val lingering by meetingsModel.lingering.collectAsStateWithLifecycle()
+    // The board of the actions follows the day, wherever the screens are: the list of meetings reads what is late in it.
+    val today = rememberToday()
+    LaunchedEffect(today) { meetingsModel.showBoard(today) }
     // The microphone moves the recorder ten times per second: the screens follow only a recording that starts, stops
     // or fails, and the sheet reads the rest.
     val recordingStart by remember { derivedStateOf { (recorder.value as? RecorderState.Active)?.startedAt } }
@@ -110,9 +115,13 @@ fun App(
     NotitiaTheme(darkTheme = darkTheme, people = people) {
         var tab by rememberSaveable { mutableStateOf(Tab.Meetings) }
         val stored = listed ?: return@NotitiaTheme
+        // Held as the list is: it opens with what is late, never a badge that comes after.
+        val placed = board ?: return@NotitiaTheme
         LaunchedEffect(Unit) { onLoaded() }
-        val today = rememberToday()
-        val meetings = stored.map { it.listItem(it.status(today, abilities, pace.remaining(it))) }
+
+        @Composable
+        fun Meeting.item() = listItem(status(abilities, placed.lateByMeeting[id] ?: 0, pace.remaining(this)))
+        val meetings = stored.map { it.item() }
         var actionsView by rememberSaveable { mutableStateOf(ActionsView.ByDue) }
         val snackbars = remember { SnackbarHostState() }
         var openedMeetingId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -244,19 +253,23 @@ fun App(
                                     modifier = screenModifier,
                                 )
                                 Tab.Actions -> {
-                                    val minutes = stored.zip(meetings, Meeting::toMinutes)
-                                    val tracked = trackedActions(minutes)
+                                    // The board's own meetings: the text of an action and its place are of one instant.
+                                    val minutes = placed.meetings.map { it.toMinutes(it.item()) }
+                                    val lists = placed.lists(minutes)
                                     ActionsScreen(
-                                        actions = tracked,
+                                        lists = lists,
+                                        lingering = lingering,
                                         view = actionsView,
                                         onViewChange = { actionsView = it },
-                                        openedAction = tracked.firstOrNull { it.id.key == openedActionKey }?.id,
+                                        openedAction = lists.all.firstOrNull { it.id.key == openedActionKey }?.id,
                                         sheetReveal = actionSheet,
                                         ownerChoices = { meetingId ->
                                             minutes.firstOrNull { it.meeting.id == meetingId }
                                                 ?.let(::ownerChoices)
                                                 .orEmpty()
                                         },
+                                        onTick = meetingsModel::tick,
+                                        onLetGo = meetingsModel::letGo,
                                         onSetDone = meetingsModel::setDone,
                                         onSetOwner = meetingsModel::setOwner,
                                         onSetDue = meetingsModel::setDue,

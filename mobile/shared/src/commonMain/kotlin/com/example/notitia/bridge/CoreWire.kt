@@ -1,8 +1,13 @@
 package com.example.notitia.bridge
 
+import com.example.notitia.meeting.ActionBoard
+import com.example.notitia.meeting.ActionId
+import com.example.notitia.meeting.Grouped
 import com.example.notitia.meeting.KeepAudio
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.Milliseconds
+import com.example.notitia.meeting.Placed
+import com.example.notitia.meeting.PlacedPerson
 import com.example.notitia.meeting.RecorderState
 import com.example.notitia.meeting.RecordingProblem
 import kotlin.time.Duration
@@ -32,7 +37,8 @@ internal fun readEvent(event: String): CoreEvent? = try {
 @Serializable
 internal data class EngineAbout(val name: String, val remote: Boolean)
 
-// What the app asks of the core: a change of the meetings, a command of the recorder, or a choice of the user.
+// What the app asks of the core: a change of the meetings, a command of the recorder, a choice of the user, or the
+// board of a day.
 @Serializable
 internal sealed interface CoreRequest
 
@@ -40,6 +46,12 @@ internal sealed interface CoreRequest
 @Serializable
 @SerialName("settings")
 internal data class Choice(val keepAudio: KeepAudio? = null) : CoreRequest
+
+// The actions as the core places them on a day. The ones just ticked keep their place: the app gives them again each
+// time. Answered by the board event, and nothing else changes.
+@Serializable
+@SerialName("board")
+internal data class BoardAsk(val today: LocalDate, val lingering: List<ActionId> = emptyList()) : CoreRequest
 
 @Serializable
 internal sealed interface Change : CoreRequest {
@@ -149,6 +161,25 @@ internal sealed interface CoreEvent {
     @Serializable
     @SerialName("settings")
     data class Settings(val keepAudio: KeepAudio) : CoreEvent
+
+    // The board of the day asked, told to the one who asked. A group this app does not know makes it unreadable, so
+    // it is skipped and the board shown before stays.
+    @Serializable
+    @SerialName("board")
+    data class Board(
+        val today: LocalDate,
+        val toComplete: List<Placed>,
+        val groups: List<Grouped>,
+        val done: List<Placed>,
+        val open: Int,
+        val late: Int,
+        val people: List<PlacedPerson>,
+        val lateByMeeting: Map<String, Int>,
+    ) : CoreEvent {
+        // With the meetings it is read in, which the screens take its actions from.
+        fun among(meetings: List<Meeting>) =
+            ActionBoard(today, toComplete, groups, done, open, late, people, lateByMeeting, meetings)
+    }
 
     // The engines the core knows, by kind, the one it chose first: once the meetings are listed, then at each offer.
     @Serializable

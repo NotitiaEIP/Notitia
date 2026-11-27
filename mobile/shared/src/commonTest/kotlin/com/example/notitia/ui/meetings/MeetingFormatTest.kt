@@ -1,7 +1,6 @@
 package com.example.notitia.ui.meetings
 
 import com.example.notitia.meeting.MeetingStatus
-import com.example.notitia.meeting.MinutesAction
 import com.example.notitia.meeting.MinutesState
 import com.example.notitia.meeting.WrittenMinutes
 import kotlin.test.Test
@@ -118,14 +117,12 @@ class MeetingFormatTest {
         assertEquals("14:30", clockTime(LocalTime(14, 30)))
     }
 
-    // Late as in the Actions tab: due before today and not done. Due today is not late yet.
+    // What is late is the core's count, from its board; a blank summary opens nothing.
     @Test
     fun aReadyMeetingGivesItsSummaryAndWhatIsLate() {
-        val today = LocalDate(2026, 10, 26)
-        val yesterday = LocalDate(2026, 10, 25)
-        fun action(due: LocalDate?, done: Boolean = false) = MinutesAction("0", "Relire", owner = null, due = due, done = done)
-        val actions = listOf(action(yesterday), action(yesterday, done = true), action(today), action(null))
-        val minutes = MinutesState.Written(WrittenMinutes("Démo validée.", decisions = emptyList(), actions = actions))
-        assertEquals(MeetingStatus.Ready(summary = "Démo validée.", late = 1), minutes.status(today))
+        val minutes = MinutesState.Written(WrittenMinutes("Démo validée.", decisions = emptyList(), actions = emptyList()))
+        assertEquals(MeetingStatus.Ready(summary = "Démo validée.", late = 1), minutes.status(late = 1))
+        val blank = MinutesState.Written(WrittenMinutes(" ", decisions = emptyList(), actions = emptyList()))
+        assertEquals(MeetingStatus.Ready(), blank.status(late = 0))
     }
 }

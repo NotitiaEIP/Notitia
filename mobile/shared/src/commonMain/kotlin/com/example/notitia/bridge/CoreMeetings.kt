@@ -1,6 +1,7 @@
 package com.example.notitia.bridge
 
 import com.example.notitia.meeting.Abilities
+import com.example.notitia.meeting.ActionBoard
 import com.example.notitia.meeting.ActionId
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.Meetings
@@ -8,12 +9,16 @@ import com.example.notitia.meeting.TranscriptLine
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.datetime.LocalDate
 
-// What the screens ask of the meetings, sent to the core as values. The list itself is the session's, as the core
-// tells it.
+// What the screens ask of the meetings, sent to the core as values. The list and the board are the session's, as the
+// core tells them.
 internal class CoreMeetings(private val session: CoreSession) : Meetings {
     override val meetings: StateFlow<List<Meeting>?> = session.meetings
     override val unsaved: StateFlow<Set<String>> = session.unsaved
     override val abilities: StateFlow<Abilities> = session.abilities
+    override val board: StateFlow<ActionBoard?> = session.board
+    override val lingering: StateFlow<Set<ActionId>> = session.lingering
+
+    override fun showBoard(today: LocalDate) = session.showBoard(today)
 
     override suspend fun transcript(id: String): List<TranscriptLine>? = session.meeting(id)?.transcript
 
@@ -24,6 +29,10 @@ internal class CoreMeetings(private val session: CoreSession) : Meetings {
     override fun rewrite(id: String) = session.send(Change.Rewrite(id))
 
     override fun setDone(id: ActionId, done: Boolean) = edit(id.meetingId, MeetingEdit.SetDone(id.actionId, done))
+
+    override fun tick(id: ActionId, done: Boolean) = session.tick(id, done)
+
+    override fun letGo(ids: Set<ActionId>) = session.letGo(ids)
 
     override fun setOwner(id: ActionId, owner: String?) = edit(id.meetingId, MeetingEdit.SetOwner(id.actionId, owner))
 

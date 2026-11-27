@@ -2,8 +2,11 @@ package com.example.notitia.bridge
 
 import com.example.notitia.ai.Engine
 import com.example.notitia.meeting.Abilities
+import com.example.notitia.meeting.ActionBoard
+import com.example.notitia.meeting.ActionId
 import com.example.notitia.meeting.KeepAudio
 import com.example.notitia.meeting.Meeting
+import com.example.notitia.meeting.MinutesState
 import com.example.notitia.meeting.RecorderState
 import com.example.notitia.meeting.RecordingProblem
 import kotlin.concurrent.Volatile
@@ -22,10 +25,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.datetime.LocalDate
 
 // An engine that said it was not available is offered again after this: the core waits for the next offer, and has
 // no clock (ADR 0009). Out of reach, a gateway fails at once, so this costs two calls a minute.
@@ -69,6 +74,14 @@ internal class CoreSession(
     private val able = MutableStateFlow(Abilities.None)
     private val keeping = MutableStateFlow<KeepAudio?>(null)
 
+    // What the board is asked with: the day the screens show, and the actions ticked there that keep their place.
+    private val day = MutableStateFlow<LocalDate?>(null)
+    private val lingered = MutableStateFlow(emptySet<ActionId>())
+    private val placed = MutableStateFlow<ActionBoard?>(null)
+
+    // Set while a board waits to be asked: whatever changes before it leaves is in it, so one is enough.
+    private val boardOwed = MutableStateFlow(false)
+
     // The engines offered last, touched by the calls alone, one at a time.
     private var lent: List<Engine> = emptyList()
 
@@ -99,6 +112,11 @@ internal class CoreSession(
 
     // null until the core has said, and for good when it could not open.
     val keepAudio: StateFlow<KeepAudio?> = keeping.asStateFlow()
+
+    // The board of the day shown, with the meetings held when it came. null until it is there.
+    val board: StateFlow<ActionBoard?> = placed.asStateFlow()
+
+    val lingering: StateFlow<Set<ActionId>> = lingered.asStateFlow()
 
     init {
         scope.launch {
@@ -135,6 +153,24 @@ internal class CoreSession(
         }
     }
 
+    // The board is asked for this day, then again at each change of the actions.
+    fun showBoard(today: LocalDate) {
+        if (day.getAndUpdate { today } != today) askBoard()
+    }
+
+    // Kept in place before the tick is sent, the board asked once it is applied: no board made after the tick shows
+    // the action leave and come back.
+    fun tick(id: ActionId, done: Boolean) {
+        lingered.update { if (done) it + id else it - id }
+        send(Change.Edit(id.meetingId, MeetingEdit.SetDone(id.actionId, done)))
+        askBoard()
+    }
+
+    // They join the done ones.
+    fun letGo(ids: Set<ActionId>) {
+        if (lingered.getAndUpdate { it - ids }.any { it in ids }) askBoard()
+    }
+
     // From the microphone's thread, straight to the core: never behind a call that waits for the disk.
     fun hear(pcm: ByteArray) {
         if (opened) core.hear(0, pcm)
@@ -151,6 +187,19 @@ internal class CoreSession(
 
     private fun apply(request: CoreRequest) {
         core.apply(CoreJson.encodeToString(CoreRequest.serializer(), request))
+    }
+
+    // Asked with the day and the actions kept in place as they are when it leaves. The core tells the board before it
+    // returns: one that could not open, refused the request or told what this app cannot read leaves the screens
+    // without one, and they open all the same rather than wait on the splash screen. A board shown before stays.
+    private fun askBoard() {
+        if (day.value == null || !boardOwed.compareAndSet(expect = false, update = true)) return
+        scope.launch {
+            boardOwed.value = false
+            val today = day.value ?: return@launch
+            if (opened) apply(BoardAsk(today, lingered.value.toList()))
+            if (placed.value == null) placed.value = ActionBoard.empty(today)
+        }
     }
 
     // After the list is shown, the first tidy-up of a phone may take seconds.
@@ -183,15 +232,28 @@ internal class CoreSession(
     private fun follow(event: String) {
         when (val read = readEvent(event)) {
             null -> Unit
-            is CoreEvent.Listed -> list { read.meetings }
-            is CoreEvent.Changed -> list { told ->
-                told.filterNot { it.id == read.meeting.id }.toMutableList().apply {
-                    // Bounded: after an event this app could not read, a place past the end must not throw into the
-                    // core.
-                    add(read.at.coerceIn(0, size), read.meeting)
-                }
+            is CoreEvent.Listed -> {
+                list { read.meetings }
+                askBoard()
             }
-            is CoreEvent.Removed -> list { told -> told.filterNot { it.id in read.meetings } }
+            is CoreEvent.Changed -> {
+                // The core tells the changes of a meeting one at a time: what it was is still the list's.
+                val was = told.value.firstOrNull { it.id == read.meeting.id }
+                list { told ->
+                    told.filterNot { it.id == read.meeting.id }.toMutableList().apply {
+                        // Bounded: after an event this app could not read, a place past the end must not throw into
+                        // the core.
+                        add(read.at.coerceIn(0, size), read.meeting)
+                    }
+                }
+                if (was?.holdsActions() == true || read.meeting.holdsActions()) askBoard()
+            }
+            is CoreEvent.Removed -> {
+                list { told -> told.filterNot { it.id in read.meetings } }
+                askBoard()
+            }
+            // Made for a day the screens have left, at midnight say: the next one is on its way.
+            is CoreEvent.Board -> if (read.today == day.value) placed.value = read.among(told.value)
             is CoreEvent.Unsaved -> behind.value = read.meetings
             is CoreEvent.Recorder -> read.toState()?.let(::tellRecorder)
             is CoreEvent.Engines -> able.value = Abilities(hear = read.speech.isNotEmpty(), write = read.text.isNotEmpty())
@@ -210,3 +272,6 @@ internal class CoreSession(
         recorderSteps.tryEmit(state)
     }
 }
+
+// Only written minutes hold actions: a meeting recorded or heard meanwhile moves nothing on the board.
+private fun Meeting.holdsActions() = (minutes as? MinutesState.Written)?.minutes?.actions?.isNotEmpty() == true

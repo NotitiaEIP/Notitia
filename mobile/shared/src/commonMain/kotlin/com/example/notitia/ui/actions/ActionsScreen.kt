@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -44,7 +45,9 @@ import androidx.compose.ui.semantics.collapse
 import androidx.compose.ui.semantics.expand
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import com.example.notitia.meeting.ActionBoard
 import com.example.notitia.meeting.ActionId
+import com.example.notitia.meeting.DueGroup
 import com.example.notitia.ui.components.CountBadge
 import com.example.notitia.ui.components.DetailsLine
 import com.example.notitia.ui.components.EmptyState
@@ -52,9 +55,8 @@ import com.example.notitia.ui.components.GroupTitle
 import com.example.notitia.ui.components.NotitiaSegmentedControl
 import com.example.notitia.ui.components.ScreenHeader
 import com.example.notitia.ui.components.listMotion
-import com.example.notitia.ui.components.rememberToday
 import com.example.notitia.ui.components.today
-import com.example.notitia.ui.meetings.sampleMinutes
+import com.example.notitia.ui.minutes.sampleLists
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
 import com.example.notitia.ui.theme.reducedMotion
@@ -86,19 +88,23 @@ enum class ActionsView(val label: StringResource) {
     ByPerson(Res.string.actions_by_person),
 }
 
-// A ticked action keeps its place a moment before it joins the done ones. Ticking several in a row keeps them all
-// in place until the last moment ends, so no card moves under the finger. A swiped one is already off the screen.
-// onCompleted gets the actions that just left the list, whichever way, so they can be taken back.
-// openedAction is the action whose sheet is up, and sheetReveal how much of it shows. ownerChoices gives the first
-// names of a meeting. view is kept by the caller, so it survives a change of tab.
+// A ticked action keeps its place a moment before it joins the done ones: onTick keeps it lingering, onLetGo ends
+// that. Ticking several in a row keeps them all in place until the last moment ends, so no card moves under the
+// finger. A swiped one is already off the screen: it is only set done. onCompleted gets the actions that just left the
+// list, whichever way, so they can be taken back. openedAction is the action whose sheet is up, and sheetReveal how
+// much of it shows. ownerChoices gives the first names of a meeting. view is kept by the caller, so it survives a
+// change of tab.
 @Composable
 fun ActionsScreen(
-    actions: List<TrackedAction>,
+    lists: ActionLists,
+    lingering: Set<ActionId>,
     view: ActionsView,
     onViewChange: (ActionsView) -> Unit,
     openedAction: ActionId?,
     sheetReveal: SheetReveal,
     ownerChoices: (meetingId: String) -> List<String>,
+    onTick: (ActionId, Boolean) -> Unit,
+    onLetGo: (Set<ActionId>) -> Unit,
     onSetDone: (ActionId, Boolean) -> Unit,
     onSetOwner: (ActionId, String?) -> Unit,
     onSetDue: (ActionId, LocalDate?) -> Unit,
@@ -110,37 +116,35 @@ fun ActionsScreen(
     modifier: Modifier = Modifier,
 ) {
     val motion = NotitiaTheme.motion
-    val today = rememberToday()
-    var lingering by remember { mutableStateOf(emptySet<ActionId>()) }
+    val today = lists.today
     var showDone by rememberSaveable { mutableStateOf(false) }
     var expanded by rememberSaveable(stateSaver = ExpandedSaver) { mutableStateOf(emptySet<String>()) }
     var nudging by rememberSaveable(stateSaver = NudgeTargetSaver) { mutableStateOf<NudgeTarget?>(null) }
     val timeZone = remember { TimeZone.currentSystemDefault() }
     // Written after each composition, read at the next one: not a state, so keeping it does not recompose.
     val personOrder = remember(view) { mutableListOf<String?>() }
-    val people = if (view == ActionsView.ByPerson) {
-        actionsByPerson(actions, today, lingering).keptInOrder(personOrder)
-    } else {
-        emptyList()
-    }
+    val people = if (view == ActionsView.ByPerson) lists.people.keptInOrder(personOrder) else emptyList()
     SideEffect {
         personOrder.clear()
         personOrder.addAll(people.map { it.key })
     }
     val completed by rememberUpdatedState(onCompleted)
+    val letGo by rememberUpdatedState(onLetGo)
+    val stillLingering by rememberUpdatedState(lingering)
     LaunchedEffect(lingering) {
         if (lingering.isEmpty()) return@LaunchedEffect
         delay(motion.ACTION_LINGER_MS.milliseconds)
         completed(lingering.toList())
-        lingering = emptySet()
+        letGo(lingering)
     }
-    fun toggle(tracked: TrackedAction) {
-        val done = !tracked.action.done
-        lingering = if (done) lingering + tracked.id else lingering - tracked.id
-        onSetDone(tracked.id, done)
+    // Leaving the list ends the moment at once, without a message: the actions are done already, as they were.
+    DisposableEffect(Unit) {
+        onDispose { letGo(stillLingering) }
     }
+    fun toggle(tracked: TrackedAction) = onTick(tracked.id, !tracked.action.done)
+    val actions = lists.all
     ActionList(
-        board = actionBoard(actions, today, lingering),
+        lists = lists,
         people = people,
         view = view,
         onViewChange = onViewChange,
@@ -183,7 +187,7 @@ fun ActionsScreen(
     val nudge = when (val target = nudging) {
         null -> null
         is NudgeTarget.Action -> actions.firstOrNull { it.id == target.id }?.let { nudgeFor(it, timeZone) }
-        is NudgeTarget.Person -> actionsByPerson(actions, today).firstOrNull { it.key == target.key }?.let { nudgeFor(it, timeZone) }
+        is NudgeTarget.Person -> lists.people.firstOrNull { it.key == target.key }?.let { nudgeFor(it, timeZone) }
     }
     // Nothing left to nudge about, the action ticked meanwhile for one: the sheet goes.
     LaunchedEffect(nudging, nudge == null) {
@@ -221,7 +225,7 @@ private fun PersonActions.expandKey(): String = key ?: NOBODY
 
 @Composable
 private fun ActionList(
-    board: ActionBoard,
+    lists: ActionLists,
     people: List<PersonActions>,
     view: ActionsView,
     onViewChange: (ActionsView) -> Unit,
@@ -240,7 +244,7 @@ private fun ActionList(
 ) {
     val spacing = NotitiaTheme.spacing
     val colors = NotitiaTheme.colors
-    val empty = board.toComplete.isEmpty() && board.groups.isEmpty() && board.done.isEmpty()
+    val empty = lists.toComplete.isEmpty() && lists.groups.isEmpty() && lists.done.isEmpty()
 
     @Composable
     fun Card(tracked: TrackedAction, modifier: Modifier) = ActionCard(
@@ -262,7 +266,7 @@ private fun ActionList(
             Column(verticalArrangement = Arrangement.spacedBy(spacing.xs)) {
                 ScreenHeader(stringResource(Res.string.actions_title))
                 if (!empty) {
-                    OpenCount(board)
+                    OpenCount(lists)
                     NotitiaSegmentedControl(
                         options = ActionsView.entries.map { stringResource(it.label) },
                         selected = view.ordinal,
@@ -284,7 +288,6 @@ private fun ActionList(
             itemsIndexed(people, key = { _, person -> "person/${person.expandKey()}" }) { index, person ->
                 PersonCard(
                     person = person,
-                    today = today,
                     expanded = person.expandKey() in expanded,
                     onExpandedChange = { onExpandedChange(person.expandKey(), it) },
                     onToggle = onToggle,
@@ -295,12 +298,12 @@ private fun ActionList(
             }
             return@LazyColumn
         }
-        if (board.toComplete.isNotEmpty()) {
+        if (lists.toComplete.isNotEmpty()) {
             item(key = "to-complete") {
-                ToCompleteCard(board.toComplete, onOpen, listMotion(swipedOff = true).padding(top = spacing.l))
+                ToCompleteCard(lists.toComplete, onOpen, listMotion(swipedOff = true).padding(top = spacing.l))
             }
         }
-        board.groups.forEach { (group, inGroup) ->
+        lists.groups.forEach { (group, inGroup) ->
             item(key = group.name) {
                 GroupTitle(
                     text = stringResource(group.title),
@@ -310,10 +313,10 @@ private fun ActionList(
             }
             items(inGroup, key = { it.id.key }) { Card(it, listMotion(swipedOff = true)) }
         }
-        if (board.done.isNotEmpty()) {
+        if (lists.done.isNotEmpty()) {
             item(key = "done") {
                 DoneHeader(
-                    count = board.done.size,
+                    count = lists.done.size,
                     expanded = showDone,
                     onExpandedChange = onShowDoneChange,
                     modifier = listMotion(swipedOff = true).padding(top = spacing.xl, bottom = spacing.s),
@@ -329,7 +332,7 @@ private fun ActionList(
                     exit = foldExit(reducedMotion()),
                 ) {
                     Column {
-                        board.done.forEach { tracked -> key(tracked.id.key) { Card(tracked, Modifier) } }
+                        lists.done.forEach { tracked -> key(tracked.id.key) { Card(tracked, Modifier) } }
                     }
                 }
             }
@@ -354,13 +357,13 @@ internal fun foldExit(reduced: Boolean): ExitTransition {
 
 // "7 en cours · 2 en retard": what is left, and what is late in red.
 @Composable
-private fun OpenCount(board: ActionBoard) {
-    if (board.open == 0) {
+private fun OpenCount(lists: ActionLists) {
+    if (lists.open == 0) {
         DetailsLine(listOf(stringResource(Res.string.actions_nothing_open)))
     } else {
         DetailsLine(
-            parts = listOf(stringResource(Res.string.actions_open, board.open)),
-            alert = board.late.takeIf { it > 0 }?.let { stringResource(Res.string.actions_late, it) },
+            parts = listOf(stringResource(Res.string.actions_open, lists.open)),
+            alert = lists.late.takeIf { it > 0 }?.let { stringResource(Res.string.actions_late, it) },
         )
     }
 }
@@ -404,18 +407,17 @@ private fun DoneHeader(count: Int, expanded: Boolean, onExpandedChange: (Boolean
 
 @Composable
 private fun ActionListPreview(
-    actions: List<TrackedAction>,
+    lists: ActionLists,
     showDone: Boolean,
     view: ActionsView = ActionsView.ByDue,
     expanded: Set<String> = emptySet(),
 ) = NotitiaTheme {
-    val today = today()
     ActionList(
-        board = actionBoard(actions, today),
-        people = actionsByPerson(actions, today),
+        lists = lists,
+        people = lists.people,
         view = view,
         onViewChange = {},
-        today = today,
+        today = lists.today,
         showDone = showDone,
         onShowDoneChange = {},
         expanded = expanded,
@@ -430,32 +432,32 @@ private fun ActionListPreview(
     )
 }
 
-private fun sampleActions(): List<TrackedAction> {
-    val now = Clock.System.now()
-    return trackedActions(sampleMinutes(now))
-}
+@NotitiaPreviews
+@Composable
+private fun ActionsByDuePreview() = ActionListPreview(sampleLists(Clock.System.now()), showDone = false)
 
 @NotitiaPreviews
 @Composable
-private fun ActionsByDuePreview() = ActionListPreview(sampleActions(), showDone = false)
-
-@NotitiaPreviews
-@Composable
-private fun ActionsWithDonePreview() = ActionListPreview(sampleActions(), showDone = true)
+private fun ActionsWithDonePreview() = ActionListPreview(sampleLists(Clock.System.now()), showDone = true)
 
 @NotitiaPreviews
 @Composable
 private fun ActionsByPersonPreview() {
-    val actions = sampleActions()
-    val first = actionsByPerson(actions, today()).firstOrNull()?.expandKey()
-    ActionListPreview(actions, showDone = false, view = ActionsView.ByPerson, expanded = setOfNotNull(first))
+    val lists = sampleLists(Clock.System.now())
+    val first = lists.people.firstOrNull()?.expandKey()
+    ActionListPreview(lists, showDone = false, view = ActionsView.ByPerson, expanded = setOfNotNull(first))
+}
+
+// Every sample ticked: what the board would hold, written out.
+@NotitiaPreviews
+@Composable
+private fun ActionsAllDonePreview() {
+    val lists = sampleLists(Clock.System.now())
+    val done = lists.all.map { it.copy(action = it.action.copy(done = true), daysLate = null) }
+    val ticked = lists.copy(toComplete = emptyList(), groups = emptyList(), done = done, open = 0, late = 0)
+    ActionListPreview(ticked, showDone = false)
 }
 
 @NotitiaPreviews
 @Composable
-private fun ActionsAllDonePreview() =
-    ActionListPreview(sampleActions().map { it.copy(action = it.action.copy(done = true)) }, showDone = false)
-
-@NotitiaPreviews
-@Composable
-private fun ActionsEmptyPreview() = ActionListPreview(emptyList(), showDone = false)
+private fun ActionsEmptyPreview() = ActionListPreview(ActionBoard.empty(today()).lists(emptyList()), showDone = false)

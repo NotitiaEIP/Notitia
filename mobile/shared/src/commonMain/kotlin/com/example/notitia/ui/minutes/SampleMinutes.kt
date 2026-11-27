@@ -1,15 +1,27 @@
 package com.example.notitia.ui.minutes
 
+import com.example.notitia.meeting.ActionBoard
 import com.example.notitia.meeting.ActionSource
+import com.example.notitia.meeting.DueGroup
+import com.example.notitia.meeting.Grouped
 import com.example.notitia.meeting.MinutesAction
+import com.example.notitia.meeting.Placed
+import com.example.notitia.meeting.PlacedPerson
 import com.example.notitia.meeting.WrittenMinutes
+import com.example.notitia.ui.actions.ActionLists
+import com.example.notitia.ui.actions.lists
+import com.example.notitia.ui.meetings.sampleMeetings
+import com.example.notitia.ui.meetings.sampleMinutes
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 import kotlinx.datetime.plus
+import kotlinx.datetime.toLocalDateTime
 
 val sampleSpeakers = listOf("Lucas", "Clément", "Nathan", "Adam")
 
@@ -93,3 +105,45 @@ private fun sampleActions(meetingId: String, today: LocalDate): List<MinutesActi
         else -> emptyList()
     }
 }
+
+// Where the core places the sample actions, written out for the previews, which have no core. RustBoardTest holds it
+// to what the core works out, at any time of day: the due dates are counted from the same day.
+fun sampleBoard(now: Instant, timeZone: TimeZone = TimeZone.currentSystemDefault()): ActionBoard {
+    fun placed(meeting: Int, rank: Int, group: DueGroup? = null, daysLate: Int? = null) =
+        Placed("sample-$meeting", "$rank", group, daysLate)
+    val nathanLate = placed(4, 1, DueGroup.Late, daysLate = 2)
+    val clementLate = placed(4, 0, DueGroup.Late, daysLate = 1)
+    val adamToday = placed(4, 2, DueGroup.Today)
+    val nathanTomorrow = placed(3, 0, DueGroup.Tomorrow)
+    val clementSoon = placed(1, 0, DueGroup.NextDays)
+    val adamLater = placed(4, 4, DueGroup.Later)
+    val lucasUndated = placed(4, 3)
+    val nobodys = placed(1, 1, DueGroup.Later)
+    return ActionBoard(
+        today = now.toLocalDateTime(timeZone).date,
+        toComplete = listOf(lucasUndated, nobodys),
+        groups = listOf(
+            Grouped(DueGroup.Late, listOf(nathanLate, clementLate)),
+            Grouped(DueGroup.Today, listOf(adamToday)),
+            Grouped(DueGroup.Tomorrow, listOf(nathanTomorrow)),
+            Grouped(DueGroup.NextDays, listOf(clementSoon)),
+            Grouped(DueGroup.Later, listOf(adamLater)),
+        ),
+        done = listOf(placed(1, 2)),
+        open = 8,
+        late = 2,
+        people = listOf(
+            PlacedPerson("clement", "Clément", listOf(clementLate, clementSoon), late = 1, done = 1, total = 3),
+            PlacedPerson("nathan", "Nathan", listOf(nathanLate, nathanTomorrow), late = 1, done = 0, total = 2),
+            PlacedPerson("adam", "Adam", listOf(adamToday, adamLater), late = 0, done = 0, total = 2),
+            PlacedPerson("lucas", "Lucas", listOf(lucasUndated), late = 0, done = 0, total = 1),
+            PlacedPerson(open = listOf(nobodys), late = 0, done = 0, total = 1),
+        ),
+        lateByMeeting = mapOf("sample-4" to 2),
+        meetings = sampleMeetings(now, timeZone),
+    )
+}
+
+// The Actions tab of the samples, for the previews.
+fun sampleLists(now: Instant, timeZone: TimeZone = TimeZone.currentSystemDefault()): ActionLists =
+    sampleBoard(now, timeZone).lists(sampleMinutes(now, timeZone))

@@ -38,15 +38,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.example.notitia.ui.components.DetailsLine
 import com.example.notitia.ui.components.DoneRing
 import com.example.notitia.ui.components.SpeakerAvatar
-import com.example.notitia.ui.components.today
 import com.example.notitia.ui.components.StrikeText
 import com.example.notitia.ui.components.cardShadow
-import com.example.notitia.ui.meetings.sampleMinutes
+import com.example.notitia.ui.minutes.sampleLists
 import com.example.notitia.ui.theme.NotitiaPreviews
 import com.example.notitia.ui.theme.NotitiaTheme
 import com.example.notitia.ui.theme.reducedMotion
 import kotlin.time.Clock
-import kotlinx.datetime.LocalDate
 import notitia.shared.generated.resources.Res
 import notitia.shared.generated.resources.action_mark_done
 import notitia.shared.generated.resources.action_mark_todo
@@ -72,7 +70,6 @@ private const val MAX_LINES = 2
 @Composable
 fun PersonCard(
     person: PersonActions,
-    today: LocalDate,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     onToggle: (TrackedAction) -> Unit,
@@ -99,7 +96,7 @@ fun PersonCard(
                 person.open.forEach { tracked ->
                     key(tracked.id.key) {
                         HorizontalDivider(Modifier.padding(start = spacing.l), color = colors.divider)
-                        PersonActionRow(tracked, today, onToggle = { onToggle(tracked) }, onOpen = { onOpen(tracked) })
+                        PersonActionRow(tracked, onToggle = { onToggle(tracked) }, onOpen = { onOpen(tracked) })
                     }
                 }
                 val name = person.name
@@ -197,11 +194,11 @@ private fun PersonAvatar(person: PersonActions) {
 
 // The circle sits under the avatar, the text under the name. Under it, when it is due, or "Pour quand ?" in amber.
 @Composable
-private fun PersonActionRow(tracked: TrackedAction, today: LocalDate, onToggle: () -> Unit, onOpen: () -> Unit) {
+private fun PersonActionRow(tracked: TrackedAction, onToggle: () -> Unit, onOpen: () -> Unit) {
     val action = tracked.action
     val spacing = NotitiaTheme.spacing
     val colors = NotitiaTheme.colors
-    val (due, late) = dueWords(action, today)
+    val (due, late) = dueWords(tracked)
     val toggleLabel = stringResource(if (action.done) Res.string.action_mark_todo else Res.string.action_mark_done)
     Row(
         modifier = Modifier
@@ -265,9 +262,7 @@ private fun NudgeRow(name: String, onClick: () -> Unit) {
 
 @Composable
 private fun PersonCardsPreview(expandedFirst: Boolean) = NotitiaTheme {
-    val now = Clock.System.now()
-    val today = today()
-    val people = actionsByPerson(trackedActions(sampleMinutes(now)), today)
+    val people = sampleLists(Clock.System.now()).people
     var expanded by remember { mutableStateOf(if (expandedFirst) setOf(people.first().key) else emptySet()) }
     Column(
         modifier = Modifier.background(NotitiaTheme.colors.background).padding(NotitiaTheme.spacing.l),
@@ -276,7 +271,6 @@ private fun PersonCardsPreview(expandedFirst: Boolean) = NotitiaTheme {
         people.forEach { person ->
             PersonCard(
                 person = person,
-                today = today,
                 expanded = person.key in expanded,
                 onExpandedChange = { expanded = if (it) expanded + person.key else expanded - person.key },
                 onToggle = {},

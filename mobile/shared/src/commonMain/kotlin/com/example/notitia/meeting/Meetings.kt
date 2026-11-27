@@ -17,6 +17,15 @@ interface Meetings {
     // What the engines of this device can do now: a meeting that owes more waits for a model.
     val abilities: StateFlow<Abilities>
 
+    // Every action as the core places it on the day shown, with the meetings it was read in. null until it is there.
+    val board: StateFlow<ActionBoard?>
+
+    // Ticked on the board and not let go yet: they keep their place, so no card moves under the finger.
+    val lingering: StateFlow<Set<ActionId>>
+
+    // The day of the screens: the board follows it, and each change of the actions.
+    fun showBoard(today: LocalDate)
+
     // The lines of a meeting, read when they are shown. null when they cannot be read.
     suspend fun transcript(id: String): List<TranscriptLine>?
 
@@ -29,6 +38,11 @@ interface Meetings {
 
     fun setDone(id: ActionId, done: Boolean)
 
+    // Ticked on the board: it keeps its place until it is let go.
+    fun tick(id: ActionId, done: Boolean)
+
+    fun letGo(ids: Set<ActionId>)
+
     fun setOwner(id: ActionId, owner: String?)
 
     fun setDue(id: ActionId, due: LocalDate?)
@@ -36,11 +50,15 @@ interface Meetings {
     fun setReminder(id: ActionId, on: Boolean)
 }
 
-// For previews, which have no core: the meetings they are given, which nothing changes.
-class PreviewMeetings(shown: List<Meeting>) : Meetings {
+// For previews, which have no core: the meetings and the board they are given, which nothing changes.
+class PreviewMeetings(shown: List<Meeting>, placed: ActionBoard? = null) : Meetings {
     override val meetings: StateFlow<List<Meeting>?> = MutableStateFlow(shown)
     override val unsaved: StateFlow<Set<String>> = MutableStateFlow(emptySet())
     override val abilities: StateFlow<Abilities> = MutableStateFlow(Abilities(hear = true, write = true))
+    override val board: StateFlow<ActionBoard?> = MutableStateFlow(placed)
+    override val lingering: StateFlow<Set<ActionId>> = MutableStateFlow(emptySet())
+
+    override fun showBoard(today: LocalDate) = Unit
 
     override suspend fun transcript(id: String) = meetings.value?.firstOrNull { it.id == id }?.transcript
 
@@ -51,6 +69,10 @@ class PreviewMeetings(shown: List<Meeting>) : Meetings {
     override fun rewrite(id: String) = Unit
 
     override fun setDone(id: ActionId, done: Boolean) = Unit
+
+    override fun tick(id: ActionId, done: Boolean) = Unit
+
+    override fun letGo(ids: Set<ActionId>) = Unit
 
     override fun setOwner(id: ActionId, owner: String?) = Unit
 

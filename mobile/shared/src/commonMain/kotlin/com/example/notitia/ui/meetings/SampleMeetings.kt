@@ -4,6 +4,7 @@ import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.MinutesState
 import com.example.notitia.meeting.TranscriptLine
 import com.example.notitia.ui.minutes.Minutes
+import com.example.notitia.ui.minutes.sampleBoard
 import com.example.notitia.ui.minutes.sampleSpeakers
 import com.example.notitia.ui.minutes.sampleWrittenMinutes
 import com.example.notitia.ui.minutes.toMinutes
@@ -64,12 +65,13 @@ fun sampleMeetings(now: Instant, timeZone: TimeZone = TimeZone.currentSystemDefa
     )
 }
 
-// For previews and tests, which show the samples without the core.
-fun sampleItems(now: Instant, timeZone: TimeZone = TimeZone.currentSystemDefault()): List<MeetingListItem> =
-    sampleMeetings(now, timeZone).map { it.sampleItem(now, timeZone) }
+// For previews and tests, which show the samples without the core: what is late is the sample board's.
+fun sampleItems(now: Instant, timeZone: TimeZone = TimeZone.currentSystemDefault()): List<MeetingListItem> {
+    val late = sampleBoard(now, timeZone).lateByMeeting
+    return sampleMeetings(now, timeZone).map { meeting ->
+        meeting.listItem(checkNotNull(meeting.title), meeting.minutes.status(late[meeting.id] ?: 0))
+    }
+}
 
 fun sampleMinutes(now: Instant, timeZone: TimeZone = TimeZone.currentSystemDefault()): List<Minutes> =
-    sampleMeetings(now, timeZone).map { it.toMinutes(it.sampleItem(now, timeZone)) }
-
-private fun Meeting.sampleItem(now: Instant, timeZone: TimeZone) =
-    listItem(checkNotNull(title), minutes.status(now.toLocalDateTime(timeZone).date))
+    sampleMeetings(now, timeZone).zip(sampleItems(now, timeZone), Meeting::toMinutes)

@@ -3,6 +3,7 @@
 | | |
 | --- | --- |
 | Statut | Proposée le 27 novembre 2026, acceptée à la fusion de sa PR |
+| Modifiée | Le 28 novembre 2026 par T-104 (#282) : le téléphone lit le tableau avec les réunions qu'il tenait à son arrivée, la session tient les actions qui s'attardent |
 | Proposée par | Clément |
 | Relue par | Alexandre pour le cœur |
 | Tâche d'origine | T-84 (#249). L'onglet Actions du téléphone l'affiche dans T-104 |
@@ -55,6 +56,8 @@ Mesuré le 27 novembre 2026 avec `cargo run --release --example board` : des ré
 
 Écarter un identifiant en double coûte 0,05 à 0,08 ms de plus sur le PC à 2 400 actions (mesuré le 28 novembre avec et sans, à la même heure). Le temps suit le nombre d'actions. Ce que le Kotlin refaisait à chaque recomposition, il le lit une fois par réponse.
 
+Mesuré le 28 novembre 2026 côté téléphone (T-104), sur le PC, par le chemin entier de l'app : `CoreSession` sur le vrai cœur, demande écrite, tableau calculé, texte décodé en Kotlin et apparié à ses réunions, 30 demandes après 10 de chauffe. 150 actions (30 réunions × 5) : 2,0 ms en médiane, 4,6 ms au pire. 2 400 actions (300 × 8) : 11,7 à 12,4 ms en médiane, 18 ms au pire ; le décodage Kotlin en prend l'essentiel, sur le fil du cœur, jamais sur celui de l'écran.
+
 `cargo test` fait passer 2 000 jeux tirés d'une action par réunion et 1 000 de réunions à plusieurs actions, et cent fois plus en release (`NOTITIA_CASES=100000`) : chaque action est dite une fois, `open` et `late` sont ce que les listes tiennent, chaque liste suit sa clé, les totaux d'une personne se recomptent par un autre chemin, et le même tableau sort de toute permutation des réunions. Quatre fils cochent et décochent des actions pendant qu'un cinquième demande : chaque réponse est entière (30 passages). Chacune des 26 règles a été cassée à la main : un test échoue à chaque fois.
 
 ## Conséquences
@@ -66,7 +69,7 @@ Mesuré le 27 novembre 2026 avec `cargo run --release --example board` : des ré
 - Un instant de décalage entre `changed` et `board` : l'écran lit les actions de l'un et leur place dans l'autre. Une action absente du tableau n'est pas montrée, une action absente des réunions est écartée.
 
 **Ce qui reste ouvert.**
-- Restent à l'écran, dans T-104 : l'ordre des cartes tant que la liste est visible (`keptInOrder`), et la durée de `lingering`.
+- Fait par T-104 (#282) : l'ordre des cartes tant que la liste est visible (`keptInOrder`) et la durée de `lingering` restent à l'écran ; les actions qui s'attardent sont tenues par la session Kotlin, qui les ajoute avant d'envoyer la coche, et le téléphone redemande le tableau quand le jour, les actions qui s'attardent ou une réunion qui tient des actions changent, une demande à la fois, en écartant une réponse faite pour un autre jour. Il lit chaque tableau avec les réunions qu'il tient à son arrivée : l'onglet Actions ne mêle jamais le texte d'un instant à la place d'un autre, et le décalage décrit plus haut ne se voit pas sur le téléphone. Un tableau refusé ou illisible au lancement laisse l'app s'ouvrir, sans actions, plutôt que de la retenir sur l'écran de lancement.
 - Restent en Kotlin : `knownSpelling` (le cœur devrait l'appliquer quand il enregistre un responsable) et `dueDateRange` (le cœur devrait refuser une échéance avant la réunion ou à plus d'un an dans `SetDue`).
 - **La clé d'une personne est écrite deux fois** tant que `PersonColors` doit une clé pour tout nom, intervenants et responsables compris : `core/tests/fixtures/bridge/board.json` porte des paires nom et clé que les tests du cœur et ceux du Kotlin lisent, et ne les laissent pas diverger. À supprimer le jour où le cœur donnera la clé et la couleur avec chaque nom.
 - Les jours de réunion du Kotlin se comptent encore avec le fuseau du téléphone ; le cœur a le décalage de la réunion (`offsetMinutes`), à utiliser quand il portera aussi `dueDateRange`.

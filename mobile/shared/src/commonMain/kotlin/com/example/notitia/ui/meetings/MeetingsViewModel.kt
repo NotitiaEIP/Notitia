@@ -3,6 +3,7 @@ package com.example.notitia.ui.meetings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.notitia.meeting.Abilities
+import com.example.notitia.meeting.ActionBoard
 import com.example.notitia.meeting.ActionId
 import com.example.notitia.meeting.Meeting
 import com.example.notitia.meeting.Meetings
@@ -25,6 +26,8 @@ class MeetingsViewModel(
     val meetings: StateFlow<List<Meeting>?> = kept.meetings
     val recording: StateFlow<RecorderState> = recorder.state
     val abilities: StateFlow<Abilities> = kept.abilities
+    val board: StateFlow<ActionBoard?> = kept.board
+    val lingering: StateFlow<Set<ActionId>> = kept.lingering
 
     // Seen as the meetings change, from the first list on, whichever screen shows them.
     val pace: StateFlow<TranscriptionPace> = kept.meetings
@@ -34,7 +37,13 @@ class MeetingsViewModel(
 
     suspend fun transcript(id: String) = kept.transcript(id)
 
+    fun showBoard(today: LocalDate) = kept.showBoard(today)
+
     fun setDone(id: ActionId, done: Boolean) = kept.setDone(id, done)
+
+    fun tick(id: ActionId, done: Boolean) = kept.tick(id, done)
+
+    fun letGo(ids: Set<ActionId>) = kept.letGo(ids)
 
     fun setOwner(id: ActionId, owner: String?) = kept.setOwner(id, owner)
 
