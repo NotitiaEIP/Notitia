@@ -49,6 +49,7 @@ Une fiche se lit en deux minutes et ne change plus, sauf pour recevoir ce que la
 | [0014](adr/0014-reunions-scellees.md) | Les réunions et l'index scellés sur le disque : une clé par fichier, les fichiers d'avant scellés au lancement, rien d'écrit sans clé | Proposée le 26 novembre 2026, modifiée le 27 novembre |
 | [0015](adr/0015-audio-30-jours.md) | L'audio effacé après 30 jours, son texte gardé : demandé par l'app chaque jour, marqué puis effacé, jamais la réunion qu'on enregistre | Proposée le 27 novembre 2026, ses points 1 à 3 remplacés en partie par 0016 le 27 novembre |
 | [0016](adr/0016-reglages-du-coeur.md) | Les réglages tenus par le cœur : la durée de l'audio choisie par l'utilisateur, 30 jours au plus, appliquée dès la fin d'une transcription | Proposée le 27 novembre 2026 |
+| [0017](adr/0017-tableau-des-actions.md) | Le cœur calcule le tableau des actions, par échéance et par personne, à partir du jour que l'app lui donne : des références, un ordre total, le retard de chaque réunion | Proposée le 27 novembre 2026 |
 
 ## Ailleurs dans le repo
 

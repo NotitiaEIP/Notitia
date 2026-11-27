@@ -18,7 +18,6 @@ pub type Extra = serde_json::Map<String, serde_json::Value>;
 // Written by hand: the module that time generates refuses a null inside the minutes, where serde reads twice.
 pub(crate) mod civil_date {
     use serde::de::Error as _;
-    use serde::ser::Error as _;
     use serde::{Deserialize, Deserializer, Serializer};
     use time::Date;
     use time::format_description::BorrowedFormatItem;
@@ -28,7 +27,7 @@ pub(crate) mod civil_date {
 
     pub fn serialize<S: Serializer>(date: &Option<Date>, serializer: S) -> Result<S::Ok, S::Error> {
         match date {
-            Some(date) => serializer.serialize_str(&date.format(FORMAT).map_err(S::Error::custom)?),
+            Some(date) => required::serialize(date, serializer),
             None => serializer.serialize_none(),
         }
     }
@@ -36,6 +35,22 @@ pub(crate) mod civil_date {
     pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Date>, D::Error> {
         let text = Option::<String>::deserialize(deserializer)?;
         text.map(|text| Date::parse(&text, FORMAT)).transpose().map_err(D::Error::custom)
+    }
+
+    // A day that must be there, as the day the app gives with a question: a missing one is a refusal, never today.
+    pub(crate) mod required {
+        use serde::de::Error as _;
+        use serde::ser::Error as _;
+        use serde::{Deserialize, Deserializer, Serializer};
+        use time::Date;
+
+        pub fn serialize<S: Serializer>(date: &Date, serializer: S) -> Result<S::Ok, S::Error> {
+            serializer.serialize_str(&date.format(super::FORMAT).map_err(S::Error::custom)?)
+        }
+
+        pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Date, D::Error> {
+            Date::parse(&String::deserialize(deserializer)?, super::FORMAT).map_err(D::Error::custom)
+        }
     }
 }
 

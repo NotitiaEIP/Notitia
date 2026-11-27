@@ -1,0 +1,102 @@
+{
+  "meetings": [
+    {"id":"recorded-1","startedAt":"2026-10-20T09:00:00Z","durationMs":1800000,"modifiedAt":"2026-10-20T10:00:00Z","device":"phone-1","title":"Revue de sprint","minutes":{"type":"written","minutes":{"summary":"","decisions":[],"actions":[
+      {"id":"0","text":"Corriger le contraste des badges","owner":"Nathan","due":"2026-10-24","done":false},
+      {"id":"1","text":"Réserver la salle","done":false},
+      {"id":"2","text":"Envoyer le devis","owner":"Adam","due":"2026-10-27","done":false},
+      {"id":"3","text":"Préparer la démo","owner":"adam","due":"2026-10-26","done":true}
+    ]}}},
+    {"id":"recorded-2","startedAt":"2026-10-23T14:00:00Z","durationMs":1800000,"modifiedAt":"2026-10-23T15:00:00Z","device":"phone-1","title":"Point client","minutes":{"type":"written","minutes":{"summary":"","decisions":[],"actions":[
+      {"id":"0","text":"Relancer le client","owner":"Clément","due":"2026-11-02","done":false},
+      {"id":"1","text":"Écrire le compte rendu","owner":"Nathan","due":"2026-10-28","done":false},
+      {"id":"2","text":"Mettre à jour le plan","owner":"clement","done":false}
+    ]}}},
+    {"id":"recorded-3","startedAt":"2026-10-23T14:00:00Z","durationMs":1800000,"modifiedAt":"2026-10-23T15:00:00Z","device":"phone-1","minutes":{"type":"writing"}}
+  ],
+  "requests": [
+    {"type":"board","today":"2026-10-26"},
+    {"type":"board","today":"2026-10-26","lingering":[{"meeting":"recorded-1","action":"3"}]},
+    {"type":"board","today":"2026-10-27"}
+  ],
+  "events": [
+    {"type":"board","today":"2026-10-26",
+      "toComplete":[{"meeting":"recorded-1","action":"1"},{"meeting":"recorded-2","action":"2"}],
+      "groups":[
+        {"group":"late","actions":[{"meeting":"recorded-1","action":"0","group":"late","daysLate":2}]},
+        {"group":"tomorrow","actions":[{"meeting":"recorded-1","action":"2","group":"tomorrow"}]},
+        {"group":"nextDays","actions":[{"meeting":"recorded-2","action":"1","group":"nextDays"}]},
+        {"group":"later","actions":[{"meeting":"recorded-2","action":"0","group":"later"}]}
+      ],
+      "done":[{"meeting":"recorded-1","action":"3","group":"today"}],
+      "open":6,"late":1,
+      "people":[
+        {"key":"nathan","name":"Nathan","late":1,"done":0,"total":2,"open":[
+          {"meeting":"recorded-1","action":"0","group":"late","daysLate":2},
+          {"meeting":"recorded-2","action":"1","group":"nextDays"}]},
+        {"key":"clement","name":"Clément","late":0,"done":0,"total":2,"open":[
+          {"meeting":"recorded-2","action":"0","group":"later"},
+          {"meeting":"recorded-2","action":"2"}]},
+        {"key":"adam","name":"Adam","late":0,"done":1,"total":2,"open":[
+          {"meeting":"recorded-1","action":"2","group":"tomorrow"}]},
+        {"late":0,"done":0,"total":1,"open":[{"meeting":"recorded-1","action":"1"}]}
+      ],
+      "lateByMeeting":{"recorded-1":1}},
+    {"type":"board","today":"2026-10-26",
+      "toComplete":[{"meeting":"recorded-1","action":"1"},{"meeting":"recorded-2","action":"2"}],
+      "groups":[
+        {"group":"late","actions":[{"meeting":"recorded-1","action":"0","group":"late","daysLate":2}]},
+        {"group":"today","actions":[{"meeting":"recorded-1","action":"3","group":"today"}]},
+        {"group":"tomorrow","actions":[{"meeting":"recorded-1","action":"2","group":"tomorrow"}]},
+        {"group":"nextDays","actions":[{"meeting":"recorded-2","action":"1","group":"nextDays"}]},
+        {"group":"later","actions":[{"meeting":"recorded-2","action":"0","group":"later"}]}
+      ],
+      "done":[],
+      "open":7,"late":1,
+      "people":[
+        {"key":"nathan","name":"Nathan","late":1,"done":0,"total":2,"open":[
+          {"meeting":"recorded-1","action":"0","group":"late","daysLate":2},
+          {"meeting":"recorded-2","action":"1","group":"nextDays"}]},
+        {"key":"adam","name":"Adam","late":0,"done":1,"total":2,"open":[
+          {"meeting":"recorded-1","action":"3","group":"today"},
+          {"meeting":"recorded-1","action":"2","group":"tomorrow"}]},
+        {"key":"clement","name":"Clément","late":0,"done":0,"total":2,"open":[
+          {"meeting":"recorded-2","action":"0","group":"later"},
+          {"meeting":"recorded-2","action":"2"}]},
+        {"late":0,"done":0,"total":1,"open":[{"meeting":"recorded-1","action":"1"}]}
+      ],
+      "lateByMeeting":{"recorded-1":1}},
+    {"type":"board","today":"2026-10-27",
+      "toComplete":[{"meeting":"recorded-1","action":"1"},{"meeting":"recorded-2","action":"2"}],
+      "groups":[
+        {"group":"late","actions":[{"meeting":"recorded-1","action":"0","group":"late","daysLate":3}]},
+        {"group":"today","actions":[{"meeting":"recorded-1","action":"2","group":"today"}]},
+        {"group":"tomorrow","actions":[{"meeting":"recorded-2","action":"1","group":"tomorrow"}]},
+        {"group":"nextDays","actions":[{"meeting":"recorded-2","action":"0","group":"nextDays"}]}
+      ],
+      "done":[{"meeting":"recorded-1","action":"3","group":"late"}],
+      "open":6,"late":1,
+      "people":[
+        {"key":"nathan","name":"Nathan","late":1,"done":0,"total":2,"open":[
+          {"meeting":"recorded-1","action":"0","group":"late","daysLate":3},
+          {"meeting":"recorded-2","action":"1","group":"tomorrow"}]},
+        {"key":"clement","name":"Clément","late":0,"done":0,"total":2,"open":[
+          {"meeting":"recorded-2","action":"0","group":"nextDays"},
+          {"meeting":"recorded-2","action":"2"}]},
+        {"key":"adam","name":"Adam","late":0,"done":1,"total":2,"open":[
+          {"meeting":"recorded-1","action":"2","group":"today"}]},
+        {"late":0,"done":0,"total":1,"open":[{"meeting":"recorded-1","action":"1"}]}
+      ],
+      "lateByMeeting":{"recorded-1":1}}
+  ],
+  "keys": [
+    {"name":"Clément","key":"clement"},
+    {"name":"  Clément ","key":"clement"},
+    {"name":"CLÉMENT","key":"clement"},
+    {"name":"clement","key":"clement"},
+    {"name":"Anne   Marie","key":"anne marie"},
+    {"name":"Zoé","key":"zoe"},
+    {"name":"Œuvre","key":"oeuvre"},
+    {"name":"Łukasz","key":"łukasz"},
+    {"name":"Clément B.","key":"clement b."}
+  ]
+}

@@ -2,6 +2,7 @@
 // phones, which UniFFI writes, is a crate of its own.
 #![forbid(unsafe_code)]
 
+pub mod actions;
 pub mod audio;
 pub mod engine;
 pub mod format;

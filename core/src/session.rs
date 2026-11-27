@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 
+use crate::actions::{Ask, Board};
 use crate::audio::{self, AudioError};
 use crate::engine::lent::{Lender, Offer};
 use crate::engine::{Catalogue, Engines};
@@ -23,34 +24,45 @@ pub enum Request {
     Recorder(Command),
     Meetings(Change),
     Settings(Choice),
+    // The actions as a day makes them: answered by an event, and nothing else changes.
+    Board(Ask),
 }
 
-// The settings, read apart from the commands and the changes: {"type":"settings"}, and the choices beside it.
+// The settings and the board, read apart from the commands and the changes: {"type":"settings"} and the choices beside
+// it, {"type":"board"} and the day.
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 enum Asked {
     Settings(Choice),
+    Board(Ask),
 }
 
 impl Request {
-    // A command, a change, then the settings: no kind of one has the name of a kind of another. None for a text that
-    // is none of them, a fault of the app and never of its user.
+    // A command, a change, then the settings and the board: no kind of one has the name of a kind of another. None
+    // for a text that is none of them, a fault of the app and never of its user.
     pub fn read(text: &str) -> Option<Self> {
         let command = serde_json::from_str(text).map(Request::Recorder);
         let change = || serde_json::from_str(text).map(Request::Meetings);
-        let settings = || serde_json::from_str(text).map(|Asked::Settings(choice)| Request::Settings(choice));
-        command.or_else(|_| change()).or_else(|_| settings()).ok()
+        let asked = || {
+            serde_json::from_str(text).map(|asked| match asked {
+                Asked::Settings(choice) => Request::Settings(choice),
+                Asked::Board(ask) => Request::Board(ask),
+            })
+        };
+        command.or_else(|_| change()).or_else(|_| asked()).ok()
     }
 }
 
-// Crosses the bridge as text, written here as it stands: tests/fixtures/bridge/events.json and recorder.json hold
-// one of each kind, which every app reads in its own tests.
+// Crosses the bridge as text, written here as it stands: tests/fixtures/bridge/events.json, recorder.json and
+// board.json hold one of each kind, which every app reads in its own tests.
 #[derive(Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Event<'a> {
     Recorder(&'a State),
     // Each kind, the chosen engine first: once the meetings are listed, and again at each offer.
     Engines(&'a Catalogue),
+    // The board of the day an app asked for, told to the one who asked.
+    Board(&'a Board),
     // Already tagged with its own kind.
     #[serde(untagged)]
     Library(&'a library::Event),
@@ -172,6 +184,11 @@ impl Session {
                     self.tidy();
                 }
             }
+            // Read from the meetings as they are, told once they are let go: it changes nothing and wakes nothing.
+            Request::Board(ask) => {
+                let board = self.library.view(|meetings| Board::of(meetings, &ask));
+                self.listener.on_event(&Event::Board(&board));
+            }
         }
     }
 
@@ -216,14 +233,15 @@ mod tests {
 
     use serde_json::Value;
     use tempfile::TempDir;
-    use time::macros::utc_datetime;
+    use time::macros::{date, utc_datetime};
 
     use super::*;
+    use crate::actions::ActionKey;
     use crate::audio::{FRAME_SAMPLES, FRAMES_PER_SECOND};
     use crate::engine::lent::testing::App as Lending;
     use crate::engine::{About, Engine, EngineError, Hint, Segment, SpeechEngine, Stop};
     use crate::meeting::testing::id;
-    use crate::meeting::{KeepAudio, MinutesState};
+    use crate::meeting::{ActionId, KeepAudio, MinutesState};
     use crate::recorder::testing::sound;
     use crate::recorder::{Problem, Progress};
     use crate::secret::testing::key;
@@ -235,6 +253,7 @@ mod tests {
     const CHANGES: &str = include_str!("../tests/fixtures/bridge/changes.json");
     const ENGINES: &str = include_str!("../tests/fixtures/bridge/engines.json");
     const SETTINGS: &str = include_str!("../tests/fixtures/bridge/settings.json");
+    const BOARD: &str = include_str!("../tests/fixtures/bridge/board.json");
 
     // The side of an app: each event as it crossed.
     #[derive(Default)]
@@ -806,6 +825,115 @@ mod tests {
         assert_eq!(Value::Array(events), fixture["events"]);
     }
 
+    // The meetings of the example, lent to a session: each action in them is the one the events of the example tell.
+    fn lend_the_board_meetings(session: &Session, fixture: &Value) {
+        ask(session, &serde_json::json!({"type": "lend", "meetings": fixture["meetings"]}).to_string());
+    }
+
+    #[test]
+    fn the_board_crosses_as_the_apps_write_and_read_it() {
+        let fixture: Value = serde_json::from_str(BOARD).unwrap();
+        let requests: Vec<Request> = fixture["requests"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|text| Request::read(&text.to_string()).unwrap())
+            .collect();
+        let (today, next) = (date!(2026 - 10 - 26), date!(2026 - 10 - 27));
+        let ticked = ActionKey { meeting: id("recorded-1"), action: ActionId::new("3").unwrap() };
+        let expected = vec![
+            Request::Board(Ask { today, lingering: Vec::new() }),
+            Request::Board(Ask { today, lingering: vec![ticked] }),
+            Request::Board(Ask { today: next, lingering: Vec::new() }),
+        ];
+        assert_eq!(requests, expected);
+
+        let folder = tempfile::tempdir().unwrap();
+        let (app, session) = opened(&folder);
+        lend_the_board_meetings(&session, &fixture);
+        for (request, event) in
+            fixture["requests"].as_array().unwrap().iter().zip(fixture["events"].as_array().unwrap())
+        {
+            ask(&session, &request.to_string());
+            assert_eq!(app.told().last(), Some(event), "{request}");
+        }
+    }
+
+    // What the Kotlin of the phones still writes beside the core, until the core gives a key with each name.
+    #[test]
+    fn the_keys_of_the_example_are_the_keys_the_core_makes() {
+        let fixture: Value = serde_json::from_str(BOARD).unwrap();
+        for pair in fixture["keys"].as_array().unwrap() {
+            assert_eq!(
+                crate::actions::person_key(pair["name"].as_str().unwrap()),
+                pair["key"].as_str().unwrap(),
+                "{pair}"
+            );
+        }
+    }
+
+    // Asked for in the middle of a recording, it answers and leaves the recording, the meetings and the other events
+    // as they were.
+    #[test]
+    fn a_board_asked_tells_only_the_board_and_changes_nothing_while_a_meeting_is_recorded() {
+        let fixture: Value = serde_json::from_str(BOARD).unwrap();
+        let folder = tempfile::tempdir().unwrap();
+        let (app, session) = opened(&folder);
+        lend_the_board_meetings(&session, &fixture);
+        ask(&session, "{\"type\":\"start\",\"tracks\":1,\"offsetMinutes\":60}");
+        session.hear(0, sound(1_200, 5_000.0, 440.0));
+        session.settled();
+        let (told, state) = (app.told().len(), app.last_state());
+        let before = session.meeting(&id("recorded-1")).unwrap();
+
+        ask(&session, &fixture["requests"][0].to_string());
+        let after = app.told();
+        assert_eq!(after.len(), told + 1);
+        assert_eq!(after.last(), Some(&fixture["events"][0]));
+        assert_eq!(app.last_state(), state);
+        assert!(session.meeting(&id("recorded-1")).unwrap() == before);
+        assert_eq!(state["state"], "recording");
+        ask(&session, "{\"type\":\"stop\"}");
+        session.settled();
+        assert_eq!(app.last_state()["state"], "idle");
+    }
+
+    // Four threads tick and untick the actions of the meetings while another asks: each answer is the meetings as they
+    // were at one instant, so every action is told once and the counts agree.
+    #[test]
+    fn a_board_is_one_instant_whatever_the_threads_change() {
+        let fixture: Value = serde_json::from_str(BOARD).unwrap();
+        let folder = tempfile::tempdir().unwrap();
+        let (app, session) = opened(&folder);
+        lend_the_board_meetings(&session, &fixture);
+        let (meetings, actions) = (["recorded-1", "recorded-1", "recorded-2", "recorded-2"], ["0", "2", "0", "1"]);
+        std::thread::scope(|scope| {
+            for (meeting, action) in meetings.into_iter().zip(actions) {
+                let session = &session;
+                scope.spawn(move || {
+                    for turn in 0..300 {
+                        let edit = serde_json::json!({"type": "edit", "meeting": meeting,
+                            "edit": {"type": "setDone", "action": action, "done": turn % 2 == 0}});
+                        ask(session, &edit.to_string());
+                    }
+                });
+            }
+            for _ in 0..300 {
+                ask(&session, &fixture["requests"][1].to_string());
+            }
+        });
+        let boards: Vec<Value> = app.told().into_iter().filter(|event| event["type"] == "board").collect();
+        assert_eq!(boards.len(), 300);
+        for board in boards {
+            let told = |list: &Value| list.as_array().unwrap().len();
+            let in_groups: usize =
+                board["groups"].as_array().unwrap().iter().map(|group| told(&group["actions"])).sum();
+            // Seven actions in the meetings: each is in one list, and `open` is what the lists of the open ones hold.
+            assert_eq!(told(&board["toComplete"]) + in_groups + told(&board["done"]), 7, "{board}");
+            assert_eq!(board["open"].as_u64().unwrap() as usize, told(&board["toComplete"]) + in_groups, "{board}");
+        }
+    }
+
     #[test]
     fn every_change_the_apps_write_is_still_a_request() {
         let changes: Vec<Value> = serde_json::from_str(CHANGES).unwrap();
@@ -820,8 +948,10 @@ mod tests {
         let recorder: Value = serde_json::from_str(RECORDER).unwrap();
         let changes: Vec<Value> = serde_json::from_str(CHANGES).unwrap();
         let settings: Value = serde_json::from_str(SETTINGS).unwrap();
+        let board: Value = serde_json::from_str(BOARD).unwrap();
         let requests = recorder["requests"].as_array().unwrap().iter().chain(&changes);
         let requests = requests.chain(settings["requests"].as_array().unwrap());
+        let requests = requests.chain(board["requests"].as_array().unwrap());
         let texts: Vec<String> = requests.map(Value::to_string).collect();
         let good: Vec<&[u8]> = texts.iter().map(String::as_bytes).collect();
         each_damaged(&good, 2_000, |text| {
@@ -843,6 +973,12 @@ mod tests {
             "{\"type\":\"settings\",\"keepAudio\":\"fortnight\"}",
             "{\"type\":\"settings\",\"keepAudio\":30}",
             "{\"type\":\"setting\",\"keepAudio\":\"day\"}",
+            "{\"type\":\"board\"}",
+            "{\"type\":\"board\",\"today\":null}",
+            "{\"type\":\"board\",\"today\":\"2026-02-30\"}",
+            "{\"type\":\"board\",\"today\":\"26/10/2026\"}",
+            "{\"type\":\"board\",\"today\":\"2026-10-26\",\"lingering\":[{\"meeting\":\"../x\",\"action\":\"1\"}]}",
+            "{\"type\":\"boards\",\"today\":\"2026-10-26\"}",
         ] {
             assert_eq!(Request::read(text), None, "{text}");
         }
